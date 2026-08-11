@@ -1,0 +1,9 @@
+{
+  "name":"Vision School Attendance & Pickup",
+  "short_name":"Vision School",
+  "start_url":"./",
+  "display":"standalone",
+  "background_color":"#f4f7fb",
+  "theme_color":"#061b49",
+  "icons":[{"src":"logo.png","sizes":"192x192","type":"image/png"},{"src":"logo.png","sizes":"512x512","type":"image/png"}]
+}
