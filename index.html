@@ -1,906 +1,1102 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 
   <meta name="theme-color" content="#0757a6">
-  <meta name="description" content="Vision School Student Security and Attendance System">
+  <meta
+    name="description"
+    content="Vision School Student Security and Attendance System">
 
   <link rel="manifest" href="manifest.json">
-  <link rel="icon" href="logo.png">
-  <link rel="stylesheet" href="style.css">
 
   <title>Vision School | Student Security & Attendance</title>
+
+  <!-- SUPABASE -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- QR GENERATOR -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+  <!-- QR SCANNER -->
+  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      font-family:
+        Inter,
+        Arial,
+        Helvetica,
+        sans-serif;
+      background: #f4f7fb;
+      color: #172033;
+    }
+
+    button,
+    input,
+    select,
+    textarea {
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+      border: 0;
+    }
+
+    .app-header {
+      background: linear-gradient(135deg, #0757a6, #0b74d1);
+      color: white;
+      padding: 15px 20px;
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      box-shadow: 0 3px 12px rgba(0,0,0,.15);
+    }
+
+    .header-inner {
+      max-width: 1200px;
+      margin: auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 15px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-icon {
+      width: 45px;
+      height: 45px;
+      border-radius: 12px;
+      background: rgba(255,255,255,.18);
+      display: grid;
+      place-items: center;
+      font-size: 24px;
+      font-weight: bold;
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: 20px;
+    }
+
+    .brand p {
+      margin: 3px 0 0;
+      opacity: .85;
+      font-size: 12px;
+    }
+
+    .connection {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255,255,255,.12);
+      padding: 8px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: bold;
+    }
+
+    .connection-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #f87171;
+    }
+
+    .connection.online .connection-dot {
+      background: #4ade80;
+    }
+
+    main {
+      max-width: 1200px;
+      margin: auto;
+      padding: 20px;
+      padding-bottom: 100px;
+    }
+
+    .screen {
+      display: none;
+    }
+
+    .screen.active {
+      display: block;
+    }
+
+    .welcome {
+      background: linear-gradient(135deg, #0757a6, #1683e8);
+      color: white;
+      border-radius: 20px;
+      padding: 25px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .welcome h2 {
+      margin: 0 0 8px;
+      font-size: 28px;
+    }
+
+    .welcome p {
+      margin: 0;
+      opacity: .9;
+    }
+
+    .welcome button {
+      background: white;
+      color: #0757a6;
+      white-space: nowrap;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+
+    .stat {
+      background: white;
+      border-radius: 16px;
+      padding: 18px;
+      box-shadow: 0 3px 12px rgba(0,0,0,.06);
+    }
+
+    .stat-label {
+      color: #667085;
+      font-size: 13px;
+    }
+
+    .stat-number {
+      font-size: 30px;
+      font-weight: 800;
+      margin-top: 5px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 18px;
+      padding: 20px;
+      margin-bottom: 18px;
+      box-shadow: 0 3px 12px rgba(0,0,0,.06);
+    }
+
+    .card h2,
+    .card h3 {
+      margin-top: 0;
+    }
+
+    .section-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 15px;
+      margin-bottom: 15px;
+    }
+
+    .muted {
+      color: #667085;
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .primary,
+    .secondary,
+    .danger {
+      padding: 11px 15px;
+      border-radius: 10px;
+      font-weight: 700;
+    }
+
+    .primary {
+      background: #0757a6;
+      color: white;
+    }
+
+    .primary:hover {
+      background: #06498a;
+    }
+
+    .secondary {
+      background: #e9eef5;
+      color: #172033;
+    }
+
+    .danger {
+      background: #dc2626;
+      color: white;
+    }
+
+    .big {
+      min-height: 55px;
+      font-size: 16px;
+    }
+
+    label {
+      display: block;
+      font-weight: 700;
+      margin: 12px 0 5px;
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #d0d5dd;
+      border-radius: 10px;
+      background: white;
+      outline: none;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      border-color: #0757a6;
+      box-shadow: 0 0 0 3px rgba(7,87,166,.1);
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px 15px;
+    }
+
+    .message {
+      margin-top: 12px;
+      padding: 12px;
+      border-radius: 10px;
+    }
+
+    .success {
+      background: #ecfdf3;
+      border: 1px solid #86efac;
+      color: #166534;
+    }
+
+    .warning {
+      background: #fff7ed;
+      border: 1px solid #fdba74;
+      color: #9a3412;
+    }
+
+    .error {
+      background: #fef2f2;
+      border: 1px solid #fca5a5;
+      color: #991b1b;
+    }
+
+    .activity-row {
+      padding: 13px 0;
+      border-bottom: 1px solid #eaecf0;
+    }
+
+    .activity-row:last-child {
+      border-bottom: 0;
+    }
+
+    #reader {
+      width: 100%;
+      max-width: 520px;
+      margin: 15px auto;
+    }
+
+    #reader video {
+      border-radius: 14px;
+    }
+
+    .scanner-box {
+      background: #f8fafc;
+      border-radius: 14px;
+      padding: 12px;
+    }
+
+    .student-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .student-item {
+      border: 1px solid #e4e7ec;
+      border-radius: 14px;
+      padding: 16px;
+      background: white;
+    }
+
+    .student-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 15px;
+    }
+
+    .student-name {
+      font-size: 18px;
+      font-weight: 800;
+    }
+
+    .student-id {
+      color: #0757a6;
+      font-weight: 700;
+      margin-top: 3px;
+    }
+
+    .details-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin: 18px 0;
+    }
+
+    .detail-box {
+      background: #f8fafc;
+      border-radius: 12px;
+      padding: 14px;
+    }
+
+    .detail-label {
+      font-size: 12px;
+      color: #667085;
+      margin-bottom: 4px;
+    }
+
+    .detail-value {
+      font-weight: 700;
+    }
+
+    .authorized-person {
+      border: 1px solid #e4e7ec;
+      border-radius: 12px;
+      padding: 12px;
+      margin-top: 8px;
+    }
+
+    .option-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit,minmax(210px,1fr));
+      gap: 10px;
+      margin: 12px 0;
+    }
+
+    .option {
+      border: 1px solid #d0d5dd;
+      border-radius: 12px;
+      padding: 13px;
+      background: #fff;
+      cursor: pointer;
+    }
+
+    .option:hover {
+      border-color: #0757a6;
+      background: #f5f9ff;
+    }
+
+    .option.selected {
+      border: 2px solid #0757a6;
+      background: #eaf3ff;
+    }
+
+    .status {
+      display: inline-block;
+      padding: 6px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .status.in {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .status.out {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+
+    .status.none {
+      background: #f3f4f6;
+      color: #4b5563;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 750px;
+    }
+
+    th,
+    td {
+      padding: 11px;
+      border-bottom: 1px solid #eaecf0;
+      text-align: left;
+    }
+
+    th {
+      background: #f8fafc;
+    }
+
+    .bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 65px;
+      background: white;
+      border-top: 1px solid #e4e7ec;
+      display: grid;
+      grid-template-columns: repeat(4,1fr);
+      z-index: 1500;
+      box-shadow: 0 -3px 12px rgba(0,0,0,.08);
+    }
+
+    .bottom-nav button {
+      background: white;
+      color: #475467;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .bottom-nav button:hover {
+      background: #f2f7fd;
+      color: #0757a6;
+    }
+
+    #toast {
+      position: fixed;
+      bottom: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #111827;
+      color: white;
+      padding: 12px 18px;
+      border-radius: 10px;
+      display: none;
+      z-index: 3000;
+      max-width: 90%;
+      text-align: center;
+    }
+
+    .qr-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.75);
+      z-index: 4000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .qr-box {
+      background: white;
+      border-radius: 18px;
+      padding: 25px;
+      max-width: 400px;
+      width: 100%;
+      text-align: center;
+    }
+
+    #qrCodeBox {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin: 20px 0;
+      min-height: 250px;
+    }
+
+    #qrCodeBox img,
+    #qrCodeBox canvas {
+      max-width: 240px;
+      height: auto;
+    }
+
+    .authorized-list {
+      margin-top: 10px;
+    }
+
+    .remove-person {
+      margin-top: 8px;
+    }
+
+    @media(max-width: 850px) {
+      .stats {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .welcome {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+    }
+
+    @media(max-width: 600px) {
+      main {
+        padding: 12px;
+        padding-bottom: 85px;
+      }
+
+      .brand p {
+        display: none;
+      }
+
+      .brand h1 {
+        font-size: 17px;
+      }
+
+      .connection {
+        padding: 7px 9px;
+      }
+
+      .form-grid,
+      .details-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .stats {
+        grid-template-columns: repeat(2,1fr);
+      }
+
+      .stat-number {
+        font-size: 24px;
+      }
+
+      .card {
+        padding: 15px;
+      }
+
+      .student-top {
+        flex-direction: column;
+      }
+
+      .row button {
+        flex: 1;
+      }
+    }
+  </style>
 </head>
 
 <body>
 
-<div class="app-shell">
-
-  <!-- =====================================================
-       SIDEBAR
-  ====================================================== -->
-
-  <aside class="sidebar" id="sidebar">
+<header class="app-header">
+  <div class="header-inner">
 
     <div class="brand">
-      <img src="logo.png" alt="Vision School Logo" class="brand-logo">
+      <div class="brand-icon">VS</div>
 
       <div>
-        <h1>VISION SCHOOL</h1>
+        <h1>Vision School</h1>
         <p>Student Security & Attendance</p>
       </div>
     </div>
 
-    <nav class="nav">
+    <div id="connectionStatus" class="connection">
+      <span class="connection-dot"></span>
+      <span id="connectionText">Connecting...</span>
+    </div>
 
-      <button class="nav-btn active" data-screen="home">
-        <span>⌂</span>
-        <b>Dashboard</b>
+  </div>
+</header>
+
+
+<main>
+
+  <!-- =====================================================
+       DASHBOARD
+  ====================================================== -->
+
+  <section id="home" class="screen active">
+
+    <div class="welcome">
+
+      <div>
+        <h2>Welcome to Vision School</h2>
+
+        <p>
+          Monitor student attendance and secure pickup records.
+        </p>
+      </div>
+
+      <button
+        class="primary big"
+        onclick="show('scanner')">
+        📷 Scan Student QR
       </button>
 
-      <button class="nav-btn" data-screen="scanner">
-        <span>▣</span>
-        <b>Scan QR Code</b>
-      </button>
+    </div>
 
-      <button class="nav-btn" data-screen="students">
-        <span>♙</span>
-        <b>Students</b>
-      </button>
 
-      <button class="nav-btn" data-screen="addStudent">
-        <span>＋</span>
-        <b>Add Student</b>
-      </button>
+    <div class="stats">
 
-      <button class="nav-btn" data-screen="reports">
-        <span>▥</span>
-        <b>Reports</b>
-      </button>
+      <div class="stat">
+        <div class="stat-label">Total Students</div>
+        <div id="totalStudents" class="stat-number">0</div>
+      </div>
 
-      <button class="nav-btn" data-screen="about">
-        <span>ⓘ</span>
-        <b>About System</b>
-      </button>
+      <div class="stat">
+        <div class="stat-label">Time In</div>
+        <div id="timeInCount" class="stat-number">0</div>
+      </div>
 
-    </nav>
+      <div class="stat">
+        <div class="stat-label">In School</div>
+        <div id="inSchoolCount" class="stat-number">0</div>
+      </div>
 
-    <div class="sidebar-bottom">
+      <div class="stat">
+        <div class="stat-label">Picked Up</div>
+        <div id="pickedCount" class="stat-number">0</div>
+      </div>
 
-      <div class="connection-card">
-
-        <div class="status-line">
-          <span id="statusDot" class="status-dot"></span>
-          <strong id="onlineBadge">ONLINE</strong>
-        </div>
-
-        <small id="connectionText">Connected</small>
-
-        <div class="clock" id="clock">
-          --:--:--
-        </div>
-
-        <small id="dateText">
-          --
-        </small>
-
+      <div class="stat">
+        <div class="stat-label">Not Checked In</div>
+        <div id="notInCount" class="stat-number">0</div>
       </div>
 
     </div>
 
-  </aside>
+
+    <div class="card">
+
+      <div class="section-title">
+        <div>
+          <h3>Recent Activity</h3>
+          <p class="muted">
+            Latest attendance and pickup activity
+          </p>
+        </div>
+      </div>
+
+      <div id="activity">
+        <p class="muted">No activity yet.</p>
+      </div>
+
+    </div>
+
+  </section>
 
 
   <!-- =====================================================
-       MAIN
+       SCANNER
   ====================================================== -->
 
-  <main class="main">
+  <section id="scanner" class="screen">
 
-    <header class="topbar">
+    <div class="card">
 
-      <button
-        class="mobile-menu"
-        id="mobileMenu"
-        aria-label="Open menu">
-        ☰
-      </button>
+      <h2>📷 QR Scanner</h2>
 
-      <div>
-        <p class="eyebrow">VISION SCHOOL</p>
-        <h2 id="pageTitle">Dashboard</h2>
-      </div>
+      <p class="muted">
+        Scan a student's QR code to open their profile.
+      </p>
 
-      <div class="staff-chip">
+      <div id="reader"></div>
 
-        <span class="staff-avatar">
-          S
-        </span>
-
-        <div>
-          <b>Staff</b>
-          <small>Admin</small>
-        </div>
-
-      </div>
-
-    </header>
-
-
-    <!-- TOAST -->
-
-    <div id="toast" class="toast"></div>
-
-
-    <!-- =====================================================
-         DASHBOARD
-    ====================================================== -->
-
-    <section id="home" class="screen active">
-
-      <div class="welcome">
-
-        <div>
-          <p class="eyebrow">VISION SCHOOL</p>
-
-          <h2>
-            Welcome back! 👋
-          </h2>
-
-          <p>
-            Monitor student attendance and secure pickup records.
-          </p>
-        </div>
+      <div class="row">
 
         <button
-          class="primary-btn"
-          data-screen="scanner">
-          ▣ Scan Student QR
+          class="primary"
+          onclick="startScanner()">
+          📷 Start Camera
+        </button>
+
+        <button
+          class="secondary"
+          onclick="stopScanner()">
+          ⏹ Stop
         </button>
 
       </div>
 
+      <div class="scanner-box">
 
-      <div class="stats-grid">
+        <b>Manual Student ID</b>
 
-        <div class="stat-card">
-          <div class="stat-icon blue">♙</div>
+        <div class="row">
 
-          <div>
-            <span>Total Students</span>
-            <strong id="totalStudents">0</strong>
-            <small>Registered students</small>
-          </div>
-        </div>
-
-
-        <div class="stat-card">
-          <div class="stat-icon green">↪</div>
-
-          <div>
-            <span>Time In</span>
-            <strong id="timeInCount">0</strong>
-            <small>Checked in today</small>
-          </div>
-        </div>
-
-
-        <div class="stat-card">
-          <div class="stat-icon orange">⌂</div>
-
-          <div>
-            <span>In School</span>
-            <strong id="inSchoolCount">0</strong>
-            <small>Currently in school</small>
-          </div>
-        </div>
-
-
-        <div class="stat-card">
-          <div class="stat-icon purple">▰</div>
-
-          <div>
-            <span>Picked Up</span>
-            <strong id="pickedCount">0</strong>
-            <small>Picked up today</small>
-          </div>
-        </div>
-
-
-        <div class="stat-card">
-          <div class="stat-icon red">×</div>
-
-          <div>
-            <span>Not Checked In</span>
-            <strong id="notInCount">0</strong>
-            <small>Not checked in yet</small>
-          </div>
-        </div>
-
-      </div>
-
-
-      <div class="content-grid">
-
-        <div class="panel">
-
-          <div class="panel-head">
-
-            <div>
-              <h3>Recent Activity</h3>
-              <p>Latest attendance and pickup records</p>
-            </div>
-
-            <button
-              class="link-btn"
-              data-screen="reports">
-              View All →
-            </button>
-
-          </div>
-
-          <div
-            id="activity"
-            class="activity-list">
-            <div class="empty">
-              No activity yet.
-            </div>
-          </div>
-
-        </div>
-
-
-        <div class="panel">
-
-          <div class="panel-head">
-
-            <div>
-              <h3>Quick Actions</h3>
-              <p>Frequently used actions</p>
-            </div>
-
-          </div>
-
-
-          <div class="quick-actions">
-
-            <button
-              class="quick blue-bg"
-              data-screen="scanner">
-
-              <span>▣</span>
-
-              <div>
-                <b>Scan Student QR Code</b>
-                <small>Scan to view student profile</small>
-              </div>
-
-              →
-            </button>
-
-
-            <button
-              class="quick green-bg"
-              data-screen="addStudent">
-
-              <span>＋</span>
-
-              <div>
-                <b>Add New Student</b>
-                <small>Register a new student</small>
-              </div>
-
-              →
-            </button>
-
-
-            <button
-              class="quick orange-bg"
-              data-screen="students">
-
-              <span>♙</span>
-
-              <div>
-                <b>View Students</b>
-                <small>Manage student records</small>
-              </div>
-
-              →
-            </button>
-
-
-            <button
-              class="quick purple-bg"
-              data-screen="reports">
-
-              <span>▥</span>
-
-              <div>
-                <b>View Reports</b>
-                <small>Attendance and pickup reports</small>
-              </div>
-
-              →
-            </button>
-
-          </div>
-
-        </div>
-
-      </div>
-
-    </section>
-
-
-    <!-- =====================================================
-         SCANNER
-    ====================================================== -->
-
-    <section id="scanner" class="screen">
-
-      <div class="section-head">
-
-        <div>
-
-          <p class="eyebrow">
-            QR ATTENDANCE
-          </p>
-
-          <h2>
-            Scan QR Code
-          </h2>
-
-          <p>
-            Point the camera at a student's QR code.
-            The QR should contain only the Student ID.
-          </p>
-
-        </div>
-
-      </div>
-
-
-      <div class="scanner-layout">
-
-        <div class="panel scanner-panel">
-
-          <div class="camera-wrap">
-
-            <video
-              id="video"
-              playsinline
-              muted>
-            </video>
-
-            <div class="scan-frame"></div>
-
-            <div id="cameraHint">
-              Camera is stopped
-            </div>
-
-          </div>
-
-          <canvas
-            id="canvas"
-            hidden>
-          </canvas>
-
-
-          <div class="button-row">
-
-            <button
-              class="primary-btn"
-              id="startCamera">
-              ▶ Start Camera
-            </button>
-
-            <button
-              class="secondary-btn"
-              id="stopCamera">
-              ■ Stop
-            </button>
-
-          </div>
-
-
-          <div
-            id="scanMessage"
-            class="message">
-          </div>
-
-        </div>
-
-
-        <div class="panel manual-panel">
-
-          <h3>
-            Manual Student ID
-          </h3>
-
-          <p>
-            Use this when camera QR detection
-            is unavailable.
-          </p>
-
-
-          <div class="form-group">
-
-            <label for="manualId">
-              Student ID
-            </label>
-
-            <input
-              id="manualId"
-              type="text"
-              placeholder="e.g. VS001">
-
-          </div>
-
+          <input
+            id="manualId"
+            placeholder="Example: VS001">
 
           <button
-            class="primary-btn full"
-            id="manualOpen">
-            Open Student
+            class="primary"
+            onclick="manualOpenStudent()">
+            Open
           </button>
 
         </div>
 
       </div>
 
-    </section>
+      <div id="scanMessage"></div>
+
+    </div>
+
+  </section>
 
 
-    <!-- =====================================================
-         STUDENTS
-    ====================================================== -->
+  <!-- =====================================================
+       STUDENTS
+  ====================================================== -->
 
-    <section id="students" class="screen">
+  <section id="students" class="screen">
 
-      <div class="section-head">
+    <div class="card">
+
+      <div class="section-title">
 
         <div>
+          <h2>👨‍🎓 Students</h2>
 
-          <p class="eyebrow">
-            STUDENT MANAGEMENT
+          <p class="muted">
+            Student records shared across all devices.
           </p>
-
-          <h2>
-            Students
-          </h2>
-
-          <p>
-            Search, view, delete and generate QR codes
-            for registered students.
-          </p>
-
         </div>
 
         <button
-          class="primary-btn"
-          data-screen="addStudent">
+          class="primary"
+          onclick="show('addStudent')">
           ＋ Add Student
         </button>
 
       </div>
 
 
-      <div class="panel">
-
-        <div class="toolbar">
-
-          <input
-            id="studentSearch"
-            class="search"
-            type="search"
-            placeholder="🔍 Search by ID, name, level or section...">
-
-          <span
-            id="studentCountLabel"
-            class="muted">
-          </span>
-
-        </div>
+      <input
+        id="studentSearch"
+        placeholder="🔍 Search student ID or name..."
+        oninput="renderStudents()">
 
 
-        <div
-          id="studentTable"
-          class="table-wrap">
+      <div
+        id="studentList"
+        class="student-list">
+
+        <p class="muted">
+          Loading students...
+        </p>
+
+      </div>
+
+    </div>
+
+  </section>
+
+
+  <!-- =====================================================
+       ADD STUDENT
+  ====================================================== -->
+
+  <section id="addStudent" class="screen">
+
+    <div class="card">
+
+      <div class="section-title">
+
+        <div>
+          <h2>＋ Add New Student</h2>
+
+          <p class="muted">
+            Add the student to the shared Vision School database.
+          </p>
         </div>
 
       </div>
 
-    </section>
 
-
-    <!-- =====================================================
-         ADD STUDENT
-    ====================================================== -->
-
-    <section id="addStudent" class="screen">
-
-      <div class="section-head">
+      <div class="form-grid">
 
         <div>
 
-          <p class="eyebrow">
-            REGISTRATION
-          </p>
+          <label>Student ID *</label>
 
-          <h2 id="formTitle">
-            Add Student
-          </h2>
-
-          <p>
-            Register a student and add multiple
-            authorized pickup people.
-          </p>
+          <input
+            id="studentIdInput"
+            placeholder="Example: VS001">
 
         </div>
 
-      </div>
-
-
-      <div class="panel form-panel">
-
-        <form
-          id="studentForm"
-          autocomplete="off">
-
-          <input
-            type="hidden"
-            id="editId">
-
-
-          <div class="form-grid">
-
-            <div class="form-group">
-
-              <label>
-                Student ID *
-              </label>
-
-              <input
-                id="studentId"
-                required
-                placeholder="e.g. VS001">
-
-            </div>
-
-
-            <div class="form-group">
-
-              <label>
-                Student Name *
-              </label>
-
-              <input
-                id="studentName"
-                required
-                placeholder="Full name">
-
-            </div>
-
-
-            <div class="form-group">
-
-              <label>
-                Level *
-              </label>
-
-              <input
-                id="studentLevel"
-                required
-                placeholder="e.g. Primary 3">
-
-            </div>
-
-
-            <div class="form-group">
-
-              <label>
-                Section *
-              </label>
-
-              <input
-                id="studentSection"
-                required
-                placeholder="e.g. A">
-
-            </div>
-
-
-            <div class="form-group">
-
-              <label>
-                Parent / Guardian *
-              </label>
-
-              <input
-                id="studentParent"
-                required
-                placeholder="Parent or guardian name">
-
-            </div>
-
-
-            <div class="form-group">
-
-              <label>
-                Parent Contact
-              </label>
-
-              <input
-                id="studentPhone"
-                placeholder="Phone number">
-
-            </div>
-
-          </div>
-
-
-          <div class="authorized-header">
-
-            <div>
-
-              <h3>
-                Authorized Pickup People
-              </h3>
-
-              <p>
-                Add as many authorized people as needed.
-              </p>
-
-            </div>
-
-
-            <button
-              type="button"
-              class="secondary-btn"
-              id="addPickup">
-              ＋ Add Person
-            </button>
-
-          </div>
-
-
-          <div
-            id="pickupPeople"
-            class="pickup-list">
-          </div>
-
-
-          <div class="form-actions">
-
-            <button
-              type="button"
-              class="secondary-btn"
-              id="clearForm">
-              Clear
-            </button>
-
-            <button
-              type="submit"
-              class="primary-btn">
-              ✓ Save Student
-            </button>
-
-          </div>
-
-        </form>
-
-      </div>
-
-    </section>
-
-
-    <!-- =====================================================
-         STUDENT PROFILE
-    ====================================================== -->
-
-    <section id="student" class="screen">
-
-      <div class="section-head">
 
         <div>
 
-          <p class="eyebrow">
-            STUDENT PROFILE
-          </p>
+          <label>Student Name *</label>
 
-          <h2>
-            Student Details
-          </h2>
+          <input
+            id="studentNameInput"
+            placeholder="Student full name">
 
         </div>
 
+
+        <div>
+
+          <label>Level / Grade *</label>
+
+          <input
+            id="studentLevelInput"
+            placeholder="Example: Primary 2">
+
+        </div>
+
+
+        <div>
+
+          <label>Section</label>
+
+          <input
+            id="studentSectionInput"
+            placeholder="Example: A">
+
+        </div>
+
+
+        <div>
+
+          <label>Parent / Guardian *</label>
+
+          <input
+            id="studentParentInput"
+            placeholder="Parent or guardian name">
+
+        </div>
+
+
+        <div>
+
+          <label>Parent Phone</label>
+
+          <input
+            id="studentPhoneInput"
+            placeholder="Phone number">
+
+        </div>
+
+      </div>
+
+
+      <hr>
+
+
+      <div class="section-title">
+
+        <div>
+          <h3>Authorized Pickup People</h3>
+
+          <p class="muted">
+            Add people who are allowed to collect this student.
+          </p>
+        </div>
 
         <button
-          class="secondary-btn"
-          data-screen="students">
-          ← Back to Students
+          class="secondary"
+          onclick="addPickupPersonField()">
+          ＋ Add Person
         </button>
 
       </div>
 
 
       <div
-        id="studentCard"
-        class="panel">
-      </div>
+        id="pickupPeopleContainer"
+        class="authorized-list">
 
-    </section>
+        <div class="authorized-person">
 
+          <label>Full Name</label>
 
-    <!-- =====================================================
-         PICKUP
-    ====================================================== -->
+          <input
+            class="pickup-name"
+            placeholder="Example: Maria Santos">
 
-    <section id="pickup" class="screen">
+          <label>Relationship</label>
 
-      <div class="section-head">
+          <input
+            class="pickup-relationship"
+            placeholder="Example: Mother">
 
-        <div>
+          <label>Contact Number</label>
 
-          <p class="eyebrow">
-            SECURE RELEASE
-          </p>
-
-          <h2>
-            Pickup / Time Out
-          </h2>
+          <input
+            class="pickup-phone"
+            placeholder="Example: 02012345678">
 
         </div>
 
       </div>
+
+
+      <div id="studentMessage"></div>
 
 
       <div
-        id="pickupCard"
-        class="panel">
+        class="row"
+        style="margin-top:18px">
+
+        <button
+          class="primary"
+          onclick="addStudent()">
+          ✓ Save Student
+        </button>
+
+        <button
+          class="secondary"
+          onclick="clearStudentForm()">
+          Clear
+        </button>
+
+        <button
+          class="secondary"
+          onclick="show('students')">
+          ← Back
+        </button>
+
       </div>
 
-    </section>
+    </div>
+
+  </section>
 
 
-    <!-- =====================================================
-         REPORTS
-    ====================================================== -->
+  <!-- =====================================================
+       STUDENT PROFILE
+  ====================================================== -->
 
-    <section id="reports" class="screen">
+  <section id="student" class="screen">
 
-      <div class="section-head">
+    <div
+      id="studentCard"
+      class="card">
+
+    </div>
+
+  </section>
+
+
+  <!-- =====================================================
+       PICKUP
+  ====================================================== -->
+
+  <section id="pickup" class="screen">
+
+    <div
+      id="pickupCard"
+      class="card">
+
+    </div>
+
+  </section>
+
+
+  <!-- =====================================================
+       REPORTS
+  ====================================================== -->
+
+  <section id="reports" class="screen">
+
+    <div class="card">
+
+      <div class="section-title">
 
         <div>
 
-          <p class="eyebrow">
-            RECORDS
-          </p>
+          <h2>📊 Attendance Reports</h2>
 
-          <h2>
-            Attendance Reports
-          </h2>
-
-          <p>
-            Review daily attendance and pickup history.
+          <p class="muted">
+            Attendance and pickup records stored in Supabase.
           </p>
 
         </div>
 
-
         <button
-          class="primary-btn"
-          id="exportCsv">
+          class="primary"
+          onclick="exportCSV()">
           ⇩ Export CSV
         </button>
 
       </div>
 
 
-      <div class="panel">
-
-        <div
-          id="reportTable"
-          class="table-wrap">
-        </div>
-
-      </div>
-
-    </section>
-
-
-    <!-- =====================================================
-         ABOUT
-    ====================================================== -->
-
-    <section id="about" class="screen">
-
-      <div class="panel about-card">
-
-        <img
-          src="logo.png"
-          class="about-logo"
-          alt="Vision School logo">
-
-        <h2>
-          Vision School Student Security
-          & Attendance System
-        </h2>
-
-        <p>
-          This application supports QR-based student
-          identification, attendance monitoring and
-          secure student pickup management.
-        </p>
-
-
-        <div class="about-grid">
-
-          <div>
-            <b>QR Identification</b>
-            <span>Unique Student ID QR codes</span>
-          </div>
-
-          <div>
-            <b>Secure Pickup</b>
-            <span>Authorized and approval-based release</span>
-          </div>
-
-          <div>
-            <b>Offline Ready</b>
-            <span>Local records using IndexedDB</span>
-          </div>
-
-          <div>
-            <b>Mobile PWA</b>
-            <span>Installable on supported phones</span>
-          </div>
-
-        </div>
-
+      <div
+        id="reportTable"
+        class="table-wrap">
 
         <p class="muted">
-          Version 1.0 • Vision School
+          Loading reports...
         </p>
 
       </div>
 
-    </section>
+    </div>
 
-  </main>
+  </section>
 
-</div>
+</main>
 
 
 <!-- =====================================================
-     QR MODAL
+     BOTTOM NAVIGATION
 ====================================================== -->
 
-<div
-  id="qrModal"
-  class="modal">
+<nav class="bottom-nav">
 
-  <div class="modal-box">
+  <button onclick="show('home')">
+    🏠
+    <br>
+    Home
+  </button>
 
-    <button
-      class="modal-close"
-      id="closeQr">
-      ×
-    </button>
+  <button onclick="show('scanner')">
+    📷
+    <br>
+    Scan
+  </button>
 
-    <div id="qrContent"></div>
+  <button onclick="show('students')">
+    👨‍🎓
+    <br>
+    Students
+  </button>
 
-  </div>
+  <button onclick="show('reports')">
+    📊
+    <br>
+    Reports
+  </button>
 
-</div>
+</nav>
 
 
-<!-- QR CODE LIBRARY -->
+<div id="toast"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
-
-<!-- APPLICATION -->
 
 <script src="app.js"></script>
 
