@@ -283,7 +283,7 @@ function normalizeStudent(student) {
   return {
     id: String(student.id || "").trim(),
     name: String(student.name || "").trim(),
-    grade: String(student.grade || "").trim(),
+    level: String(student.level || "").trim(),
     section: String(student.section || "").trim(),
     parent: String(student.parent || "").trim(),
     phone: String(student.phone || "").trim(),
