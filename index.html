@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0757a6">
+  <meta name="description" content="Vision School Student Security and Attendance System">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="logo.png">
+  <link rel="stylesheet" href="style.css">
+  <title>Vision School | Student Security & Attendance</title>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <img src="logo.png" alt="Vision School logo" class="brand-logo">
+        <div>
+          <h1>VISION SCHOOL</h1>
+          <p>Student Security & Attendance</p>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <button class="nav-btn active" data-screen="home"><span>⌂</span> Dashboard</button>
+        <button class="nav-btn" data-screen="scanner"><span>▣</span> Scan QR Code</button>
+        <button class="nav-btn" data-screen="students"><span>♙</span> Students</button>
+        <button class="nav-btn" data-screen="addStudent"><span>＋</span> Add Student</button>
+        <button class="nav-btn" data-screen="reports"><span>▥</span> Reports</button>
+        <button class="nav-btn" data-screen="about"><span>ⓘ</span> About System</button>
+      </nav>
+
+      <div class="sidebar-bottom">
+        <div class="connection-card">
+          <div class="status-line"><span id="statusDot" class="status-dot"></span><strong id="onlineBadge">ONLINE</strong></div>
+          <small id="connectionText">Connected</small>
+          <div class="clock" id="clock">--:--:--</div>
+          <small id="dateText">--</small>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <button class="mobile-menu" id="mobileMenu" aria-label="Open menu">☰</button>
+        <div>
+          <p class="eyebrow">VISION SCHOOL</p>
+          <h2 id="pageTitle">Dashboard</h2>
+        </div>
+        <div class="staff-chip"><span class="staff-avatar">S</span><div><b>Staff</b><small>Admin</small></div></div>
+      </header>
+
+      <div id="toast" class="toast"></div>
+
+      <section id="home" class="screen active">
+        <div class="welcome">
+          <div><h2>Welcome back! 👋</h2><p>Monitor student attendance and secure pickup records.</p></div>
+          <button class="primary-btn" data-screen="scanner">▣ Scan Student QR</button>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-icon blue">♙</div><div><span>Total Students</span><strong id="totalStudents">0</strong><small>Registered students</small></div></div>
+          <div class="stat-card"><div class="stat-icon green">↪</div><div><span>Time In</span><strong id="timeInCount">0</strong><small>Checked in today</small></div></div>
+          <div class="stat-card"><div class="stat-icon orange">⌂</div><div><span>In School</span><strong id="inSchoolCount">0</strong><small>Currently in school</small></div></div>
+          <div class="stat-card"><div class="stat-icon purple">▰</div><div><span>Picked Up</span><strong id="pickedCount">0</strong><small>Picked up today</small></div></div>
+          <div class="stat-card"><div class="stat-icon red">×</div><div><span>Not Checked In</span><strong id="notInCount">0</strong><small>Not checked in yet</small></div></div>
+        </div>
+
+        <div class="content-grid">
+          <div class="panel">
+            <div class="panel-head"><div><h3>Recent Activity</h3><p>Latest attendance and pickup records</p></div><button class="link-btn" data-screen="reports">View All →</button></div>
+            <div id="activity" class="activity-list"><div class="empty">No activity yet.</div></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><div><h3>Quick Actions</h3><p>Frequently used actions</p></div></div>
+            <div class="quick-actions">
+              <button class="quick blue-bg" data-screen="scanner"><span>▣</span><div><b>Scan Student QR Code</b><small>Scan to view student profile</small></div>→</button>
+              <button class="quick green-bg" data-screen="addStudent"><span>＋</span><div><b>Add New Student</b><small>Register a new student</small></div>→</button>
+              <button class="quick orange-bg" data-screen="students"><span>♙</span><div><b>View Students</b><small>Manage student records</small></div>→</button>
+              <button class="quick purple-bg" data-screen="reports"><span>▥</span><div><b>View Reports</b><small>Attendance and pickup reports</small></div>→</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="scanner" class="screen">
+        <div class="section-head"><div><p class="eyebrow">QR ATTENDANCE</p><h2>Scan QR Code</h2><p>Point the camera at a student's QR code. The QR should contain only the Student ID.</p></div></div>
+        <div class="scanner-layout">
+          <div class="panel scanner-panel">
+            <div class="camera-wrap"><video id="video" playsinline muted></video><div class="scan-frame"></div><div id="cameraHint">Camera is stopped</div></div>
+            <canvas id="canvas" hidden></canvas>
+            <div class="button-row"><button class="primary-btn" id="startCamera">▶ Start Camera</button><button class="secondary-btn" id="stopCamera">■ Stop</button></div>
+            <div id="scanMessage" class="message"></div>
+          </div>
+          <div class="panel manual-panel">
+            <h3>Manual Student ID</h3><p>Use this when camera QR detection is unavailable.</p>
+            <div class="form-group"><label for="manualId">Student ID</label><input id="manualId" placeholder="e.g. VS001"></div>
+            <button class="primary-btn full" id="manualOpen">Open Student</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="students" class="screen">
+        <div class="section-head"><div><p class="eyebrow">STUDENT MANAGEMENT</p><h2>Students</h2><p>Search, edit, delete and generate QR codes for registered students.</p></div><button class="primary-btn" data-screen="addStudent">＋ Add Student</button></div>
+        <div class="panel">
+          <div class="toolbar"><input id="studentSearch" class="search" placeholder="🔍 Search by ID, name, grade or section..."><span id="studentCountLabel" class="muted"></span></div>
+          <div id="studentTable" class="table-wrap"></div>
+        </div>
+      </section>
+
+      <section id="addStudent" class="screen">
+        <div class="section-head"><div><p class="eyebrow">REGISTRATION</p><h2 id="formTitle">Add Student</h2><p>Register a student and add multiple authorized pickup people.</p></div></div>
+        <div class="panel form-panel">
+          <form id="studentForm" autocomplete="off">
+            <input type="hidden" id="editId">
+            <div class="form-grid">
+              <div class="form-group"><label>Student ID *</label><input id="studentId" required placeholder="e.g. VS001"></div>
+              <div class="form-group"><label>Student Name *</label><input id="studentName" required placeholder="Full name"></div>
+              <div class="form-group"><label>Grade *</label><input id="studentGrade" required placeholder="e.g. Grade 3"></div>
+              <div class="form-group"><label>Section *</label><input id="studentSection" required placeholder="e.g. A"></div>
+              <div class="form-group"><label>Parent / Guardian *</label><input id="studentParent" required placeholder="Parent or guardian name"></div>
+              <div class="form-group"><label>Parent Contact</label><input id="studentPhone" placeholder="Phone number"></div>
+            </div>
+
+            <div class="authorized-header"><div><h3>Authorized Pickup People</h3><p>Add as many authorized people as needed.</p></div><button type="button" class="secondary-btn" id="addPickup">＋ Add Person</button></div>
+            <div id="pickupPeople" class="pickup-list"></div>
+
+            <div class="form-actions"><button type="button" class="secondary-btn" id="clearForm">Clear</button><button type="submit" class="primary-btn">✓ Save Student</button></div>
+          </form>
+        </div>
+      </section>
+
+      <section id="student" class="screen">
+        <div class="section-head"><div><p class="eyebrow">STUDENT PROFILE</p><h2>Student Details</h2></div><button class="secondary-btn" data-screen="students">← Back to Students</button></div>
+        <div id="studentCard" class="panel"></div>
+      </section>
+
+      <section id="pickup" class="screen">
+        <div class="section-head"><div><p class="eyebrow">SECURE RELEASE</p><h2>Pickup / Time Out</h2></div></div>
+        <div id="pickupCard" class="panel"></div>
+      </section>
+
+      <section id="reports" class="screen">
+        <div class="section-head"><div><p class="eyebrow">RECORDS</p><h2>Attendance Reports</h2><p>Review daily attendance and pickup history.</p></div><button class="primary-btn" id="exportCsv">⇩ Export CSV</button></div>
+        <div class="panel"><div id="reportTable" class="table-wrap"></div></div>
+      </section>
+
+      <section id="about" class="screen">
+        <div class="panel about-card">
+          <img src="logo.png" class="about-logo" alt="Vision School logo">
+          <h2>Vision School Student Security & Attendance System</h2>
+          <p>This application supports QR-based student identification, attendance monitoring and secure student pickup management.</p>
+          <div class="about-grid"><div><b>QR Identification</b><span>Unique Student ID QR codes</span></div><div><b>Secure Pickup</b><span>Authorized and approval-based release</span></div><div><b>Offline Ready</b><span>Local records using IndexedDB</span></div><div><b>Mobile PWA</b><span>Installable on supported phones</span></div></div>
+          <p class="muted">Version 1.0 • Vision School</p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="qrModal" class="modal"><div class="modal-box"><button class="modal-close" id="closeQr">×</button><div id="qrContent"></div></div></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
