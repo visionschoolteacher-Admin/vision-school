@@ -15,9 +15,8 @@
    NEVER use the service_role key here.
 ========================================================= */
 
-const SUPABASE_URL = "https://ymonpeujmhaymkxfmmtq.supabase.co";
-
-const SUPABASE_ANON_KEY = "PASTE_YOUR_SUPABASE_PUBLISHABLE_KEY_HERE";
+const SUPABASE_URL="https://ymonpeujmhaymkxfmmtq.supabase.co";
+const SUPABASE_ANON_KEY="sb_publishable_XXXXXXXXXXXXXXXX";
 
 
 /* =========================================================
