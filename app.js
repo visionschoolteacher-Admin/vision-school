@@ -16,7 +16,7 @@
 ========================================================= */
 
 const SUPABASE_URL="https://ymonpeujmhaymkxfmmtq.supabase.co";
-const SUPABASE_ANON_KEY="sb_publishable_XXXXXXXXXXXXXXXX";
+const SUPABASE_ANON_KEY="sb_publishable_wrTUwpJaW8NlvBLR914apw_0kAQdnnK";
 
 
 /* =========================================================
