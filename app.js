@@ -388,26 +388,48 @@ async function loadGuestLogs() {
 // ============================================================
 
 async function refreshAll() {
+  console.log("Loading Vision School database...");
+
   try {
-    await Promise.all([
-      loadStudents(),
-      loadAttendance(),
-      loadGuests(),
-      loadGuestLogs()
-    ]);
-
-    refreshDashboard();
-    renderStudents();
-    renderGuests();
-    renderReport();
-
-  } catch (error) {
-    console.error("Refresh error:", error);
-
-    toast(
-      "Could not load database. Please check Supabase and internet connection."
-    );
+    await loadStudents();
+    console.log("✓ students loaded:", studentsCache.length);
+  } catch (e) {
+    console.error("STUDENTS ERROR:", e);
+    toast("Students database error: " + (e.message || "Unknown error"));
   }
+
+  try {
+    await loadAttendance();
+    console.log("✓ attendance loaded:", attendanceCache.length);
+  } catch (e) {
+    console.error("ATTENDANCE ERROR:", e);
+    toast("Attendance database error: " + (e.message || "Unknown error"));
+  }
+
+  try {
+    await loadGuests();
+    console.log("✓ guests loaded:", guestsCache.length);
+  } catch (e) {
+    console.error("GUESTS ERROR:", e);
+    guestsCache = [];
+  }
+
+  try {
+    await loadGuestLogs();
+    console.log("✓ guest logs loaded:", guestLogsCache.length);
+  } catch (e) {
+    console.error("GUEST LOGS ERROR:", e);
+    guestLogsCache = [];
+  }
+
+  refreshDashboard();
+  renderStudents();
+
+  if (document.getElementById("guests")?.classList.contains("active")) {
+    renderGuests();
+  }
+
+  console.log("✓ Vision School database loading completed.");
 }
 
 // ============================================================
