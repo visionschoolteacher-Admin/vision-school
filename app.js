@@ -1559,87 +1559,50 @@ async function timeIn() {
     return;
   }
 
-  const existing =
-    attendanceFor(
-      currentStudent.id
-    );
+  const existing = attendanceFor(currentStudent.id);
 
   if (existing?.time_in) {
-    toast(
-      `Already checked in at ${existing.time_in}.`
-    );
-
+    toast(`Already checked in at ${existing.time_in}.`);
     return;
   }
 
   const payload = {
     date: today(),
-
-    student_id:
-      currentStudent.id,
-
-    student_name:
-      currentStudent.name,
-
-    level:
-      currentStudent.level,
-
-    time_in:
-      now(),
-
-    time_out:
-      null,
-
-    pickup_person:
-      null,
-
-    pickup_relationship:
-      null,
-
-    pickup_phone:
-      null,
-
-    pickup_option:
-      null,
-
-    staff:
-      "Staff",
-
-    approver:
-      null,
-
-    notes:
-      null
+    student_id: currentStudent.id,
+    student_name: currentStudent.name,
+    time_in: now(),
+    time_out: null,
+    pickup_person: null,
+    pickup_relationship: null,
+    pickup_phone: null,
+    pickup_option: null,
+    staff: "Staff",
+    approver: null,
+    notes: null
   };
 
-  const result =
-    await sbClient
-      .from(ATTENDANCE_TABLE)
-      .insert(payload);
+  console.log("Saving Time In:", payload);
 
-  if (result.error) {
-    console.error(
-      "Time In error:",
-      result.error
-    );
+  const { data, error } = await supabase
+    .from(ATTENDANCE_TABLE)
+    .insert(payload)
+    .select()
+    .single();
 
-    toast(
-      "Time In failed: " +
-        result.error.message
-    );
+  if (error) {
+    console.error("TIME IN ERROR:", error);
 
+    toast("Time In failed: " + error.message);
     return;
   }
 
+  console.log("TIME IN SUCCESS:", data);
+
   await loadAttendance();
 
-  toast(
-    "TIME IN SUCCESSFUL"
-  );
+  toast("TIME IN SUCCESSFUL");
 
-  await renderStudent(
-    currentStudent
-  );
+  await renderStudent(currentStudent);
 
   refreshDashboard();
 }
