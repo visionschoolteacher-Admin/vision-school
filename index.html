@@ -1,0 +1,4337 @@
+"use strict";
+
+/* =========================================================
+   VISION SCHOOL
+   SUPABASE MULTI-DEVICE VERSION
+   ========================================================= */
+
+/* ---------- SUPABASE CONFIG ---------- */
+
+const SUPABASE_URL =
+  "https://ymonpeujmhaymkxfmmtq.supabase.co";
+
+const SUPABASE_PUBLISHABLE_KEY =
+  "sb_publishable_wrTUwpJaW8NlvBLR914apw_0kAQdnnK";
+
+/*
+ IMPORTANT:
+ We deliberately use a different variable name:
+   db
+
+ This prevents the previous:
+   "supabase.from is not a function"
+ problem.
+*/
+
+const db = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_PUBLISHABLE_KEY
+);
+
+
+/* ---------- TABLES ---------- */
+
+const STUDENTS_TABLE = "students";
+const ATTENDANCE_TABLE = "attendance";
+const GUESTS_TABLE = "guests";
+const GUEST_LOGS_TABLE = "guest_logs";
+
+
+/* ---------- APP STATE ---------- */
+
+let studentsCache = [];
+let attendanceCache = [];
+let guestsCache = [];
+let guestLogsCache = [];
+
+let currentStudent = null;
+let selectedPickup = null;
+
+let qrScanner = null;
+let scannerRunning = false;
+
+let realtimeChannel = null;
+
+
+/* =========================================================
+   HELPERS
+   ========================================================= */
+
+function esc(value) {
+
+  return String(value ?? "")
+    .replace(/[&<>"']/g, char => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#039;"
+    }[char]));
+
+}
+
+
+function attr(value) {
+
+  return esc(value)
+    .replace(/`/g, "&#96;");
+
+}
+
+
+function toast(message) {
+
+  const element =
+    document.getElementById("toast");
+
+  if (!element) return;
+
+  element.textContent = message;
+  element.style.display = "block";
+
+  clearTimeout(window.__visionToast);
+
+  window.__visionToast =
+    setTimeout(() => {
+      element.style.display = "none";
+    }, 3000);
+
+}
+
+
+function today() {
+
+  const d = new Date();
+
+  return [
+    d.getFullYear(),
+    String(d.getMonth() + 1).padStart(2, "0"),
+    String(d.getDate()).padStart(2, "0")
+  ].join("-");
+
+}
+
+
+function now() {
+
+  return new Date().toLocaleTimeString(
+    [],
+    {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit"
+    }
+  );
+
+}
+
+
+/* =========================================================
+   CLOCK
+   ========================================================= */
+
+function updateClock() {
+
+  const clock =
+    document.getElementById("clock");
+
+  const date =
+    document.getElementById("dateText");
+
+  const d = new Date();
+
+  if (clock) {
+
+    clock.textContent =
+      d.toLocaleTimeString(
+        [],
+        {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit"
+        }
+      );
+
+  }
+
+  if (date) {
+
+    date.textContent =
+      d.toLocaleDateString(
+        [],
+        {
+          weekday: "short",
+          year: "numeric",
+          month: "short",
+          day: "numeric"
+        }
+      );
+
+  }
+
+}
+
+
+function updateOnlineStatus() {
+
+  const badge =
+    document.getElementById("onlineBadge");
+
+  const text =
+    document.getElementById("connectionText");
+
+  const dot =
+    document.getElementById("statusDot");
+
+  const online =
+    navigator.onLine;
+
+  if (badge) {
+
+    badge.textContent =
+      online ? "ONLINE" : "OFFLINE";
+
+    badge.className =
+      "badge " +
+      (online ? "online" : "offline");
+
+  }
+
+  if (text) {
+
+    text.textContent =
+      online
+        ? "Connected"
+        : "No internet connection";
+
+  }
+
+  if (dot) {
+
+    dot.classList.toggle(
+      "online",
+      online
+    );
+
+  }
+
+}
+
+
+/* =========================================================
+   SCREEN NAVIGATION
+   ========================================================= */
+
+function show(screenId) {
+
+  document
+    .querySelectorAll(".screen")
+    .forEach(screen => {
+
+      screen.classList.remove("active");
+
+    });
+
+
+  document
+    .querySelectorAll(".nav-btn")
+    .forEach(button => {
+
+      button.classList.toggle(
+        "active",
+        button.dataset.screen === screenId
+      );
+
+    });
+
+
+  const screen =
+    document.getElementById(screenId);
+
+  if (screen) {
+
+    screen.classList.add("active");
+
+  }
+
+
+  const titles = {
+
+    home: "Dashboard",
+
+    scanner: "Scan QR Code",
+
+    students: "Students",
+
+    addStudent: "Add Student",
+
+    student: "Student Details",
+
+    pickup: "Pickup / Time Out",
+
+    guests: "Guests",
+
+    reports: "Reports",
+
+    about: "About System"
+
+  };
+
+
+  const pageTitle =
+    document.getElementById("pageTitle");
+
+  if (pageTitle) {
+
+    pageTitle.textContent =
+      titles[screenId] ||
+      "Vision School";
+
+  }
+
+
+  if (screenId !== "scanner") {
+
+    stopScanner();
+
+  }
+
+
+  if (screenId === "students") {
+
+    renderStudents();
+
+  }
+
+
+  if (screenId === "guests") {
+
+    renderGuests();
+
+  }
+
+
+  if (screenId === "reports") {
+
+    renderReports();
+
+  }
+
+
+  window.scrollTo({
+    top: 0,
+    behavior: "smooth"
+  });
+
+}
+
+
+/* =========================================================
+   NORMALIZATION
+   ========================================================= */
+
+function normalizeStudent(student) {
+
+  return {
+
+    ...student,
+
+    id:
+      String(student.id ?? "").trim(),
+
+    name:
+      String(student.name ?? "").trim(),
+
+    level:
+      String(student.level ?? "").trim(),
+
+    parent:
+      String(student.parent ?? "").trim(),
+
+    phone:
+      String(student.phone ?? "").trim(),
+
+    authorized:
+      Array.isArray(student.authorized)
+        ? student.authorized
+        : []
+
+  };
+
+}
+
+
+function normalizeAttendance(record) {
+
+  return {
+
+    ...record,
+
+    student_id:
+      record.student_id ??
+      record.studentId,
+
+    date:
+      record.date ?? "",
+
+    time_in:
+      record.time_in ??
+      record.timeIn,
+
+    time_out:
+      record.time_out ??
+      record.timeOut,
+
+    pickup_person:
+      record.pickup_person ??
+      record.pickupPerson,
+
+    pickup_relationship:
+      record.pickup_relationship ??
+      record.pickupRelationship,
+
+    pickup_phone:
+      record.pickup_phone ??
+      record.pickupPhone,
+
+    pickup_option:
+      record.pickup_option ??
+      record.pickupOption,
+
+    staff:
+      record.staff ?? "",
+
+    approver:
+      record.approver ?? "",
+
+    notes:
+      record.notes ?? ""
+
+  };
+
+}
+
+
+function normalizeGuest(guest) {
+
+  return {
+
+    ...guest,
+
+    id: guest.id,
+
+    guest_name:
+      String(
+        guest.guest_name ?? ""
+      ).trim(),
+
+    contact_number:
+      String(
+        guest.contact_number ?? ""
+      ).trim(),
+
+    purpose:
+      String(
+        guest.purpose ?? ""
+      ).trim()
+
+  };
+
+}
+
+
+/* =========================================================
+   LOAD STUDENTS
+   ========================================================= */
+
+async function loadStudents() {
+
+  const result =
+    await db
+      .from(STUDENTS_TABLE)
+      .select("*")
+      .order("name", {
+        ascending: true
+      });
+
+
+  if (result.error) {
+
+    console.error(
+      "STUDENTS ERROR:",
+      result.error
+    );
+
+    throw result.error;
+
+  }
+
+
+  studentsCache =
+    (result.data || [])
+      .map(normalizeStudent);
+
+}
+
+
+/* =========================================================
+   LOAD ATTENDANCE
+
+   IMPORTANT:
+   We do NOT require a "level" column.
+   ========================================================= */
+
+async function loadAttendance() {
+
+  const result =
+    await db
+      .from(ATTENDANCE_TABLE)
+      .select("*")
+      .order("created_at", {
+        ascending: false
+      });
+
+
+  if (result.error) {
+
+    console.error(
+      "ATTENDANCE ERROR:",
+      result.error
+    );
+
+    throw result.error;
+
+  }
+
+
+  attendanceCache =
+    (result.data || [])
+      .map(normalizeAttendance);
+
+}
+
+
+/* =========================================================
+   LOAD GUESTS
+   ========================================================= */
+
+async function loadGuests() {
+
+  const result =
+    await db
+      .from(GUESTS_TABLE)
+      .select("*")
+      .order("created_at", {
+        ascending: false
+      });
+
+
+  if (result.error) {
+
+    console.error(
+      "GUEST ERROR:",
+      result.error
+    );
+
+    guestsCache = [];
+
+    return;
+
+  }
+
+
+  guestsCache =
+    (result.data || [])
+      .map(normalizeGuest);
+
+}
+
+
+/* =========================================================
+   LOAD GUEST LOGS
+   ========================================================= */
+
+async function loadGuestLogs() {
+
+  const result =
+    await db
+      .from(GUEST_LOGS_TABLE)
+      .select("*")
+      .order("created_at", {
+        ascending: false
+      });
+
+
+  if (result.error) {
+
+    console.error(
+      "GUEST LOG ERROR:",
+      result.error
+    );
+
+    guestLogsCache = [];
+
+    return;
+
+  }
+
+
+  guestLogsCache =
+    result.data || [];
+
+}
+
+
+/* =========================================================
+   LOAD EVERYTHING
+   ========================================================= */
+
+async function refreshAll() {
+
+  try {
+
+    await loadStudents();
+
+    await loadAttendance();
+
+    await loadGuests();
+
+    await loadGuestLogs();
+
+
+    refreshDashboard();
+
+    renderStudents();
+
+    renderGuests();
+
+    renderReports();
+
+
+    console.log(
+      "✓ Vision School database loading completed."
+    );
+
+
+  } catch (error) {
+
+    console.error(
+      "DATABASE ERROR:",
+      error
+    );
+
+
+    toast(
+      "Could not load database. Check Supabase RLS policies."
+    );
+
+  }
+
+}
+
+
+/* =========================================================
+   REALTIME
+   ========================================================= */
+
+function setupRealtime() {
+
+  if (realtimeChannel) return;
+
+
+  realtimeChannel =
+    db
+      .channel("vision-school-live")
+
+
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: STUDENTS_TABLE
+        },
+        async () => {
+
+          await loadStudents();
+
+          refreshDashboard();
+
+          renderStudents();
+
+          if (currentStudent) {
+
+            const fresh =
+              studentsCache.find(
+                s =>
+                  s.id === currentStudent.id
+              );
+
+            if (fresh) {
+
+              currentStudent =
+                fresh;
+
+              renderStudent(
+                fresh
+              );
+
+            }
+
+          }
+
+        }
+      )
+
+
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: ATTENDANCE_TABLE
+        },
+        async () => {
+
+          await loadAttendance();
+
+          refreshDashboard();
+
+          if (currentStudent) {
+
+            renderStudent(
+              currentStudent
+            );
+
+          }
+
+          renderReports();
+
+        }
+      )
+
+
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: GUESTS_TABLE
+        },
+        async () => {
+
+          await loadGuests();
+
+          refreshDashboard();
+
+          renderGuests();
+
+        }
+      )
+
+
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: GUEST_LOGS_TABLE
+        },
+        async () => {
+
+          await loadGuestLogs();
+
+          renderReports();
+
+        }
+      )
+
+
+      .subscribe(status => {
+
+        console.log(
+          "Vision School realtime status:",
+          status
+        );
+
+      });
+
+}
+
+
+/* =========================================================
+   DASHBOARD
+   ========================================================= */
+
+function refreshDashboard() {
+
+  const date =
+    today();
+
+
+  const records =
+    attendanceCache.filter(
+      record =>
+        record.date === date
+    );
+
+
+  const timeIn =
+    records.filter(
+      record =>
+        record.time_in
+    );
+
+
+  const picked =
+    records.filter(
+      record =>
+        record.time_out
+    );
+
+
+  const inSchool =
+    records.filter(
+      record =>
+        record.time_in &&
+        !record.time_out
+    );
+
+
+  function set(id, value) {
+
+    const element =
+      document.getElementById(id);
+
+    if (element) {
+
+      element.textContent =
+        value;
+
+    }
+
+  }
+
+
+  set(
+    "totalStudents",
+    studentsCache.length
+  );
+
+
+  set(
+    "timeInCount",
+    timeIn.length
+  );
+
+
+  set(
+    "inSchoolCount",
+    inSchool.length
+  );
+
+
+  set(
+    "pickedCount",
+    picked.length
+  );
+
+
+  set(
+    "notInCount",
+    Math.max(
+      0,
+      studentsCache.length -
+      timeIn.length
+    )
+  );
+
+
+  const activity =
+    document.getElementById(
+      "activity"
+    );
+
+
+  if (!activity) return;
+
+
+  const rows =
+    records
+      .slice(0, 8)
+      .map(record => {
+
+        const student =
+          studentsCache.find(
+            s =>
+              String(s.id) ===
+              String(record.student_id)
+          );
+
+
+        return `
+
+          <div class="activity-row">
+
+            <b>
+              ${esc(
+                student?.name ||
+                record.student_name ||
+                record.student_id ||
+                ""
+              )}
+            </b>
+
+            —
+            ${record.time_out
+              ? "PICKED UP"
+              : "IN SCHOOL"}
+
+            <br>
+
+            <span class="muted">
+
+              ${esc(
+                record.time_in ||
+                ""
+              )}
+
+              ${
+                record.time_out
+                  ? ` → ${esc(
+                      record.time_out
+                    )}`
+                  : ""
+              }
+
+              ${
+                record.pickup_person
+                  ? ` • ${esc(
+                      record.pickup_person
+                    )}`
+                  : ""
+              }
+
+            </span>
+
+          </div>
+
+        `;
+
+      });
+
+
+  if (!rows.length) {
+
+    activity.innerHTML =
+      '<p class="muted">No activity yet.</p>';
+
+    return;
+
+  }
+
+
+  activity.innerHTML =
+    rows.join("");
+
+}
+
+
+/* =========================================================
+   STUDENT FORM
+   ========================================================= */
+
+function addPickupPersonField() {
+
+  const container =
+    document.getElementById(
+      "pickupPeopleContainer"
+    );
+
+  if (!container) return;
+
+
+  const card =
+    document.createElement(
+      "div"
+    );
+
+
+  card.className =
+    "student-card";
+
+
+  card.innerHTML = `
+
+    <div class="row">
+
+      <b>
+        Authorized Person
+      </b>
+
+      <button
+        type="button"
+        class="danger"
+        onclick="this.closest('.student-card').remove()">
+
+        Remove
+
+      </button>
+
+    </div>
+
+
+    <label>
+      Full Name
+    </label>
+
+    <input
+      class="pickup-name"
+      placeholder="Full name">
+
+
+    <label>
+      Relationship
+    </label>
+
+    <input
+      class="pickup-relationship"
+      placeholder="Mother, Father, Aunt...">
+
+
+    <label>
+      Contact Number
+    </label>
+
+    <input
+      class="pickup-phone"
+      placeholder="Phone number">
+
+  `;
+
+
+  container.appendChild(card);
+
+}
+
+
+function clearStudentForm() {
+
+  [
+    "studentIdInput",
+    "studentNameInput",
+    "studentLevelInput",
+    "studentParentInput",
+    "studentPhoneInput"
+  ].forEach(id => {
+
+    const element =
+      document.getElementById(id);
+
+    if (element) {
+
+      element.value = "";
+
+    }
+
+  });
+
+
+  const container =
+    document.getElementById(
+      "pickupPeopleContainer"
+    );
+
+
+  if (container) {
+
+    container.innerHTML = "";
+
+  }
+
+
+  const message =
+    document.getElementById(
+      "studentMessage"
+    );
+
+
+  if (message) {
+
+    message.innerHTML = "";
+
+  }
+
+
+  addPickupPersonField();
+
+}
+
+
+function showStudentMessage(
+  message,
+  type = "success"
+) {
+
+  const element =
+    document.getElementById(
+      "studentMessage"
+    );
+
+
+  if (!element) return;
+
+
+  element.innerHTML = `
+
+    <div class="${
+      type === "warning"
+        ? "warning"
+        : "success"
+    }">
+
+      ${esc(message)}
+
+    </div>
+
+  `;
+
+}
+
+
+/* =========================================================
+   ADD STUDENT
+   ========================================================= */
+
+async function addStudent(event) {
+
+  if (event) {
+
+    event.preventDefault();
+
+  }
+
+
+  const id =
+    document
+      .getElementById(
+        "studentIdInput"
+      )
+      ?.value
+      .trim()
+      .toUpperCase();
+
+
+  const name =
+    document
+      .getElementById(
+        "studentNameInput"
+      )
+      ?.value
+      .trim();
+
+
+  const level =
+    document
+      .getElementById(
+        "studentLevelInput"
+      )
+      ?.value
+      .trim();
+
+
+  const parent =
+    document
+      .getElementById(
+        "studentParentInput"
+      )
+      ?.value
+      .trim();
+
+
+  const phone =
+    document
+      .getElementById(
+        "studentPhoneInput"
+      )
+      ?.value
+      .trim();
+
+
+  if (
+    !id ||
+    !name ||
+    !level ||
+    !parent
+  ) {
+
+    showStudentMessage(
+      "Please complete Student ID, Name, Level/Grade, and Parent/Guardian.",
+      "warning"
+    );
+
+    return;
+
+  }
+
+
+  if (
+    studentsCache.some(
+      student =>
+        student.id.toUpperCase() === id
+    )
+  ) {
+
+    showStudentMessage(
+      "This Student ID already exists.",
+      "warning"
+    );
+
+    return;
+
+  }
+
+
+  const authorized =
+    [
+      ...document.querySelectorAll(
+        "#pickupPeopleContainer .student-card"
+      )
+    ]
+      .map(card => ({
+
+        name:
+          card
+            .querySelector(
+              ".pickup-name"
+            )
+            ?.value
+            .trim() || "",
+
+        relationship:
+          card
+            .querySelector(
+              ".pickup-relationship"
+            )
+            ?.value
+            .trim() || "",
+
+        phone:
+          card
+            .querySelector(
+              ".pickup-phone"
+            )
+            ?.value
+            .trim() || ""
+
+      }))
+      .filter(person =>
+        person.name
+      );
+
+
+  const payload = {
+
+    id,
+    name,
+    level,
+    parent,
+    phone,
+    authorized
+
+  };
+
+
+  console.log(
+    "Saving student:",
+    payload
+  );
+
+
+  const result =
+    await db
+      .from(STUDENTS_TABLE)
+      .insert(payload);
+
+
+  if (result.error) {
+
+    console.error(
+      "STUDENT SAVE ERROR:",
+      result.error
+    );
+
+
+    showStudentMessage(
+      "Save failed: " +
+      result.error.message,
+      "warning"
+    );
+
+    return;
+
+  }
+
+
+  showStudentMessage(
+    `${name} was added successfully.`
+  );
+
+
+  clearStudentForm();
+
+
+  await loadStudents();
+
+
+  renderStudents();
+
+
+  refreshDashboard();
+
+
+  toast(
+    "Student added to shared database."
+  );
+
+}
+
+
+/* =========================================================
+   STUDENT LIST
+   ========================================================= */
+
+function renderStudents() {
+
+  const container =
+    document.getElementById(
+      "studentList"
+    );
+
+
+  if (!container) return;
+
+
+  const query =
+    (
+      document
+        .getElementById(
+          "studentSearch"
+        )
+        ?.value || ""
+    )
+      .toLowerCase()
+      .trim();
+
+
+  const rows =
+    studentsCache
+      .filter(student => {
+
+        if (!query) return true;
+
+
+        return (
+
+          student.id
+            .toLowerCase()
+            .includes(query)
+
+          ||
+
+          student.name
+            .toLowerCase()
+            .includes(query)
+
+          ||
+
+          student.level
+            .toLowerCase()
+            .includes(query)
+
+        );
+
+      })
+      .sort(
+        (a, b) =>
+          a.name.localeCompare(
+            b.name
+          )
+      );
+
+
+  if (!rows.length) {
+
+    container.innerHTML =
+      '<p class="muted">No students found.</p>';
+
+    return;
+
+  }
+
+
+  container.innerHTML =
+    rows
+      .map(student => `
+
+        <div class="student-card">
+
+          <div class="student-title">
+
+            <div>
+
+              <h3>
+                ${esc(student.name)}
+              </h3>
+
+              <div>
+                ${esc(student.id)}
+                •
+                ${esc(student.level)}
+              </div>
+
+              <div class="muted">
+                Parent:
+                ${esc(student.parent)}
+              </div>
+
+            </div>
+
+
+            <span class="pill">
+
+              ${
+                (student.authorized || [])
+                  .length
+              }
+
+              authorized
+
+            </span>
+
+          </div>
+
+
+          <div
+            class="row"
+            style="margin-top:12px">
+
+            <button
+              class="primary"
+              onclick="generateStudentQR('${attr(student.id)}')">
+
+              🔲 Generate QR
+
+            </button>
+
+
+            <button
+              class="secondary"
+              onclick="viewStudent('${attr(student.id)}')">
+
+              👁 View
+
+            </button>
+
+
+            <button
+              class="danger"
+              onclick="deleteStudent('${attr(student.id)}')">
+
+              🗑 Remove
+
+            </button>
+
+          </div>
+
+        </div>
+
+      `)
+      .join("");
+
+}
+
+
+/* =========================================================
+   VIEW STUDENT
+   ========================================================= */
+
+async function viewStudent(id) {
+
+  currentStudent =
+    studentsCache.find(
+      student =>
+        String(student.id) ===
+        String(id)
+    ) || null;
+
+
+  if (!currentStudent) {
+
+    toast(
+      "Student not found."
+    );
+
+    return;
+
+  }
+
+
+  renderStudent(
+    currentStudent
+  );
+
+
+  show("student");
+
+}
+
+
+/* =========================================================
+   DELETE STUDENT
+   ========================================================= */
+
+async function deleteStudent(id) {
+
+  const student =
+    studentsCache.find(
+      item =>
+        String(item.id) ===
+        String(id)
+    );
+
+
+  if (!student) return;
+
+
+  if (
+    !confirm(
+      `Remove ${student.name} (${student.id})?`
+    )
+  ) {
+
+    return;
+
+  }
+
+
+  const result =
+    await db
+      .from(STUDENTS_TABLE)
+      .delete()
+      .eq("id", id);
+
+
+  if (result.error) {
+
+    toast(
+      "Delete failed: " +
+      result.error.message
+    );
+
+    return;
+
+  }
+
+
+  toast(
+    "Student removed."
+  );
+
+
+  await loadStudents();
+
+  renderStudents();
+
+  refreshDashboard();
+
+}
+
+
+/* =========================================================
+   QR GENERATOR
+   ========================================================= */
+
+function generateStudentQR(id) {
+
+  const old =
+    document.getElementById(
+      "qrModal"
+    );
+
+
+  if (old) {
+
+    old.remove();
+
+  }
+
+
+  const modal =
+    document.createElement(
+      "div"
+    );
+
+
+  modal.id =
+    "qrModal";
+
+
+  modal.className =
+    "modal";
+
+
+  modal.innerHTML = `
+
+    <div class="modal-box">
+
+      <button
+        class="modal-close"
+        onclick="document.getElementById('qrModal')?.remove()">
+
+        ×
+
+      </button>
+
+
+      <h2>
+        Student QR Code
+      </h2>
+
+
+      <p class="muted">
+        Student ID
+      </p>
+
+
+      <h2>
+        ${esc(id)}
+      </h2>
+
+
+      <div
+        id="qrCodeBox"
+        style="
+          display:flex;
+          justify-content:center;
+          margin:18px;
+        ">
+      </div>
+
+
+      <p class="muted">
+        This QR contains only the Student ID.
+      </p>
+
+
+      <div class="row">
+
+        <button
+          class="primary"
+          onclick="downloadStudentQR('${attr(id)}')">
+
+          💾 Download
+
+        </button>
+
+
+        <button
+          class="secondary"
+          onclick="document.getElementById('qrModal')?.remove()">
+
+          Close
+
+        </button>
+
+      </div>
+
+    </div>
+
+  `;
+
+
+  document.body.appendChild(
+    modal
+  );
+
+
+  const box =
+    document.getElementById(
+      "qrCodeBox"
+    );
+
+
+  if (
+    typeof QRCode ===
+    "undefined"
+  ) {
+
+    box.innerHTML =
+      '<div class="warning">QR generator library did not load. Please refresh the page.</div>';
+
+    return;
+
+  }
+
+
+  try {
+
+    new QRCode(
+      box,
+      {
+        text: String(id),
+        width: 250,
+        height: 250,
+        correctLevel:
+          QRCode.CorrectLevel.H
+      }
+    );
+
+  } catch (error) {
+
+    console.error(
+      "QR ERROR:",
+      error
+    );
+
+
+    box.innerHTML =
+      '<div class="warning">Unable to generate QR code.</div>';
+
+  }
+
+}
+
+
+/* =========================================================
+   DOWNLOAD QR
+   ========================================================= */
+
+function downloadStudentQR(id) {
+
+  const box =
+    document.getElementById(
+      "qrCodeBox"
+    );
+
+
+  if (!box) {
+
+    toast(
+      "QR code is not ready."
+    );
+
+    return;
+
+  }
+
+
+  const canvas =
+    box.querySelector(
+      "canvas"
+    );
+
+
+  const image =
+    box.querySelector(
+      "img"
+    );
+
+
+  const link =
+    document.createElement(
+      "a"
+    );
+
+
+  link.download =
+    `${id}_QR.png`;
+
+
+  if (canvas) {
+
+    link.href =
+      canvas.toDataURL(
+        "image/png"
+      );
+
+    link.click();
+
+    return;
+
+  }
+
+
+  if (image) {
+
+    link.href =
+      image.src;
+
+    link.click();
+
+    return;
+
+  }
+
+
+  toast(
+    "QR code is not ready."
+  );
+
+}
+
+
+/* =========================================================
+   ATTENDANCE
+   ========================================================= */
+
+function attendanceFor(id) {
+
+  return attendanceCache.find(
+    record =>
+      record.date === today() &&
+      String(record.student_id) ===
+        String(id)
+  );
+
+}
+
+
+/* =========================================================
+   STUDENT DETAILS
+   ========================================================= */
+
+function renderStudent(student) {
+
+  const card =
+    document.getElementById(
+      "studentCard"
+    );
+
+
+  if (!card) return;
+
+
+  const record =
+    attendanceFor(
+      student.id
+    );
+
+
+  const authorized =
+    student.authorized || [];
+
+
+  let status =
+    "NOT CHECKED IN";
+
+
+  let statusClass =
+    "status-none";
+
+
+  if (
+    record &&
+    record.time_out
+  ) {
+
+    status =
+      "PICKED UP";
+
+    statusClass =
+      "status-out";
+
+  } else if (
+    record &&
+    record.time_in
+  ) {
+
+    status =
+      "IN SCHOOL";
+
+    statusClass =
+      "status-in";
+
+  }
+
+
+  card.innerHTML = `
+
+    <h2>
+      ${esc(student.name)}
+    </h2>
+
+
+    <p>
+      <b>Student ID:</b>
+      ${esc(student.id)}
+    </p>
+
+
+    <p>
+      <b>Level / Grade:</b>
+      ${esc(student.level)}
+    </p>
+
+
+    <p>
+      <b>Parent / Guardian:</b>
+      ${esc(student.parent)}
+    </p>
+
+
+    <p>
+      <b>Parent Phone:</b>
+      ${esc(student.phone || "-")}
+    </p>
+
+
+    <p>
+      <b>Authorized Pickup People:</b>
+      ${authorized.length}
+    </p>
+
+
+    ${
+      authorized.length
+        ? `
+
+          <div class="student-card">
+
+            ${authorized
+              .map(
+                (person, index) => `
+
+                  <div>
+
+                    <b>
+                      ${index + 1}.
+                      ${esc(person.name)}
+                    </b>
+
+                    —
+                    ${esc(
+                      person.relationship ||
+                      ""
+                    )}
+
+                    ${
+                      person.phone
+                        ? ` • ${esc(
+                            person.phone
+                          )}`
+                        : ""
+                    }
+
+                  </div>
+
+                `
+              )
+              .join("")}
+
+          </div>
+
+        `
+        : `
+          <p class="muted">
+            No authorized pickup people registered.
+          </p>
+        `
+    }
+
+
+    <p>
+
+      <b>Status:</b>
+
+      <span
+        class="pill ${statusClass}">
+
+        ${status}
+
+      </span>
+
+    </p>
+
+
+    ${
+      record?.time_in
+        ? `
+          <p>
+            <b>Time In:</b>
+            ${esc(record.time_in)}
+          </p>
+        `
+        : ""
+    }
+
+
+    ${
+      record?.time_out
+        ? `
+          <p>
+            <b>Time Out:</b>
+            ${esc(record.time_out)}
+          </p>
+
+          <p>
+            <b>Pickup:</b>
+            ${esc(
+              record.pickup_person ||
+              "-"
+            )}
+          </p>
+        `
+        : ""
+    }
+
+
+    <div
+      class="row"
+      style="margin-top:16px">
+
+      ${
+        !record?.time_in
+          ? `
+            <button
+              class="primary"
+              onclick="timeIn()">
+
+              ⏱️ TIME IN
+
+            </button>
+          `
+          : !record?.time_out
+            ? `
+              <button
+                class="primary"
+                onclick="openPickup()">
+
+                🚗 PICKUP / TIME OUT
+
+              </button>
+            `
+            : ""
+      }
+
+
+      <button
+        class="secondary"
+        onclick="show('scanner')">
+
+        ← Scan Another
+
+      </button>
+
+    </div>
+
+  `;
+
+}
+
+
+/* =========================================================
+   TIME IN
+
+   IMPORTANT:
+   Only columns known to exist are sent.
+   NO "level".
+   ========================================================= */
+
+async function timeIn() {
+
+  if (!currentStudent) {
+
+    toast(
+      "No student selected."
+    );
+
+    return;
+
+  }
+
+
+  const existing =
+    attendanceFor(
+      currentStudent.id
+    );
+
+
+  if (existing?.time_in) {
+
+    toast(
+      `Already checked in at ${existing.time_in}.`
+    );
+
+    return;
+
+  }
+
+
+  const payload = {
+
+    date: today(),
+
+    student_id:
+      currentStudent.id,
+
+    student_name:
+      currentStudent.name,
+
+    time_in:
+      now(),
+
+    time_out:
+      null,
+
+    pickup_person:
+      null,
+
+    pickup_relationship:
+      null,
+
+    pickup_phone:
+      null,
+
+    pickup_option:
+      null,
+
+    staff:
+      "Staff",
+
+    approver:
+      null,
+
+    notes:
+      null
+
+  };
+
+
+  console.log(
+    "Saving Time In:",
+    payload
+  );
+
+
+  const result =
+    await db
+      .from(ATTENDANCE_TABLE)
+      .insert(payload);
+
+
+  if (result.error) {
+
+    console.error(
+      "TIME IN ERROR:",
+      result.error
+    );
+
+
+    toast(
+      "Time In failed: " +
+      result.error.message
+    );
+
+    return;
+
+  }
+
+
+  await loadAttendance();
+
+
+  renderStudent(
+    currentStudent
+  );
+
+
+  refreshDashboard();
+
+
+  toast(
+    "TIME IN SUCCESSFUL"
+  );
+
+}
+
+
+/* =========================================================
+   PICKUP
+   ========================================================= */
+
+async function openPickup() {
+
+  if (!currentStudent) {
+
+    toast(
+      "No student selected."
+    );
+
+    return;
+
+  }
+
+
+  const record =
+    attendanceFor(
+      currentStudent.id
+    );
+
+
+  if (!record?.time_in) {
+
+    toast(
+      "Student has no TIME IN today."
+    );
+
+    return;
+
+  }
+
+
+  if (record.time_out) {
+
+    toast(
+      "Student already picked up."
+    );
+
+    return;
+
+  }
+
+
+  selectedPickup =
+    null;
+
+
+  const authorized =
+    currentStudent.authorized ||
+    [];
+
+
+  const card =
+    document.getElementById(
+      "pickupCard"
+    );
+
+
+  if (!card) return;
+
+
+  card.innerHTML = `
+
+    <h2>
+      🚗 Secure Pickup / Time Out
+    </h2>
+
+
+    <h3>
+      ${esc(currentStudent.name)}
+    </h3>
+
+
+    <p>
+      ${esc(currentStudent.id)}
+      •
+      ${esc(currentStudent.level)}
+    </p>
+
+
+    <hr>
+
+
+    <h3>
+      Authorized Pickup Person
+    </h3>
+
+
+    <div class="option-grid">
+
+      ${
+        authorized.length
+          ? authorized
+              .map(
+                (person, index) => `
+
+                  <div
+                    id="authOption${index}"
+                    class="option"
+                    onclick="selectAuth(${index})">
+
+                    <b>
+                      ${esc(person.name)}
+                    </b>
+
+                    <br>
+
+                    ${esc(
+                      person.relationship ||
+                      ""
+                    )}
+
+                    ${
+                      person.phone
+                        ? ` • ${esc(
+                            person.phone
+                          )}`
+                        : ""
+                    }
+
+                  </div>
+
+                `
+              )
+              .join("")
+          : `
+            <div class="warning">
+              No authorized pickup persons are registered.
+            </div>
+          `
+      }
+
+    </div>
+
+
+    <label>
+      Pickup Option
+    </label>
+
+
+    <select
+      id="pickupOption"
+      onchange="optionChanged()">
+
+      <option value="">
+        Select an option...
+      </option>
+
+      <option value="AUTHORIZED">
+        Authorized pickup person
+      </option>
+
+      <option value="UNAUTHORIZED_APPROVAL">
+        Unauthorized person — Admin Approval
+      </option>
+
+      <option value="EMERGENCY_APPROVAL">
+        Emergency / Parent Phone Confirmation
+      </option>
+
+      <option value="OTHER_APPROVAL">
+        Other — Admin Approval
+      </option>
+
+    </select>
+
+
+    <div id="unauthorizedFields"></div>
+
+
+    <div class="row">
+
+      <button
+        class="secondary"
+        onclick="show('student')">
+
+        Cancel
+
+      </button>
+
+
+      <button
+        class="primary"
+        onclick="confirmPickup()">
+
+        CONFIRM PICKUP
+
+      </button>
+
+    </div>
+
+  `;
+
+
+  card.dataset.authorized =
+    JSON.stringify(
+      authorized
+    );
+
+
+  show("pickup");
+
+}
+
+
+function selectAuth(index) {
+
+  const card =
+    document.getElementById(
+      "pickupCard"
+    );
+
+
+  if (!card) return;
+
+
+  const authorized =
+    JSON.parse(
+      card.dataset.authorized ||
+      "[]"
+    );
+
+
+  const person =
+    authorized[index];
+
+
+  if (!person) return;
+
+
+  selectedPickup = {
+
+    ...person,
+
+    option:
+      "AUTHORIZED"
+
+  };
+
+
+  const select =
+    document.getElementById(
+      "pickupOption"
+    );
+
+
+  if (select) {
+
+    select.value =
+      "AUTHORIZED";
+
+  }
+
+
+  const fields =
+    document.getElementById(
+      "unauthorizedFields"
+    );
+
+
+  if (fields) {
+
+    fields.innerHTML =
+      "";
+
+  }
+
+
+  document
+    .querySelectorAll(
+      ".option"
+    )
+    .forEach(element =>
+      element.classList.remove(
+        "selected"
+      )
+    );
+
+
+  document
+    .getElementById(
+      `authOption${index}`
+    )
+    ?.classList.add(
+      "selected"
+    );
+
+}
+
+
+function optionChanged() {
+
+  const select =
+    document.getElementById(
+      "pickupOption"
+    );
+
+
+  const fields =
+    document.getElementById(
+      "unauthorizedFields"
+    );
+
+
+  if (!select || !fields)
+    return;
+
+
+  const value =
+    select.value;
+
+
+  selectedPickup =
+    null;
+
+
+  if (
+    value === "AUTHORIZED" ||
+    !value
+  ) {
+
+    fields.innerHTML =
+      "";
+
+    return;
+
+  }
+
+
+  fields.innerHTML = `
+
+    <label>
+      Pickup Person Full Name *
+    </label>
+
+    <input
+      id="upName"
+      placeholder="Full name">
+
+
+    <label>
+      Relationship
+    </label>
+
+    <input
+      id="upRel"
+      placeholder="Aunt, Grandparent...">
+
+
+    <label>
+      Contact Number
+    </label>
+
+    <input
+      id="upPhone"
+      placeholder="Phone number">
+
+
+    <label>
+      Vehicle Plate Number
+      <span class="muted">
+        (optional)
+      </span>
+    </label>
+
+    <input
+      id="upPlate"
+      placeholder="e.g. 1234 ABC">
+
+
+    <label>
+      Reason / Notes
+    </label>
+
+    <textarea
+      id="upReason"
+      rows="3"
+      placeholder="Explain why this person is picking up the student.">
+    </textarea>
+
+
+    <label>
+      Approving Staff *
+    </label>
+
+    <input
+      id="approver"
+      placeholder="Admin / authorized staff name">
+
+
+    <div class="warning">
+
+      <b>
+        ⚠ APPROVAL REQUIRED
+      </b>
+
+      <br>
+
+      Do not release the student until authorized staff approves this request.
+
+    </div>
+
+  `;
+
+}
+
+
+/* =========================================================
+   CONFIRM PICKUP
+   ========================================================= */
+
+async function confirmPickup() {
+
+  if (!currentStudent) {
+
+    toast(
+      "No student selected."
+    );
+
+    return;
+
+  }
+
+
+  const option =
+    document
+      .getElementById(
+        "pickupOption"
+      )
+      ?.value;
+
+
+  if (!option) {
+
+    toast(
+      "Please select a pickup option."
+    );
+
+    return;
+
+  }
+
+
+  let pickup =
+    selectedPickup;
+
+
+  if (
+    option !==
+    "AUTHORIZED"
+  ) {
+
+    const name =
+      document
+        .getElementById(
+          "upName"
+        )
+        ?.value
+        .trim();
+
+
+    const relationship =
+      document
+        .getElementById(
+          "upRel"
+        )
+        ?.value
+        .trim();
+
+
+    const phone =
+      document
+        .getElementById(
+          "upPhone"
+        )
+        ?.value
+        .trim();
+
+
+    const plate =
+      document
+        .getElementById(
+          "upPlate"
+        )
+        ?.value
+        .trim();
+
+
+    const reason =
+      document
+        .getElementById(
+          "upReason"
+        )
+        ?.value
+        .trim();
+
+
+    const approver =
+      document
+        .getElementById(
+          "approver"
+        )
+        ?.value
+        .trim();
+
+
+    if (
+      !name ||
+      !approver
+    ) {
+
+      toast(
+        "Pickup person name and approving staff are required."
+      );
+
+      return;
+
+    }
+
+
+    pickup = {
+
+      name,
+
+      relationship,
+
+      phone,
+
+      plate,
+
+      reason,
+
+      approver,
+
+      option
+
+    };
+
+
+    if (
+      !confirm(
+        "Confirm ADMIN APPROVAL and release this student?"
+      )
+    ) {
+
+      return;
+
+    }
+
+  }
+
+
+  const record =
+    attendanceFor(
+      currentStudent.id
+    );
+
+
+  if (
+    !record ||
+    !record.time_in ||
+    record.time_out
+  ) {
+
+    toast(
+      "Attendance record is not ready for pickup."
+    );
+
+    return;
+
+  }
+
+
+  const notes = [
+
+    record.notes || "",
+
+    pickup.plate
+      ? `Plate: ${pickup.plate}`
+      : "",
+
+    pickup.reason || ""
+
+  ]
+    .filter(Boolean)
+    .join(" | ");
+
+
+  const payload = {
+
+    time_out:
+      now(),
+
+    pickup_person:
+      pickup.name ||
+      null,
+
+    pickup_relationship:
+      pickup.relationship ||
+      null,
+
+    pickup_phone:
+      pickup.phone ||
+      null,
+
+    pickup_option:
+      option,
+
+    approver:
+      pickup.approver ||
+      null,
+
+    notes:
+      notes || null
+
+  };
+
+
+  const result =
+    await db
+      .from(ATTENDANCE_TABLE)
+      .update(payload)
+      .eq("id", record.id);
+
+
+  if (result.error) {
+
+    console.error(
+      "PICKUP ERROR:",
+      result.error
+    );
+
+
+    toast(
+      "Pickup failed: " +
+      result.error.message
+    );
+
+    return;
+
+  }
+
+
+  await loadAttendance();
+
+
+  refreshDashboard();
+
+
+  currentStudent =
+    null;
+
+
+  toast(
+    "PICKUP SUCCESSFUL"
+  );
+
+
+  show("home");
+
+}
+
+
+/* =========================================================
+   GUESTS
+   ========================================================= */
+
+function openGuestForm() {
+
+  const card =
+    document.getElementById(
+      "guestFormCard"
+    );
+
+
+  if (!card) return;
+
+
+  card.innerHTML = `
+
+    <h2>
+      Register Guest
+    </h2>
+
+
+    <p class="muted">
+      Enter the visitor's information for school monitoring.
+    </p>
+
+
+    <div class="form-grid">
+
+      <div class="form-group">
+
+        <label>
+          Guest Name *
+        </label>
+
+        <input
+          id="guestName"
+          placeholder="Full name"
+          autocomplete="off">
+
+      </div>
+
+
+      <div class="form-group">
+
+        <label>
+          Contact Number *
+        </label>
+
+        <input
+          id="guestContact"
+          placeholder="Phone number"
+          autocomplete="off">
+
+      </div>
+
+
+      <div
+        class="form-group"
+        style="grid-column:1/-1">
+
+        <label>
+          Purpose *
+        </label>
+
+        <textarea
+          id="guestPurpose"
+          rows="3"
+          placeholder="Reason for visiting Vision School">
+        </textarea>
+
+      </div>
+
+    </div>
+
+
+    <div class="form-actions">
+
+      <button
+        type="button"
+        class="secondary-btn"
+        onclick="clearGuestForm()">
+
+        Clear
+
+      </button>
+
+
+      <button
+        type="button"
+        class="primary-btn"
+        onclick="saveGuest()">
+
+        ✓ Save Guest
+
+      </button>
+
+    </div>
+
+  `;
+
+
+  show("guests");
+
+
+  document
+    .getElementById(
+      "guestName"
+    )
+    ?.focus();
+
+}
+
+
+function clearGuestForm() {
+
+  [
+    "guestName",
+    "guestContact",
+    "guestPurpose"
+  ]
+    .forEach(id => {
+
+      const element =
+        document.getElementById(
+          id
+        );
+
+      if (element) {
+
+        element.value =
+          "";
+
+      }
+
+    });
+
+}
+
+
+/* =========================================================
+   SAVE GUEST
+   ========================================================= */
+
+async function saveGuest() {
+
+  const name =
+    document
+      .getElementById(
+        "guestName"
+      )
+      ?.value
+      .trim();
+
+
+  const contact =
+    document
+      .getElementById(
+        "guestContact"
+      )
+      ?.value
+      .trim();
+
+
+  const purpose =
+    document
+      .getElementById(
+        "guestPurpose"
+      )
+      ?.value
+      .trim();
+
+
+  if (
+    !name ||
+    !contact ||
+    !purpose
+  ) {
+
+    toast(
+      "Guest Name, Contact Number, and Purpose are required."
+    );
+
+    return;
+
+  }
+
+
+  const result =
+    await db
+      .from(GUESTS_TABLE)
+      .insert({
+
+        guest_name:
+          name,
+
+        contact_number:
+          contact,
+
+        purpose
+
+      })
+      .select()
+      .single();
+
+
+  if (result.error) {
+
+    console.error(
+      "GUEST SAVE ERROR:",
+      result.error
+    );
+
+
+    toast(
+      "Guest save failed: " +
+      result.error.message
+    );
+
+    return;
+
+  }
+
+
+  const guestId =
+    result.data?.id ||
+    null;
+
+
+  const logResult =
+    await db
+      .from(GUEST_LOGS_TABLE)
+      .insert({
+
+        guest_id:
+          guestId,
+
+        guest_name:
+          name,
+
+        contact_number:
+          contact,
+
+        purpose,
+
+        action:
+          "ADDED"
+
+      });
+
+
+  if (logResult.error) {
+
+    console.warn(
+      "Guest audit log failed:",
+      logResult.error
+    );
+
+  }
+
+
+  clearGuestForm();
+
+
+  await loadGuests();
+
+  await loadGuestLogs();
+
+
+  renderGuests();
+
+  refreshDashboard();
+
+
+  toast(
+    "Guest registered successfully."
+  );
+
+}
+
+
+/* =========================================================
+   DELETE GUEST
+   ========================================================= */
+
+async function deleteGuest(id) {
+
+  const guest =
+    guestsCache.find(
+      item =>
+        String(item.id) ===
+        String(id)
+    );
+
+
+  if (!guest) return;
+
+
+  if (
+    !confirm(
+      `Remove guest ${guest.guest_name} from the active guest list?\n\nThe monitoring record will be kept in the Guest Audit Records.`
+    )
+  ) {
+
+    return;
+
+  }
+
+
+  const logResult =
+    await db
+      .from(GUEST_LOGS_TABLE)
+      .insert({
+
+        guest_id:
+          guest.id,
+
+        guest_name:
+          guest.guest_name,
+
+        contact_number:
+          guest.contact_number,
+
+        purpose:
+          guest.purpose,
+
+        action:
+          "REMOVED"
+
+      });
+
+
+  if (logResult.error) {
+
+    toast(
+      "Could not record guest removal: " +
+      logResult.error.message
+    );
+
+    return;
+
+  }
+
+
+  const result =
+    await db
+      .from(GUESTS_TABLE)
+      .delete()
+      .eq(
+        "id",
+        id
+      );
+
+
+  if (result.error) {
+
+    toast(
+      "Guest removal failed: " +
+      result.error.message
+    );
+
+    return;
+
+  }
+
+
+  await loadGuests();
+
+  await loadGuestLogs();
+
+
+  renderGuests();
+
+  refreshDashboard();
+
+
+  toast(
+    "Guest removed. Audit record kept."
+  );
+
+}
+
+
+/* =========================================================
+   RENDER GUESTS
+   ========================================================= */
+
+function renderGuests() {
+
+  const list =
+    document.getElementById(
+      "guestList"
+    );
+
+
+  const count =
+    document.getElementById(
+      "guestCountLabel"
+    );
+
+
+  if (!list) return;
+
+
+  if (count) {
+
+    count.textContent =
+      `${guestsCache.length} active guest${
+        guestsCache.length === 1
+          ? ""
+          : "s"
+      }`;
+
+  }
+
+
+  if (!guestsCache.length) {
+
+    list.innerHTML =
+      '<p class="muted">No active guests right now.</p>';
+
+    return;
+
+  }
+
+
+  list.innerHTML =
+    guestsCache
+      .map(guest => `
+
+        <div class="guest-card">
+
+          <div>
+
+            <h3>
+              ${esc(
+                guest.guest_name
+              )}
+            </h3>
+
+
+            <p>
+              <b>Contact:</b>
+              ${esc(
+                guest.contact_number
+              )}
+            </p>
+
+
+            <p>
+              <b>Purpose:</b>
+              ${esc(
+                guest.purpose
+              )}
+            </p>
+
+
+            <small class="muted">
+
+              Registered
+              ${
+                guest.created_at
+                  ? esc(
+                      new Date(
+                        guest.created_at
+                      )
+                      .toLocaleString()
+                    )
+                  : ""
+              }
+
+            </small>
+
+          </div>
+
+
+          <button
+            class="danger"
+            onclick="deleteGuest('${attr(guest.id)}')">
+
+            🗑 Remove
+
+          </button>
+
+        </div>
+
+      `)
+      .join("");
+
+}
+
+
+/* =========================================================
+   REPORTS
+   ========================================================= */
+
+function renderReports() {
+
+  const container =
+    document.getElementById(
+      "reportTable"
+    );
+
+
+  if (!container) return;
+
+
+  if (
+    !attendanceCache.length &&
+    !guestLogsCache.length
+  ) {
+
+    container.innerHTML =
+      '<p class="muted">No records yet.</p>';
+
+    return;
+
+  }
+
+
+  let html = `
+
+    <h3>
+      Attendance Records
+    </h3>
+
+    <table>
+
+      <thead>
+
+        <tr>
+
+          <th>Date</th>
+          <th>Student</th>
+          <th>Time In</th>
+          <th>Time Out</th>
+          <th>Pickup</th>
+          <th>Option</th>
+          <th>Approver</th>
+          <th>Notes</th>
+
+        </tr>
+
+      </thead>
+
+      <tbody>
+
+  `;
+
+
+  attendanceCache.forEach(record => {
+
+    const student =
+      studentsCache.find(
+        item =>
+          String(item.id) ===
+          String(record.student_id)
+      );
+
+
+    html += `
+
+      <tr>
+
+        <td>
+          ${esc(record.date)}
+        </td>
+
+        <td>
+          ${esc(
+            student?.name ||
+            record.student_name ||
+            record.student_id ||
+            ""
+          )}
+        </td>
+
+        <td>
+          ${esc(
+            record.time_in ||
+            "-"
+          )}
+        </td>
+
+        <td>
+          ${esc(
+            record.time_out ||
+            "-"
+          )}
+        </td>
+
+        <td>
+          ${esc(
+            record.pickup_person ||
+            "-"
+          )}
+        </td>
+
+        <td>
+          ${esc(
+            record.pickup_option ||
+            "-"
+          )}
+        </td>
+
+        <td>
+          ${esc(
+            record.approver ||
+            "-"
+          )}
+        </td>
+
+        <td>
+          ${esc(
+            record.notes ||
+            "-"
+          )}
+        </td>
+
+      </tr>
+
+    `;
+
+  });
+
+
+  html += `
+
+      </tbody>
+
+    </table>
+
+    <br>
+
+    <h3>
+      Guest Audit Records
+    </h3>
+
+  `;
+
+
+  if (guestLogsCache.length) {
+
+    html += `
+
+      <table>
+
+        <thead>
+
+          <tr>
+
+            <th>Date</th>
+            <th>Time</th>
+            <th>Guest Name</th>
+            <th>Contact</th>
+            <th>Purpose</th>
+            <th>Action</th>
+
+          </tr>
+
+        </thead>
+
+        <tbody>
+
+    `;
+
+
+    guestLogsCache.forEach(log => {
+
+      const date =
+        log.created_at
+          ? new Date(
+              log.created_at
+            )
+          : null;
+
+
+      html += `
+
+        <tr>
+
+          <td>
+            ${
+              date
+                ? esc(
+                    date.toLocaleDateString()
+                  )
+                : "-"
+            }
+          </td>
+
+          <td>
+            ${
+              date
+                ? esc(
+                    date.toLocaleTimeString()
+                  )
+                : "-"
+            }
+          </td>
+
+          <td>
+            ${esc(
+              log.guest_name
+            )}
+          </td>
+
+          <td>
+            ${esc(
+              log.contact_number
+            )}
+          </td>
+
+          <td>
+            ${esc(
+              log.purpose
+            )}
+          </td>
+
+          <td>
+            ${esc(
+              log.action
+            )}
+          </td>
+
+        </tr>
+
+      `;
+
+    });
+
+
+    html += `
+
+        </tbody>
+
+      </table>
+
+    `;
+
+  } else {
+
+    html +=
+      '<p class="muted">No guest audit records yet.</p>';
+
+  }
+
+
+  container.innerHTML =
+    html;
+
+}
+
+
+/* =========================================================
+   CSV EXPORT
+   ========================================================= */
+
+function csv(value) {
+
+  return `"${String(
+    value ?? ""
+  ).replaceAll(
+    '"',
+    '""'
+  )}"`;
+
+}
+
+
+function exportCSV() {
+
+  const headers = [
+
+    "Record Type",
+    "Date",
+    "Time",
+    "Student ID",
+    "Student Name",
+    "Time In",
+    "Time Out",
+    "Pickup Person",
+    "Relationship",
+    "Phone",
+    "Pickup Option",
+    "Staff",
+    "Approver",
+    "Notes",
+    "Guest Name",
+    "Guest Contact",
+    "Guest Purpose",
+    "Guest Action"
+
+  ];
+
+
+  const lines = [
+
+    headers
+      .map(csv)
+      .join(",")
+
+  ];
+
+
+  attendanceCache.forEach(
+    record => {
+
+      lines.push(
+
+        [
+
+          "ATTENDANCE",
+
+          record.date,
+
+          "",
+
+          record.student_id,
+
+          record.student_name,
+
+          record.time_in,
+
+          record.time_out,
+
+          record.pickup_person,
+
+          record.pickup_relationship,
+
+          record.pickup_phone,
+
+          record.pickup_option,
+
+          record.staff,
+
+          record.approver,
+
+          record.notes,
+
+          "",
+
+          "",
+
+          "",
+
+          ""
+
+        ]
+          .map(csv)
+          .join(",")
+
+      );
+
+    }
+  );
+
+
+  guestLogsCache.forEach(
+    guest => {
+
+      const date =
+        guest.created_at
+          ? new Date(
+              guest.created_at
+            )
+          : null;
+
+
+      lines.push(
+
+        [
+
+          "GUEST AUDIT",
+
+          date
+            ? date.toLocaleDateString()
+            : "",
+
+          date
+            ? date.toLocaleTimeString()
+            : "",
+
+          "",
+
+          "",
+
+          "",
+
+          "",
+
+          "",
+
+          "",
+
+          "",
+
+          "",
+
+          "",
+
+          "",
+
+          "",
+
+          guest.guest_name,
+
+          guest.contact_number,
+
+          guest.purpose,
+
+          guest.action
+
+        ]
+          .map(csv)
+          .join(",")
+
+      );
+
+    }
+  );
+
+
+  const blob =
+    new Blob(
+      [
+        "\uFEFF" +
+        lines.join("\n")
+      ],
+      {
+        type:
+          "text/csv;charset=utf-8"
+      }
+    );
+
+
+  const url =
+    URL.createObjectURL(
+      blob
+    );
+
+
+  const link =
+    document.createElement(
+      "a"
+    );
+
+
+  link.href =
+    url;
+
+
+  link.download =
+    `vision_school_monitoring_${today()}.csv`;
+
+
+  link.click();
+
+
+  setTimeout(
+    () =>
+      URL.revokeObjectURL(
+        url
+      ),
+    1000
+  );
+
+}
+
+
+/* =========================================================
+   QR SCANNER
+   ========================================================= */
+
+async function startScanner() {
+
+  if (
+    typeof Html5Qrcode ===
+    "undefined"
+  ) {
+
+    toast(
+      "QR scanner library did not load."
+    );
+
+    return;
+
+  }
+
+
+  if (scannerRunning)
+    return;
+
+
+  const reader =
+    document.getElementById(
+      "reader"
+    );
+
+
+  if (!reader) return;
+
+
+  reader.innerHTML =
+    "";
+
+
+  qrScanner =
+    new Html5Qrcode(
+      "reader"
+    );
+
+
+  try {
+
+    await qrScanner.start(
+
+      {
+        facingMode:
+          "environment"
+      },
+
+      {
+        fps: 10,
+
+        qrbox: {
+          width: 250,
+          height: 250
+        }
+
+      },
+
+      text =>
+        handleScan(text),
+
+      () => {}
+
+    );
+
+
+    scannerRunning =
+      true;
+
+
+    const message =
+      document.getElementById(
+        "scanMessage"
+      );
+
+
+    if (message) {
+
+      message.innerHTML =
+        '<div class="success">Camera is ready. Point it at the QR code.</div>';
+
+    }
+
+
+  } catch (error) {
+
+    console.error(
+      "CAMERA ERROR:",
+      error
+    );
+
+
+    scannerRunning =
+      false;
+
+
+    toast(
+      "Camera could not start. Allow camera permission."
+    );
+
+  }
+
+}
+
+
+async function stopScanner() {
+
+  if (!qrScanner) {
+
+    scannerRunning =
+      false;
+
+    return;
+
+  }
+
+
+  try {
+
+    if (scannerRunning) {
+
+      await qrScanner.stop();
+
+    }
+
+  } catch (_) {}
+
+
+  try {
+
+    await qrScanner.clear();
+
+  } catch (_) {}
+
+
+  qrScanner =
+    null;
+
+  scannerRunning =
+    false;
+
+}
+
+
+/* =========================================================
+   QR SCAN RESULT
+   ========================================================= */
+
+async function handleScan(raw) {
+
+  const id =
+    String(
+      raw || ""
+    )
+      .trim()
+      .toUpperCase();
+
+
+  if (!id) {
+
+    toast(
+      "No Student ID detected."
+    );
+
+    return;
+
+  }
+
+
+  await stopScanner();
+
+
+  const student =
+    studentsCache.find(
+      item =>
+        item.id
+          .toUpperCase() ===
+        id
+    );
+
+
+  if (!student) {
+
+    const message =
+      document.getElementById(
+        "scanMessage"
+      );
+
+
+    if (message) {
+
+      message.innerHTML = `
+
+        <div class="warning">
+
+          Student ID not found:
+          <b>${esc(id)}</b>
+
+          <br><br>
+
+          Please add this student first.
+
+        </div>
+
+      `;
+
+    }
+
+    return;
+
+  }
+
+
+  currentStudent =
+    student;
+
+
+  renderStudent(
+    student
+  );
+
+
+  show("student");
+
+}
+
+
+/* =========================================================
+   BUTTON EVENTS
+   ========================================================= */
+
+function setupButtonEvents() {
+
+  document
+    .querySelectorAll(
+      "[data-screen]"
+    )
+    .forEach(button => {
+
+      button.addEventListener(
+        "click",
+        () => {
+
+          show(
+            button.dataset.screen
+          );
+
+
+          document
+            .getElementById(
+              "sidebar"
+            )
+            ?.classList.remove(
+              "open"
+            );
+
+        }
+      );
+
+    });
+
+
+  document
+    .getElementById(
+      "startCamera"
+    )
+    ?.addEventListener(
+      "click",
+      startScanner
+    );
+
+
+  document
+    .getElementById(
+      "stopCamera"
+    )
+    ?.addEventListener(
+      "click",
+      stopScanner
+    );
+
+
+  document
+    .getElementById(
+      "manualOpen"
+    )
+    ?.addEventListener(
+      "click",
+      () => {
+
+        handleScan(
+          document
+            .getElementById(
+              "manualId"
+            )
+            ?.value || ""
+        );
+
+      }
+    );
+
+
+  document
+    .getElementById(
+      "studentForm"
+    )
+    ?.addEventListener(
+      "submit",
+      addStudent
+    );
+
+
+  document
+    .getElementById(
+      "addPickup"
+    )
+    ?.addEventListener(
+      "click",
+      addPickupPersonField
+    );
+
+
+  document
+    .getElementById(
+      "clearForm"
+    )
+    ?.addEventListener(
+      "click",
+      clearStudentForm
+    );
+
+
+  document
+    .getElementById(
+      "studentSearch"
+    )
+    ?.addEventListener(
+      "input",
+      renderStudents
+    );
+
+
+  document
+    .getElementById(
+      "refreshStudents"
+    )
+    ?.addEventListener(
+      "click",
+      async () => {
+
+        await loadStudents();
+
+        renderStudents();
+
+        toast(
+          "Student list refreshed."
+        );
+
+      }
+    );
+
+
+  document
+    .getElementById(
+      "exportCsv"
+    )
+    ?.addEventListener(
+      "click",
+      exportCSV
+    );
+
+
+  document
+    .getElementById(
+      "mobileMenu"
+    )
+    ?.addEventListener(
+      "click",
+      () => {
+
+        document
+          .getElementById(
+            "sidebar"
+          )
+          ?.classList.toggle(
+            "open"
+          );
+
+      }
+    );
+
+
+  document
+    .getElementById(
+      "guestAddButton"
+    )
+    ?.addEventListener(
+      "click",
+      openGuestForm
+    );
+
+}
+
+
+/* =========================================================
+   ONLINE / OFFLINE
+   ========================================================= */
+
+window.addEventListener(
+  "online",
+  () => {
+
+    updateOnlineStatus();
+
+    refreshAll();
+
+  }
+);
+
+
+window.addEventListener(
+  "offline",
+  updateOnlineStatus
+);
+
+
+/* =========================================================
+   GLOBAL FUNCTIONS
+   ========================================================= */
+
+window.show =
+  show;
+
+window.startScanner =
+  startScanner;
+
+window.stopScanner =
+  stopScanner;
+
+window.handleScan =
+  handleScan;
+
+window.addStudent =
+  addStudent;
+
+window.timeIn =
+  timeIn;
+
+window.openPickup =
+  openPickup;
+
+window.confirmPickup =
+  confirmPickup;
+
+window.selectAuth =
+  selectAuth;
+
+window.optionChanged =
+  optionChanged;
+
+window.exportCSV =
+  exportCSV;
+
+window.addPickupPersonField =
+  addPickupPersonField;
+
+window.deleteStudent =
+  deleteStudent;
+
+window.renderStudents =
+  renderStudents;
+
+window.generateStudentQR =
+  generateStudentQR;
+
+window.downloadStudentQR =
+  downloadStudentQR;
+
+window.viewStudent =
+  viewStudent;
+
+window.openGuestForm =
+  openGuestForm;
+
+window.saveGuest =
+  saveGuest;
+
+window.deleteGuest =
+  deleteGuest;
+
+window.clearGuestForm =
+  clearGuestForm;
+
+window.renderGuests =
+  renderGuests;
+
+
+/* =========================================================
+   START APPLICATION
+   ========================================================= */
+
+window.addEventListener(
+  "DOMContentLoaded",
+  async () => {
+
+    console.log(
+      "Vision School starting..."
+    );
+
+
+    updateOnlineStatus();
+
+
+    updateClock();
+
+
+    setInterval(
+      updateClock,
+      1000
+    );
+
+
+    setupButtonEvents();
+
+
+    clearStudentForm();
+
+
+    await refreshAll();
+
+
+    setupRealtime();
+
+
+    console.log(
+      "✓ Vision School application started successfully."
+    );
+
+  }
+);
