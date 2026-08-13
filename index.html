@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0"
+  />
+
+  <title>Vision School | Student Attendance</title>
+
+  <meta name="theme-color" content="#2563eb" />
+  <meta
+    name="description"
+    content="Vision School Student Attendance and QR Pickup System"
+  />
+
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="logo.png" />
+
+  <link rel="stylesheet" href="style.css" />
+
+  <!-- Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- QR Scanner -->
+  <script src="https://unpkg.com/html5-qrcode" defer></script>
+
+  <script src="app.js" defer></script>
+</head>
+
+<body>
+
+  <!-- =========================
+       SIDEBAR
+  ========================== -->
+  <aside class="sidebar" id="sidebar">
+
+    <div class="brand">
+      <div class="brand-logo">
+        <img src="logo.png" alt="Vision School Logo" />
+      </div>
+
+      <div class="brand-text">
+        <strong>VISION</strong>
+        <span>SCHOOL</span>
+      </div>
+    </div>
+
+    <nav class="navigation">
+
+      <button class="nav-item active" data-section="dashboard">
+        <span class="nav-icon">▦</span>
+        <span>Dashboard</span>
+      </button>
+
+      <button class="nav-item" data-section="students">
+        <span class="nav-icon">👨‍🎓</span>
+        <span>Students</span>
+      </button>
+
+      <button class="nav-item" data-section="scanner">
+        <span class="nav-icon">▣</span>
+        <span>QR Scanner</span>
+      </button>
+
+      <button class="nav-item" data-section="attendance">
+        <span class="nav-icon">✓</span>
+        <span>Attendance</span>
+      </button>
+
+      <button class="nav-item" data-section="reports">
+        <span class="nav-icon">▤</span>
+        <span>Reports</span>
+      </button>
+
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="connection-status">
+        <span id="connectionDot"></span>
+        <span id="connectionText">Connecting...</span>
+      </div>
+
+      <small>Vision School</small>
+      <small>Student Management System</small>
+    </div>
+
+  </aside>
+
+
+  <!-- =========================
+       MAIN CONTENT
+  ========================== -->
+  <main class="main-content">
+
+    <!-- HEADER -->
+    <header class="topbar">
+
+      <button class="mobile-menu" id="mobileMenu">
+        ☰
+      </button>
+
+      <div>
+        <h1 id="pageTitle">Dashboard</h1>
+        <p id="pageSubtitle">Student attendance overview</p>
+      </div>
+
+      <div class="topbar-right">
+
+        <div class="live-clock">
+          <span class="clock-icon">◷</span>
+
+          <div>
+            <strong id="liveTime">--:--:--</strong>
+            <span id="liveDate">Loading date...</span>
+          </div>
+        </div>
+
+      </div>
+
+    </header>
+
+
+    <!-- =========================
+         DASHBOARD
+    ========================== -->
+    <section class="page-section active" id="dashboard">
+
+      <div class="welcome-card">
+
+        <div>
+          <span class="eyebrow">VISION SCHOOL</span>
+
+          <h2>Good day! 👋</h2>
+
+          <p>
+            Manage student attendance and pickup securely using QR scanning.
+          </p>
+        </div>
+
+        <div class="welcome-date">
+          <span id="dashboardDate">Loading...</span>
+        </div>
+
+      </div>
+
+
+      <!-- STAT CARDS -->
+
+      <div class="stats-grid">
+
+        <div class="stat-card">
+          <div class="stat-icon blue">👨‍🎓</div>
+
+          <div>
+            <span>Total Students</span>
+            <strong id="totalStudents">0</strong>
+          </div>
+        </div>
+
+
+        <div class="stat-card">
+          <div class="stat-icon green">✓</div>
+
+          <div>
+            <span>Time In Today</span>
+            <strong id="timeInCount">0</strong>
+          </div>
+        </div>
+
+
+        <div class="stat-card">
+          <div class="stat-icon orange">↗</div>
+
+          <div>
+            <span>Time Out Today</span>
+            <strong id="timeOutCount">0</strong>
+          </div>
+        </div>
+
+
+        <div class="stat-card">
+          <div class="stat-icon purple">◉</div>
+
+          <div>
+            <span>Currently In School</span>
+            <strong id="currentlyInCount">0</strong>
+          </div>
+        </div>
+
+      </div>
+
+
+      <!-- QUICK ACTIONS -->
+
+      <div class="section-heading">
+        <div>
+          <h3>Quick Actions</h3>
+          <p>Frequently used attendance functions</p>
+        </div>
+      </div>
+
+      <div class="quick-actions">
+
+        <button class="action-card" data-section="scanner">
+          <div class="action-icon">▣</div>
+          <div>
+            <strong>Scan QR Code</strong>
+            <span>Record student attendance</span>
+          </div>
+          <b>→</b>
+        </button>
+
+
+        <button class="action-card" data-section="students">
+          <div class="action-icon">👨‍🎓</div>
+          <div>
+            <strong>Manage Students</strong>
+            <span>View and add students</span>
+          </div>
+          <b>→</b>
+        </button>
+
+
+        <button class="action-card" data-section="reports">
+          <div class="action-icon">▤</div>
+          <div>
+            <strong>View Reports</strong>
+            <span>Check attendance records</span>
+          </div>
+          <b>→</b>
+        </button>
+
+      </div>
+
+
+      <!-- RECENT ATTENDANCE -->
+
+      <div class="section-heading">
+        <div>
+          <h3>Today's Attendance</h3>
+          <p>Latest student activity</p>
+        </div>
+
+        <button class="small-button" data-section="attendance">
+          View All
+        </button>
+      </div>
+
+      <div class="table-container">
+
+        <table>
+
+          <thead>
+            <tr>
+              <th>Student</th>
+              <th>Level</th>
+              <th>Time In</th>
+              <th>Time Out</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+
+          <tbody id="dashboardAttendanceBody">
+            <tr>
+              <td colspan="5" class="empty-state">
+                No attendance records yet.
+              </td>
+            </tr>
+          </tbody>
+
+        </table>
+
+      </div>
+
+    </section>
+
+
+    <!-- =========================
+         STUDENTS
+    ========================== -->
+    <section class="page-section" id="students">
+
+      <div class="section-header">
+
+        <div>
+          <h2>Students</h2>
+          <p>Manage Vision School students</p>
+        </div>
+
+        <button class="primary-button" id="addStudentButton">
+          + Add Student
+        </button>
+
+      </div>
+
+
+      <div class="toolbar">
+
+        <input
+          type="search"
+          id="studentSearch"
+          placeholder="Search student name, ID, level..."
+        />
+
+        <select id="levelFilter">
+          <option value="">All Levels</option>
+        </select>
+
+      </div>
+
+
+      <div class="table-container">
+
+        <table>
+
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Student</th>
+              <th>Level</th>
+              <th>Parent / Guardian</th>
+              <th>Phone</th>
+              <th>Authorized</th>
+              <th>QR</th>
+            </tr>
+          </thead>
+
+          <tbody id="studentsBody"></tbody>
+
+        </table>
+
+      </div>
+
+    </section>
+
+
+    <!-- =========================
+         SCANNER
+    ========================== -->
+    <section class="page-section" id="scanner">
+
+      <div class="section-header">
+
+        <div>
+          <h2>QR Scanner</h2>
+          <p>Scan a student's QR code to record attendance</p>
+        </div>
+
+      </div>
+
+
+      <div class="scanner-layout">
+
+        <div class="scanner-card">
+
+          <div id="reader"></div>
+
+          <div class="scanner-controls">
+
+            <button class="primary-button" id="startScanner">
+              Start Camera
+            </button>
+
+            <button class="secondary-button" id="stopScanner">
+              Stop Camera
+            </button>
+
+          </div>
+
+          <p class="scanner-help">
+            Allow camera access when your browser asks for permission.
+          </p>
+
+        </div>
+
+
+        <div class="manual-card">
+
+          <h3>Manual Student ID</h3>
+
+          <p>
+            If the QR code cannot be scanned, enter the student's ID manually.
+          </p>
+
+          <div class="manual-input">
+
+            <input
+              type="text"
+              id="manualStudentId"
+              placeholder="Enter student ID"
+            />
+
+            <button class="primary-button" id="manualSearchButton">
+              Find Student
+            </button>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </section>
+
+
+    <!-- =========================
+         ATTENDANCE
+    ========================== -->
+    <section class="page-section" id="attendance">
+
+      <div class="section-header">
+
+        <div>
+          <h2>Attendance</h2>
+          <p>Today's student attendance records</p>
+        </div>
+
+        <button class="secondary-button" id="refreshAttendance">
+          ↻ Refresh
+        </button>
+
+      </div>
+
+
+      <div class="toolbar">
+
+        <input
+          type="search"
+          id="attendanceSearch"
+          placeholder="Search attendance..."
+        />
+
+      </div>
+
+
+      <div class="table-container">
+
+        <table>
+
+          <thead>
+            <tr>
+              <th>Student</th>
+              <th>Level</th>
+              <th>Time In</th>
+              <th>Time Out</th>
+              <th>Pickup Person</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+
+          <tbody id="attendanceBody"></tbody>
+
+        </table>
+
+      </div>
+
+    </section>
+
+
+    <!-- =========================
+         REPORTS
+    ========================== -->
+    <section class="page-section" id="reports">
+
+      <div class="section-header">
+
+        <div>
+          <h2>Reports</h2>
+          <p>Download attendance records</p>
+        </div>
+
+      </div>
+
+
+      <div class="report-card">
+
+        <div class="report-icon">
+          ▤
+        </div>
+
+        <div>
+          <h3>Attendance Report</h3>
+
+          <p>
+            Export the current attendance records as a CSV file.
+          </p>
+
+          <button class="primary-button" id="exportCsv">
+            Download CSV
+          </button>
+        </div>
+
+      </div>
+
+    </section>
+
+  </main>
+
+
+  <!-- =========================
+       STUDENT MODAL
+  ========================== -->
+  <div class="modal" id="studentModal">
+
+    <div class="modal-content">
+
+      <div class="modal-header">
+
+        <div>
+          <h2>Add Student</h2>
+          <p>Create a new Vision School student record.</p>
+        </div>
+
+        <button class="modal-close" id="closeStudentModal">
+          ×
+        </button>
+
+      </div>
+
+
+      <form id="studentForm">
+
+        <div class="form-grid">
+
+          <div class="form-group">
+            <label>Student ID *</label>
+
+            <input
+              type="text"
+              id="studentId"
+              required
+              placeholder="Example: VS001"
+            />
+          </div>
+
+
+          <div class="form-group">
+            <label>Student Name *</label>
+
+            <input
+              type="text"
+              id="studentName"
+              required
+              placeholder="Full name"
+            />
+          </div>
+
+
+          <div class="form-group">
+            <label>Level *</label>
+
+            <input
+              type="text"
+              id="studentLevel"
+              required
+              placeholder="Example: Primary 2"
+            />
+          </div>
+
+
+          <div class="form-group">
+            <label>Parent / Guardian</label>
+
+            <input
+              type="text"
+              id="studentParent"
+              placeholder="Parent or guardian"
+            />
+          </div>
+
+
+          <div class="form-group">
+            <label>Phone</label>
+
+            <input
+              type="tel"
+              id="studentPhone"
+              placeholder="Phone number"
+            />
+          </div>
+
+
+          <div class="form-group checkbox-group">
+
+            <label>
+              <input
+                type="checkbox"
+                id="studentAuthorized"
+                checked
+              />
+
+              Authorized
+            </label>
+
+          </div>
+
+        </div>
+
+
+        <div class="modal-actions">
+
+          <button
+            type="button"
+            class="secondary-button"
+            id="cancelStudent"
+          >
+            Cancel
+          </button>
+
+          <button
+            type="submit"
+            class="primary-button"
+          >
+            Save Student
+          </button>
+
+        </div>
+
+      </form>
+
+    </div>
+
+  </div>
+
+
+  <!-- =========================
+       STUDENT RESULT MODAL
+  ========================== -->
+  <div class="modal" id="studentResultModal">
+
+    <div class="modal-content result-modal">
+
+      <button class="modal-close" id="closeResultModal">
+        ×
+      </button>
+
+      <div id="studentResult"></div>
+
+    </div>
+
+  </div>
+
+
+  <!-- =========================
+       TOAST
+  ========================== -->
+  <div id="toast" class="toast"></div>
+
+</body>
+</html>
