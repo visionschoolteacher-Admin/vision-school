@@ -1,186 +1,268 @@
 /* =========================================================
    VISION SCHOOL
-   STUDENT QR ATTENDANCE + PICKUP SYSTEM
-
-   SUPABASE TABLES
-
-   students:
-   id
-   name
-   level
-   parent
-   phone
-   authorized
-   created_at
-
-   attendance:
-   id
-   student_id
-   student_name
-   date
-   time_in
-   time_out
-   pickup_person
-   Pickup_relationship
-   pickup_phone
-   pickup_option
-   approver
-   notes
-   created_at
-
-   IMPORTANT:
-   The students.parent field supports up to 3 people.
-
-   Example:
-   Mother: Maria | Father: John | Aunt: Anna
-
+   STUDENT ATTENDANCE & PICKUP MANAGEMENT SYSTEM
+   app.js
    ========================================================= */
 
-
 /* =========================================================
-   SUPABASE
+   SUPABASE CONFIGURATION
    ========================================================= */
 
 const SUPABASE_URL =
-  "https://ymonpeujmhaymkxfmmtq.supabase.co";
+    "https://ymonpeujmhaymkxfmmtq.supabase.co";
 
-const SUPABASE_ANON_KEY =
-  "sb_publishable_wrTUwpJaW8NlvBLR914apw_0kAQdnnK";
+const SUPABASE_KEY =
+    "sb_publishable_wrTUwpJaW8NlvBLR914apw_0kAQdnnK";
 
 const supabaseClient =
-  window.supabase.createClient(
-    SUPABASE_URL,
-    SUPABASE_ANON_KEY
-  );
+    window.supabase.createClient(
+        SUPABASE_URL,
+        SUPABASE_KEY
+    );
 
 
 /* =========================================================
-   GLOBAL STATE
+   GLOBAL VARIABLES
    ========================================================= */
 
 let students = [];
-let attendanceRecords = [];
-
-let currentStudent = null;
-
-let html5QrCode = null;
+let attendance = [];
+let scanner = null;
 let scannerRunning = false;
-
-let realtimeChannel = null;
-let toastTimer = null;
+let editingStudentId = null;
 
 
 /* =========================================================
-   START APPLICATION
+   DOM HELPER
    ========================================================= */
 
-document.addEventListener(
-  "DOMContentLoaded",
-  async () => {
-
-    initializeNavigation();
-    initializeMobileMenu();
-    initializeClock();
-
-    initializeStudentModal();
-    initializeScanner();
-    initializeSearch();
-    initializeReports();
-    initializeModalClosing();
-
-    await checkSupabaseConnection();
-
-    await loadStudents();
-
-    await loadTodayAttendance();
-
-    initializeRealtime();
-  }
-);
+function $(id) {
+    return document.getElementById(id);
+}
 
 
 /* =========================================================
-   CLOCK - VIENTIANE
+   INITIALIZATION
    ========================================================= */
 
-function initializeClock() {
+document.addEventListener("DOMContentLoaded", async () => {
 
-  updateClock();
+    console.log("Vision School Attendance System starting...");
 
-  setInterval(
-    updateClock,
-    1000
-  );
+    startClock();
+
+    setupNavigation();
+
+    setupMobileMenu();
+
+    setupStudentModal();
+
+    setupScannerControls();
+
+    setupSearch();
+
+    setupAttendanceRefresh();
+
+    setupExport();
+
+    updateConnectionStatus("connecting");
+
+    await initializeApp();
+
+});
+
+
+/* =========================================================
+   INITIALIZE APP
+   ========================================================= */
+
+async function initializeApp() {
+
+    try {
+
+        await testSupabaseConnection();
+
+        await loadStudents();
+
+        await loadAttendance();
+
+        populateLevelFilter();
+
+        updateDashboard();
+
+        console.log(
+            "Vision School Attendance System ready."
+        );
+
+    } catch (error) {
+
+        console.error(
+            "Initialization error:",
+            error
+        );
+
+        updateConnectionStatus("offline");
+
+        showToast(
+            "Unable to connect to Supabase.",
+            "error"
+        );
+
+    }
+
+}
+
+
+/* =========================================================
+   CONNECTION TEST
+   ========================================================= */
+
+async function testSupabaseConnection() {
+
+    const { error } =
+        await supabaseClient
+            .from("students")
+            .select("student_id")
+            .limit(1);
+
+    if (error) {
+
+        console.error(
+            "Supabase connection error:",
+            error
+        );
+
+        updateConnectionStatus("offline");
+
+        throw error;
+
+    }
+
+    updateConnectionStatus("online");
+
+}
+
+
+/* =========================================================
+   CONNECTION STATUS
+   ========================================================= */
+
+function updateConnectionStatus(status) {
+
+    const dot = $("connectionDot");
+    const text = $("connectionText");
+
+    if (!dot || !text) {
+        return;
+    }
+
+    dot.classList.remove(
+        "offline",
+        "online"
+    );
+
+    if (status === "online") {
+
+        dot.classList.add("online");
+
+        text.textContent =
+            "Connected";
+
+    }
+
+    else if (status === "offline") {
+
+        dot.classList.add("offline");
+
+        text.textContent =
+            "Offline";
+
+    }
+
+    else {
+
+        dot.classList.add("offline");
+
+        text.textContent =
+            "Connecting...";
+
+    }
+
+}
+
+
+/* =========================================================
+   LIVE CLOCK
+   ========================================================= */
+
+function startClock() {
+
+    updateClock();
+
+    setInterval(
+        updateClock,
+        1000
+    );
+
 }
 
 
 function updateClock() {
 
-  const now = new Date();
+    const now = new Date();
 
-  const time =
-    now.toLocaleTimeString(
-      "en-US",
-      {
-        timeZone: "Asia/Vientiane",
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-        hour12: true
-      }
-    );
+    const timeElement =
+        $("liveTime");
 
-  const date =
-    now.toLocaleDateString(
-      "en-US",
-      {
-        timeZone: "Asia/Vientiane",
-        weekday: "long",
-        year: "numeric",
-        month: "long",
-        day: "numeric"
-      }
-    );
+    const dateElement =
+        $("liveDate");
 
-  const shortDate =
-    now.toLocaleDateString(
-      "en-US",
-      {
-        timeZone: "Asia/Vientiane",
-        weekday: "short",
-        year: "numeric",
-        month: "short",
-        day: "numeric"
-      }
-    );
+    const dashboardDate =
+        $("dashboardDate");
 
-  const clock =
-    document.getElementById(
-      "liveTime"
-    );
+    const time =
+        now.toLocaleTimeString(
+            "en-US",
+            {
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+                hour12: true
+            }
+        );
 
-  const dateElement =
-    document.getElementById(
-      "liveDate"
-    );
+    const date =
+        now.toLocaleDateString(
+            "en-US",
+            {
+                weekday: "long",
+                year: "numeric",
+                month: "long",
+                day: "numeric"
+            }
+        );
 
-  const dashboardDate =
-    document.getElementById(
-      "dashboardDate"
-    );
+    if (timeElement) {
 
-  if (clock) {
-    clock.textContent = time;
-  }
+        timeElement.textContent =
+            time;
 
-  if (dateElement) {
-    dateElement.textContent = date;
-  }
+    }
 
-  if (dashboardDate) {
-    dashboardDate.textContent =
-      shortDate;
-  }
+    if (dateElement) {
+
+        dateElement.textContent =
+            date;
+
+    }
+
+    if (dashboardDate) {
+
+        dashboardDate.textContent =
+            date;
+
+    }
+
 }
 
 
@@ -188,138 +270,176 @@ function updateClock() {
    NAVIGATION
    ========================================================= */
 
-function initializeNavigation() {
+function setupNavigation() {
 
-  document
-    .querySelectorAll("[data-section]")
-    .forEach(button => {
+    document
+        .querySelectorAll(
+            "[data-section]"
+        )
+        .forEach(button => {
 
-      button.addEventListener(
-        "click",
-        () => {
+            button.addEventListener(
+                "click",
+                () => {
 
-          showSection(
-            button.dataset.section
-          );
+                    const section =
+                        button.dataset.section;
 
-        }
-      );
+                    if (!section) {
+                        return;
+                    }
 
-    });
+                    showSection(section);
+
+                }
+            );
+
+        });
+
 }
 
 
 function showSection(sectionId) {
 
-  document
-    .querySelectorAll(".page-section")
-    .forEach(section => {
+    document
+        .querySelectorAll(
+            ".page-section"
+        )
+        .forEach(section => {
 
-      section.classList.remove(
-        "active"
-      );
+            section.classList.remove(
+                "active"
+            );
 
-    });
+        });
 
+    const target =
+        $(sectionId);
 
-  const section =
-    document.getElementById(
-      sectionId
+    if (target) {
+
+        target.classList.add(
+            "active"
+        );
+
+    }
+
+    document
+        .querySelectorAll(
+            ".nav-item"
+        )
+        .forEach(item => {
+
+            item.classList.toggle(
+                "active",
+                item.dataset.section ===
+                sectionId
+            );
+
+        });
+
+    updatePageHeader(
+        sectionId
     );
 
+    const sidebar =
+        $("sidebar");
 
-  if (section) {
+    if (sidebar) {
 
-    section.classList.add(
-      "active"
-    );
+        sidebar.classList.remove(
+            "mobile-open"
+        );
 
-  }
+    }
 
+    if (
+        sectionId ===
+        "attendance"
+    ) {
 
-  document
-    .querySelectorAll(".nav-item")
-    .forEach(item => {
+        loadAttendance();
 
-      item.classList.toggle(
-        "active",
-        item.dataset.section ===
-          sectionId
-      );
+    }
 
-    });
+    if (
+        sectionId ===
+        "students"
+    ) {
 
+        renderStudents();
 
-  const titles = {
+    }
 
-    dashboard: [
-      "Dashboard",
-      "Student attendance overview"
-    ],
+    if (
+        sectionId ===
+        "dashboard"
+    ) {
 
-    students: [
-      "Students",
-      "Manage Vision School students"
-    ],
+        updateDashboard();
 
-    scanner: [
-      "QR Scanner",
-      "Scan student QR codes"
-    ],
+    }
 
-    attendance: [
-      "Attendance",
-      "Today's attendance records"
-    ],
-
-    reports: [
-      "Reports",
-      "Attendance reports and exports"
-    ]
-
-  };
+}
 
 
-  const title =
-    titles[sectionId] ||
-    titles.dashboard;
+/* =========================================================
+   PAGE HEADER
+   ========================================================= */
 
+function updatePageHeader(
+    sectionId
+) {
 
-  const pageTitle =
-    document.getElementById(
-      "pageTitle"
-    );
+    const titles = {
 
-  const pageSubtitle =
-    document.getElementById(
-      "pageSubtitle"
-    );
+        dashboard: [
+            "Dashboard",
+            "Student attendance overview"
+        ],
 
+        students: [
+            "Students",
+            "Manage student records"
+        ],
 
-  if (pageTitle) {
-    pageTitle.textContent =
-      title[0];
-  }
+        scanner: [
+            "QR Scanner",
+            "Scan student QR codes"
+        ],
 
+        attendance: [
+            "Attendance",
+            "Today's attendance records"
+        ],
 
-  if (pageSubtitle) {
-    pageSubtitle.textContent =
-      title[1];
-  }
+        reports: [
+            "Reports",
+            "Export attendance records"
+        ]
 
+    };
 
-  if (sectionId === "students") {
+    const info =
+        titles[sectionId];
 
-    renderStudents();
+    if (!info) {
+        return;
+    }
 
-  }
+    if ($("pageTitle")) {
 
+        $("pageTitle")
+            .textContent = info[0];
 
-  if (sectionId === "attendance") {
+    }
 
-    renderAttendance();
+    if ($("pageSubtitle")) {
 
-  }
+        $("pageSubtitle")
+            .textContent = info[1];
+
+    }
 
 }
 
@@ -328,199 +448,280 @@ function showSection(sectionId) {
    MOBILE MENU
    ========================================================= */
 
-function initializeMobileMenu() {
+function setupMobileMenu() {
 
-  const menu =
-    document.getElementById(
-      "mobileMenu"
-    );
+    const button =
+        $("mobileMenu");
 
-  const sidebar =
-    document.getElementById(
-      "sidebar"
-    );
+    const sidebar =
+        $("sidebar");
 
+    if (!button || !sidebar) {
+        return;
+    }
 
-  if (menu && sidebar) {
-
-    menu.addEventListener(
-      "click",
-      () => {
-
-        sidebar.classList.toggle(
-          "open"
-        );
-
-      }
-    );
-
-  }
-
-
-  document
-    .querySelectorAll(".nav-item")
-    .forEach(item => {
-
-      item.addEventListener(
+    button.addEventListener(
         "click",
         () => {
 
-          sidebar?.classList.remove(
-            "open"
-          );
+            sidebar.classList.toggle(
+                "mobile-open"
+            );
 
         }
-      );
-
-    });
+    );
 
 }
 
 
 /* =========================================================
-   SUPABASE CONNECTION
-   ========================================================= */
-
-async function checkSupabaseConnection() {
-
-  const dot =
-    document.getElementById(
-      "connectionDot"
-    );
-
-  const text =
-    document.getElementById(
-      "connectionText"
-    );
-
-
-  try {
-
-    const {
-      error
-    } =
-      await supabaseClient
-        .from("students")
-        .select("id")
-        .limit(1);
-
-
-    if (error) {
-      throw error;
-    }
-
-
-    dot?.classList.add(
-      "connected"
-    );
-
-    dot?.classList.remove(
-      "offline"
-    );
-
-
-    if (text) {
-      text.textContent =
-        "Connected";
-    }
-
-
-  } catch (error) {
-
-    console.error(
-      "Supabase connection error:",
-      error
-    );
-
-
-    dot?.classList.remove(
-      "connected"
-    );
-
-    dot?.classList.add(
-      "offline"
-    );
-
-
-    if (text) {
-      text.textContent =
-        "Connection Error";
-    }
-
-
-    showToast(
-      "Supabase connection failed. Check your publishable key.",
-      "error"
-    );
-
-  }
-
-}
-
-
-/* =========================================================
-   STUDENTS
+   LOAD STUDENTS
    ========================================================= */
 
 async function loadStudents() {
 
-  try {
-
     const {
-      data,
-      error
+        data,
+        error
     } =
-      await supabaseClient
-        .from("students")
-        .select("*")
-        .order(
-          "name",
-          {
-            ascending: true
-          }
-        );
-
+        await supabaseClient
+            .from("students")
+            .select("*")
+            .order(
+                "student_name",
+                {
+                    ascending: true
+                }
+            );
 
     if (error) {
-      throw error;
-    }
 
+        console.error(
+            "Load students error:",
+            error
+        );
+
+        throw error;
+
+    }
 
     students =
-      data || [];
-
-
-    const total =
-      document.getElementById(
-        "totalStudents"
-      );
-
-
-    if (total) {
-      total.textContent =
-        students.length;
-    }
-
-
-    populateLevelFilter();
+        data || [];
 
     renderStudents();
 
+    updateTotalStudents();
 
-  } catch (error) {
-
-    console.error(
-      "Unable to load students:",
-      error
-    );
+}
 
 
-    showToast(
-      "Unable to load students.",
-      "error"
-    );
+/* =========================================================
+   TOTAL STUDENTS
+   ========================================================= */
 
-  }
+function updateTotalStudents() {
+
+    const element =
+        $("totalStudents");
+
+    if (element) {
+
+        element.textContent =
+            students.length;
+
+    }
+
+}
+
+
+/* =========================================================
+   RENDER STUDENTS
+   ========================================================= */
+
+function renderStudents() {
+
+    const body =
+        $("studentsBody");
+
+    if (!body) {
+        return;
+    }
+
+    const search =
+        (
+            $("studentSearch")?.value ||
+            ""
+        )
+            .trim()
+            .toLowerCase();
+
+    const level =
+        $("levelFilter")?.value ||
+        "";
+
+    const filtered =
+        students.filter(student => {
+
+            const text = [
+
+                student.student_id,
+                student.student_name,
+                student.level,
+                student.parent_name,
+                student.parent_name_2,
+                student.parent_name_3,
+                student.phone,
+                student.phone_2,
+                student.phone_3
+
+            ]
+                .filter(Boolean)
+                .join(" ")
+                .toLowerCase();
+
+            const matchesSearch =
+                !search ||
+                text.includes(search);
+
+            const matchesLevel =
+                !level ||
+                student.level === level;
+
+            return (
+                matchesSearch &&
+                matchesLevel
+            );
+
+        });
+
+    if (
+        filtered.length === 0
+    ) {
+
+        body.innerHTML = `
+            <tr>
+                <td
+                    colspan="8"
+                    class="empty-state"
+                >
+                    No students found.
+                </td>
+            </tr>
+        `;
+
+        return;
+
+    }
+
+    body.innerHTML =
+        filtered.map(
+            student => {
+
+                const authorized =
+                    student.authorized !== false;
+
+                return `
+
+                    <tr>
+
+                        <td>
+                            <strong>
+                                ${escapeHtml(
+                                    student.student_id
+                                )}
+                            </strong>
+                        </td>
+
+                        <td>
+                            ${escapeHtml(
+                                student.student_name
+                            )}
+                        </td>
+
+                        <td>
+                            ${escapeHtml(
+                                student.level || "-"
+                            )}
+                        </td>
+
+                        <td>
+                            ${escapeHtml(
+                                student.parent_name || "-"
+                            )}
+                        </td>
+
+                        <td>
+                            ${escapeHtml(
+                                student.phone || "-"
+                            )}
+                        </td>
+
+                        <td>
+
+                            <span class="status-badge ${
+                                authorized
+                                    ? "present"
+                                    : "absent"
+                            }">
+
+                                ${
+                                    authorized
+                                        ? "Authorized"
+                                        : "Needs Approval"
+                                }
+
+                            </span>
+
+                        </td>
+
+                        <td>
+
+                            <div class="action-buttons">
+
+                                <button
+                                    type="button"
+                                    class="secondary-button small-button"
+                                    onclick="editStudent('${escapeJs(
+                                        student.student_id
+                                    )}')"
+                                >
+                                    Edit
+                                </button>
+
+                                <button
+                                    type="button"
+                                    class="secondary-button small-button"
+                                    onclick="deleteStudent('${escapeJs(
+                                        student.student_id
+                                    )}')"
+                                >
+                                    Delete
+                                </button>
+
+                            </div>
+
+                        </td>
+
+                        <td>
+
+                            <button
+                                type="button"
+                                class="primary-button small-button"
+                                onclick="showStudentQR('${escapeJs(
+                                    student.student_id
+                                )}')"
+                            >
+                                QR
+                            </button>
+
+                        </td>
+
+                    </tr>
+
+                `;
+
+            }
+        ).join("");
 
 }
 
@@ -531,610 +732,57 @@ async function loadStudents() {
 
 function populateLevelFilter() {
 
-  const filter =
-    document.getElementById(
-      "levelFilter"
-    );
-
-
-  if (!filter) {
-    return;
-  }
-
-
-  const currentValue =
-    filter.value;
-
-
-  const levels =
-    [
-      ...new Set(
-        students
-          .map(
-            student =>
-              student.level
-          )
-          .filter(Boolean)
-      )
-    ].sort();
-
-
-  filter.innerHTML =
-    `<option value="">All Levels</option>`;
-
-
-  levels.forEach(level => {
-
-    const option =
-      document.createElement(
-        "option"
-      );
-
-
-    option.value =
-      level;
-
-    option.textContent =
-      level;
-
-
-    filter.appendChild(
-      option
-    );
-
-  });
-
-
-  filter.value =
-    currentValue;
-
-}
-
-
-/* =========================================================
-   PARENT / GUARDIAN PARSER
-   =========================================================
-
-   Supported:
-
-   Mother: Maria | Father: John | Aunt: Anna
-
-   OR
-
-   Maria | John | Anna
-
-   OR
-
-   Maria, John, Anna
-
-   ========================================================= */
-
-function getParentOptions(parentValue) {
-
-  if (!parentValue) {
-    return [];
-  }
-
-
-  let value =
-    String(parentValue).trim();
-
-
-  let parts = [];
-
-
-  if (value.includes("|")) {
-
-    parts =
-      value
-        .split("|")
-        .map(item => item.trim())
-        .filter(Boolean);
-
-  } else {
-
-    parts =
-      value
-        .split(",")
-        .map(item => item.trim())
-        .filter(Boolean);
-
-  }
-
-
-  return parts
-    .slice(0, 3)
-    .map((item, index) => {
-
-      let label =
-        item;
-
-      let name =
-        item;
-
-      if (item.includes(":")) {
-
-        const split =
-          item.split(":");
-
-        label =
-          split[0].trim();
-
-        name =
-          split
-            .slice(1)
-            .join(":")
-            .trim();
-
-      }
-
-
-      return {
-
-        index: index + 1,
-
-        label:
-          label ||
-          `Parent / Guardian ${index + 1}`,
-
-        name:
-          name ||
-          item
-
-      };
-
-    });
-
-}
-
-
-/* =========================================================
-   STUDENT TABLE
-   ========================================================= */
-
-function renderStudents() {
-
-  const body =
-    document.getElementById(
-      "studentsBody"
-    );
-
-
-  if (!body) {
-    return;
-  }
-
-
-  const search =
-    document
-      .getElementById(
-        "studentSearch"
-      )
-      ?.value
-      ?.toLowerCase()
-      ?.trim() || "";
-
-
-  const level =
-    document
-      .getElementById(
-        "levelFilter"
-      )
-      ?.value || "";
-
-
-  const filtered =
-    students.filter(
-      student => {
-
-        const searchable = [
-
-          student.id,
-          student.name,
-          student.level,
-          student.parent,
-          student.phone
-
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
-
-
-        return (
-
-          (!search ||
-            searchable.includes(
-              search
-            ))
-
-          &&
-
-          (!level ||
-            student.level ===
-              level)
-
-        );
-
-      }
-    );
-
-
-  if (!filtered.length) {
-
-    body.innerHTML = `
-
-      <tr>
-
-        <td
-          colspan="9"
-          class="empty-state"
-        >
-
-          No students found.
-
-        </td>
-
-      </tr>
-
-    `;
-
-    return;
-
-  }
-
-
-  body.innerHTML =
-    filtered
-      .map(student => {
-
-        const authorized =
-          student.authorized !== false;
-
-
-        const parents =
-          getParentOptions(
-            student.parent
-          );
-
-
-        const parentDisplay =
-          parents.length
-            ? parents
-                .map(
-                  parent =>
-                    `${escapeHtml(
-                      parent.name
-                    )}`
-                )
-                .join("<br>")
-            : "-";
-
-
-        return `
-
-          <tr>
-
-            <td>
-              <strong>
-                ${escapeHtml(
-                  student.id
-                )}
-              </strong>
-            </td>
-
-
-            <td>
-              ${escapeHtml(
-                student.name
-              )}
-            </td>
-
-
-            <td>
-              ${escapeHtml(
-                student.level ||
-                  "-"
-              )}
-            </td>
-
-
-            <td>
-              ${parentDisplay}
-            </td>
-
-
-            <td>
-              ${escapeHtml(
-                student.phone ||
-                  "-"
-              )}
-            </td>
-
-
-            <td>
-
-              <span
-                class="status ${
-                  authorized
-                    ? "authorized"
-                    : "not-authorized"
-                }"
-              >
-
-                ${
-                  authorized
-                    ? "Authorized"
-                    : "Not Authorized"
-                }
-
-              </span>
-
-            </td>
-
-
-            <td>
-
-              <button
-                class="small-button view-student"
-                data-id="${escapeAttribute(
-                  student.id
-                )}"
-              >
-                View
-              </button>
-
-
-              <button
-                class="small-button edit-student"
-                data-id="${escapeAttribute(
-                  student.id
-                )}"
-              >
-                Edit
-              </button>
-
-
-              <button
-                class="small-button generate-qr"
-                data-id="${escapeAttribute(
-                  student.id
-                )}"
-              >
-                QR
-              </button>
-
-
-              <button
-                class="small-button remove-student"
-                data-id="${escapeAttribute(
-                  student.id
-                )}"
-                style="color:#dc2626"
-              >
-                Remove
-              </button>
-
-            </td>
-
-          </tr>
-
-        `;
-
-      })
-      .join("");
-
-
-  /* VIEW */
-
-  body
-    .querySelectorAll(
-      ".view-student"
-    )
-    .forEach(button => {
-
-      button.addEventListener(
-        "click",
-        () => {
-
-          const student =
-            findStudent(
-              button.dataset.id
-            );
-
-
-          if (student) {
-
-            showStudentProfile(
-              student
-            );
-
-          }
-
-        }
-      );
-
-    });
-
-
-  /* EDIT */
-
-  body
-    .querySelectorAll(
-      ".edit-student"
-    )
-    .forEach(button => {
-
-      button.addEventListener(
-        "click",
-        () => {
-
-          const student =
-            findStudent(
-              button.dataset.id
-            );
-
-
-          if (student) {
-
-            editStudent(
-              student
-            );
-
-          }
-
-        }
-      );
-
-    });
-
-
-  /* QR */
-
-  body
-    .querySelectorAll(
-      ".generate-qr"
-    )
-    .forEach(button => {
-
-      button.addEventListener(
-        "click",
-        () => {
-
-          const student =
-            findStudent(
-              button.dataset.id
-            );
-
-
-          if (student) {
-
-            showStudentQr(
-              student
-            );
-
-          }
-
-        }
-      );
-
-    });
-
-
-  /* REMOVE */
-
-  body
-    .querySelectorAll(
-      ".remove-student"
-    )
-    .forEach(button => {
-
-      button.addEventListener(
-        "click",
-        () => {
-
-          const student =
-            findStudent(
-              button.dataset.id
-            );
-
-
-          if (student) {
-
-            removeStudent(
-              student
-            );
-
-          }
-
-        }
-      );
-
-    });
-
-}
-
-
-/* =========================================================
-   FIND STUDENT
-   ========================================================= */
-
-function findStudent(id) {
-
-  return students.find(
-    student =>
-      String(student.id)
-        .trim()
-        .toLowerCase() ===
-      String(id)
-        .trim()
-        .toLowerCase()
-  );
-
-}
-
-
-/* =========================================================
-   REMOVE STUDENT
-   ========================================================= */
-
-async function removeStudent(
-  student
-) {
-
-  const confirmed =
-    window.confirm(
-      `Remove ${student.name} from the student list?\n\nThis will NOT automatically delete attendance records.`
-    );
-
-
-  if (!confirmed) {
-    return;
-  }
-
-
-  try {
-
-    const {
-      error
-    } =
-      await supabaseClient
-        .from("students")
-        .delete()
-        .eq(
-          "id",
-          student.id
-        );
-
-
-    if (error) {
-      throw error;
+    const select =
+        $("levelFilter");
+
+    if (!select) {
+        return;
     }
 
+    const current =
+        select.value;
 
-    showToast(
-      `${student.name} has been removed.`,
-      "success"
-    );
+    const levels =
+        [
+            ...new Set(
+                students
+                    .map(
+                        student =>
+                            student.level
+                    )
+                    .filter(Boolean)
+            )
+        ]
+            .sort();
 
+    select.innerHTML =
+        `
+            <option value="">
+                All Levels
+            </option>
+        `;
 
-    await loadStudents();
+    levels.forEach(level => {
 
+        const option =
+            document.createElement(
+                "option"
+            );
 
-  } catch (error) {
+        option.value =
+            level;
 
-    console.error(
-      "Remove student error:",
-      error
-    );
+        option.textContent =
+            level;
 
+        select.appendChild(
+            option
+        );
 
-    showToast(
-      "Unable to remove student.",
-      "error"
-    );
+    });
 
-  }
+    select.value =
+        current;
 
 }
 
@@ -1143,39 +791,98 @@ async function removeStudent(
    STUDENT MODAL
    ========================================================= */
 
-function initializeStudentModal() {
+function setupStudentModal() {
 
-  document
-    .getElementById(
-      "addStudentButton"
-    )
-    ?.addEventListener(
-      "click",
-      () => {
+    const addButton =
+        $("addStudentButton");
 
-        resetStudentForm();
+    const closeButton =
+        $("closeStudentModal");
 
+    const cancelButton =
+        $("cancelStudent");
 
-        document
-          .getElementById(
-            "studentModal"
-          )
-          ?.classList.add(
-            "show"
-          );
+    const modal =
+        $("studentModal");
 
-      }
-    );
+    const form =
+        $("studentForm");
 
+    if (addButton) {
 
-  document
-    .getElementById(
-      "studentForm"
-    )
-    ?.addEventListener(
-      "submit",
-      saveStudent
-    );
+        addButton.addEventListener(
+            "click",
+            () => {
+
+                editingStudentId =
+                    null;
+
+                resetStudentForm();
+
+                modalTitle(
+                    "Add Student"
+                );
+
+                openModal(
+                    "studentModal"
+                );
+
+            }
+        );
+
+    }
+
+    if (closeButton) {
+
+        closeButton.addEventListener(
+            "click",
+            () => closeModal(
+                "studentModal"
+            )
+        );
+
+    }
+
+    if (cancelButton) {
+
+        cancelButton.addEventListener(
+            "click",
+            () => closeModal(
+                "studentModal"
+            )
+        );
+
+    }
+
+    if (form) {
+
+        form.addEventListener(
+            "submit",
+            saveStudent
+        );
+
+    }
+
+    if (modal) {
+
+        modal.addEventListener(
+            "click",
+            event => {
+
+                if (
+                    event.target === modal
+                ) {
+
+                    closeModal(
+                        "studentModal"
+                    );
+
+                }
+
+            }
+        );
+
+    }
 
 }
 
@@ -1186,203 +893,24 @@ function initializeStudentModal() {
 
 function resetStudentForm() {
 
-  const form =
-    document.getElementById(
-      "studentForm"
-    );
+    const form =
+        $("studentForm");
 
+    if (form) {
 
-  if (form) {
-    form.reset();
-  }
+        form.reset();
 
+    }
 
-  const authorized =
-    document.getElementById(
-      "studentAuthorized"
-    );
+    if ($("studentAuthorized")) {
 
+        $("studentAuthorized")
+            .checked = true;
 
-  if (authorized) {
+    }
 
-    authorized.checked =
-      true;
-
-  }
-
-
-  const id =
-    document.getElementById(
-      "studentId"
-    );
-
-
-  if (id) {
-
-    id.disabled =
-      false;
-
-  }
-
-
-  const title =
-    document.querySelector(
-      "#studentModal .modal-header h2"
-    );
-
-
-  if (title) {
-
-    title.textContent =
-      "Add Student";
-
-  }
-
-
-  const submit =
-    document.querySelector(
-      "#studentForm button[type='submit']"
-    );
-
-
-  if (submit) {
-
-    submit.textContent =
-      "Save Student";
-
-  }
-
-
-  currentStudent =
-    null;
-
-}
-
-
-/* =========================================================
-   EDIT STUDENT
-   ========================================================= */
-
-function editStudent(
-  student
-) {
-
-  currentStudent =
-    student;
-
-
-  const modal =
-    document.getElementById(
-      "studentModal"
-    );
-
-
-  const id =
-    document.getElementById(
-      "studentId"
-    );
-
-  const name =
-    document.getElementById(
-      "studentName"
-    );
-
-  const level =
-    document.getElementById(
-      "studentLevel"
-    );
-
-  const parent =
-    document.getElementById(
-      "studentParent"
-    );
-
-  const phone =
-    document.getElementById(
-      "studentPhone"
-    );
-
-  const authorized =
-    document.getElementById(
-      "studentAuthorized"
-    );
-
-
-  if (id) {
-    id.value =
-      student.id || "";
-  }
-
-
-  if (name) {
-    name.value =
-      student.name || "";
-  }
-
-
-  if (level) {
-    level.value =
-      student.level || "";
-  }
-
-
-  if (parent) {
-    parent.value =
-      student.parent || "";
-  }
-
-
-  if (phone) {
-    phone.value =
-      student.phone || "";
-  }
-
-
-  if (authorized) {
-    authorized.checked =
-      student.authorized !== false;
-  }
-
-
-  const title =
-    document.querySelector(
-      "#studentModal .modal-header h2"
-    );
-
-
-  if (title) {
-
-    title.textContent =
-      "Edit Student";
-
-  }
-
-
-  const submit =
-    document.querySelector(
-      "#studentForm button[type='submit']"
-    );
-
-
-  if (submit) {
-
-    submit.textContent =
-      "Update Student";
-
-  }
-
-
-  if (id) {
-
-    id.disabled =
-      true;
-
-  }
-
-
-  modal?.classList.add(
-    "show"
-  );
+    editingStudentId =
+        null;
 
 }
 
@@ -1392,2790 +920,617 @@ function editStudent(
    ========================================================= */
 
 async function saveStudent(
-  event
+    event
 ) {
 
-  event.preventDefault();
+    event.preventDefault();
 
+    const student = {
 
-  const id =
-    document
-      .getElementById(
-        "studentId"
-      )
-      .value
-      .trim();
+        student_id:
+            $("studentId").value
+                .trim(),
 
+        student_name:
+            $("studentName").value
+                .trim(),
 
-  const name =
-    document
-      .getElementById(
-        "studentName"
-      )
-      .value
-      .trim();
+        level:
+            $("studentLevel").value
+                .trim(),
 
+        parent_name:
+            $("studentParent").value
+                .trim(),
 
-  const level =
-    document
-      .getElementById(
-        "studentLevel"
-      )
-      .value
-      .trim();
+        phone:
+            $("studentPhone").value
+                .trim(),
 
+        parent_name_2:
+            $("studentParent2").value
+                .trim(),
 
-  const parent =
-    document
-      .getElementById(
-        "studentParent"
-      )
-      .value
-      .trim();
+        phone_2:
+            $("studentPhone2").value
+                .trim(),
 
+        parent_name_3:
+            $("studentParent3").value
+                .trim(),
 
-  const phone =
-    document
-      .getElementById(
-        "studentPhone"
-      )
-      .value
-      .trim();
+        phone_3:
+            $("studentPhone3").value
+                .trim(),
 
-
-  const authorized =
-    document
-      .getElementById(
-        "studentAuthorized"
-      )
-      .checked;
-
-
-  if (!id || !name || !level) {
-
-    showToast(
-      "Please complete Student ID, Name and Level.",
-      "error"
-    );
-
-    return;
-
-  }
-
-
-  try {
-
-    let result;
-
-
-    if (currentStudent) {
-
-      result =
-        await supabaseClient
-          .from("students")
-          .update({
-
-            name,
-            level,
-            parent,
-            phone,
-            authorized
-
-          })
-          .eq(
-            "id",
-            currentStudent.id
-          );
-
-    } else {
-
-      result =
-        await supabaseClient
-          .from("students")
-          .insert({
-
-            id,
-            name,
-            level,
-            parent,
-            phone,
-            authorized
-
-          });
-
-    }
-
-
-    if (result.error) {
-      throw result.error;
-    }
-
-
-    showToast(
-      currentStudent
-        ? "Student updated successfully."
-        : "Student added successfully.",
-      "success"
-    );
-
-
-    closeStudentModal();
-
-
-    await loadStudents();
-
-
-  } catch (error) {
-
-    console.error(
-      "Student save error:",
-      error
-    );
-
-
-    showToast(
-      error?.message ||
-        "Unable to save student.",
-      "error"
-    );
-
-  }
-
-}
-
-
-/* =========================================================
-   CLOSE STUDENT MODAL
-   ========================================================= */
-
-function closeStudentModal() {
-
-  document
-    .getElementById(
-      "studentModal"
-    )
-    ?.classList.remove(
-      "show"
-    );
-
-
-  resetStudentForm();
-
-}
-
-
-/* =========================================================
-   STUDENT PROFILE
-   ========================================================= */
-
-function showStudentProfile(
-  student
-) {
-
-  const modal =
-    document.getElementById(
-      "studentResultModal"
-    );
-
-
-  const result =
-    document.getElementById(
-      "studentResult"
-    );
-
-
-  if (!modal || !result) {
-    return;
-  }
-
-
-  const authorized =
-    student.authorized !== false;
-
-
-  const parents =
-    getParentOptions(
-      student.parent
-    );
-
-
-  const parentList =
-    parents.length
-      ? parents
-          .map(
-            (parent, index) => `
-              <div
-                style="
-                  padding:8px 10px;
-                  margin:5px 0;
-                  background:#f8fafc;
-                  border-radius:8px;
-                "
-              >
-                <strong>
-                  ${escapeHtml(
-                    parent.label
-                  )}
-                </strong>
-                :
-                ${escapeHtml(
-                  parent.name
-                )}
-              </div>
-            `
-          )
-          .join("")
-      : "-";
-
-
-  result.innerHTML = `
-
-    <div class="student-result">
-
-      <div class="result-avatar">
-        👨‍🎓
-      </div>
-
-
-      <h2>
-        ${escapeHtml(
-          student.name
-        )}
-      </h2>
-
-
-      <p>
-        ${escapeHtml(
-          student.level || ""
-        )}
-      </p>
-
-
-      <hr>
-
-
-      <p>
-        <strong>
-          Student ID:
-        </strong>
-
-        ${escapeHtml(
-          student.id
-        )}
-      </p>
-
-
-      <p>
-        <strong>
-          Phone:
-        </strong>
-
-        ${escapeHtml(
-          student.phone || "-"
-        )}
-      </p>
-
-
-      <p>
-        <strong>
-          Pickup Authorization:
-        </strong>
-
-        <span
-          class="status ${
-            authorized
-              ? "authorized"
-              : "not-authorized"
-          }"
-        >
-
-          ${
-            authorized
-              ? "AUTHORIZED"
-              : "UNAUTHORIZED"
-          }
-
-        </span>
-
-      </p>
-
-
-      <div
-        style="
-          text-align:left;
-          margin-top:15px;
-        "
-      >
-
-        <strong>
-          Authorized Pickup People:
-        </strong>
-
-        ${parentList}
-
-      </div>
-
-
-      ${
-        !authorized
-          ? `
-
-            <div
-              style="
-                margin-top:15px;
-                padding:14px;
-                background:#fee2e2;
-                color:#991b1b;
-                border-radius:10px;
-                text-align:left;
-              "
-            >
-
-              <strong>
-                ⚠ SECURITY NOTICE
-              </strong>
-
-              <p style="margin:6px 0 0">
-
-                This student is currently
-                marked as
-                <strong>
-                  UNAUTHORIZED
-                </strong>.
-                Staff should verify
-                the pickup person carefully
-                before releasing the student.
-
-              </p>
-
-            </div>
-
-          `
-          : ""
-      }
-
-
-      <div
-        class="result-actions"
-        style="margin-top:20px"
-      >
-
-        <button
-          class="time-in-button"
-          id="profileEditButton"
-        >
-          ✏️ Edit
-        </button>
-
-
-        <button
-          class="time-out-button"
-          id="profileQrButton"
-        >
-          ▣ QR Code
-        </button>
-
-      </div>
-
-    </div>
-
-  `;
-
-
-  modal.classList.add(
-    "show"
-  );
-
-
-  document
-    .getElementById(
-      "profileEditButton"
-    )
-    ?.addEventListener(
-      "click",
-      () => {
-
-        modal.classList.remove(
-          "show"
-        );
-
-        editStudent(
-          student
-        );
-
-      }
-    );
-
-
-  document
-    .getElementById(
-      "profileQrButton"
-    )
-    ?.addEventListener(
-      "click",
-      () => {
-
-        modal.classList.remove(
-          "show"
-        );
-
-        showStudentQr(
-          student
-        );
-
-      }
-    );
-
-}
-
-
-/* =========================================================
-   QR GENERATOR
-   ========================================================= */
-
-function showStudentQr(
-  student
-) {
-
-  const modal =
-    document.getElementById(
-      "studentResultModal"
-    );
-
-
-  const result =
-    document.getElementById(
-      "studentResult"
-    );
-
-
-  if (!modal || !result) {
-    return;
-  }
-
-
-  result.innerHTML = `
-
-    <div class="student-result">
-
-      <div class="result-avatar">
-        👨‍🎓
-      </div>
-
-
-      <h2>
-        ${escapeHtml(
-          student.name
-        )}
-      </h2>
-
-
-      <p>
-        ${escapeHtml(
-          student.level || ""
-        )}
-      </p>
-
-
-      <div
-        id="generatedQr"
-        style="
-          display:flex;
-          justify-content:center;
-          margin:20px 0;
-        "
-      >
-      </div>
-
-
-      <p>
-
-        Student ID:
-
-        <strong>
-          ${escapeHtml(
-            student.id
-          )}
-        </strong>
-
-      </p>
-
-
-      <button
-        class="primary-button"
-        id="downloadQr"
-      >
-        Download QR
-      </button>
-
-    </div>
-
-  `;
-
-
-  modal.classList.add(
-    "show"
-  );
-
-
-  loadQrGenerator(
-    () => {
-
-      new QRCode(
-
-        document.getElementById(
-          "generatedQr"
-        ),
-
-        {
-
-          text:
-            String(
-              student.id
-            ),
-
-          width:
-            220,
-
-          height:
-            220
-
-        }
-
-      );
-
-
-      document
-        .getElementById(
-          "downloadQr"
-        )
-        ?.addEventListener(
-          "click",
-          () =>
-            downloadQr(
-              student
-            )
-        );
-
-    }
-  );
-
-}
-
-
-/* =========================================================
-   LOAD QR LIBRARY
-   ========================================================= */
-
-function loadQrGenerator(
-  callback
-) {
-
-  if (window.QRCode) {
-
-    callback();
-
-    return;
-
-  }
-
-
-  const script =
-    document.createElement(
-      "script"
-    );
-
-
-  script.src =
-    "https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js";
-
-
-  script.onload =
-    callback;
-
-
-  script.onerror =
-    () => {
-
-      showToast(
-        "QR generator could not load.",
-        "error"
-      );
+        authorized:
+            $("studentAuthorized")
+                .checked
 
     };
 
-
-  document.head.appendChild(
-    script
-  );
-
-}
-
-
-/* =========================================================
-   DOWNLOAD QR
-   ========================================================= */
-
-function downloadQr(
-  student
-) {
-
-  const canvas =
-    document.querySelector(
-      "#generatedQr canvas"
-    );
-
-
-  const image =
-    document.querySelector(
-      "#generatedQr img"
-    );
-
-
-  const url =
-    canvas
-      ? canvas.toDataURL(
-          "image/png"
-        )
-      : image?.src;
-
-
-  if (!url) {
-
-    showToast(
-      "QR image is not ready.",
-      "error"
-    );
-
-    return;
-
-  }
-
-
-  const link =
-    document.createElement(
-      "a"
-    );
-
-
-  link.href =
-    url;
-
-
-  link.download =
-    `${student.id}-QR.png`;
-
-
-  document.body.appendChild(
-    link
-  );
-
-
-  link.click();
-
-
-  link.remove();
-
-}
-
-
-/* =========================================================
-   QR SCANNER
-   ========================================================= */
-
-function initializeScanner() {
-
-  document
-    .getElementById(
-      "startScanner"
-    )
-    ?.addEventListener(
-      "click",
-      startScanner
-    );
-
-
-  document
-    .getElementById(
-      "stopScanner"
-    )
-    ?.addEventListener(
-      "click",
-      stopScanner
-    );
-
-
-  document
-    .getElementById(
-      "manualSearchButton"
-    )
-    ?.addEventListener(
-      "click",
-      manualStudentSearch
-    );
-
-}
-
-
-/* =========================================================
-   START SCANNER
-   ========================================================= */
-
-async function startScanner() {
-
-  if (
-    typeof Html5Qrcode ===
-    "undefined"
-  ) {
-
-    showToast(
-      "QR scanner is still loading. Try again.",
-      "error"
-    );
-
-    return;
-
-  }
-
-
-  if (scannerRunning) {
-    return;
-  }
-
-
-  try {
-
-    html5QrCode =
-      new Html5Qrcode(
-        "reader"
-      );
-
-
-    await html5QrCode.start(
-
-      {
-        facingMode:
-          "environment"
-      },
-
-      {
-        fps:
-          10,
-
-        qrbox:
-          {
-            width:
-              250,
-
-            height:
-              250
-          }
-      },
-
-      decodedText => {
-
-        handleQrScan(
-          decodedText
-        );
-
-      },
-
-      () => {}
-
-    );
-
-
-    scannerRunning =
-      true;
-
-
-    showToast(
-      "Camera started.",
-      "success"
-    );
-
-
-  } catch (error) {
-
-    console.error(
-      "Scanner error:",
-      error
-    );
-
-
-    showToast(
-      "Unable to start camera. Check camera permission.",
-      "error"
-    );
-
-  }
-
-}
-
-
-/* =========================================================
-   STOP SCANNER
-   ========================================================= */
-
-async function stopScanner() {
-
-  if (
-    !html5QrCode ||
-    !scannerRunning
-  ) {
-
-    return;
-
-  }
-
-
-  try {
-
-    await html5QrCode.stop();
-
-    html5QrCode.clear();
-
-    scannerRunning =
-      false;
-
-
-  } catch (error) {
-
-    console.error(
-      "Scanner stop error:",
-      error
-    );
-
-  }
-
-}
-
-
-/* =========================================================
-   QR SCAN
-   ========================================================= */
-
-async function handleQrScan(
-  decodedText
-) {
-
-  await stopScanner();
-
-
-  const id =
-    String(
-      decodedText
-    ).trim();
-
-
-  const student =
-    findStudent(
-      id
-    );
-
-
-  if (!student) {
-
-    showToast(
-      `Student ID "${id}" was not found.`,
-      "error"
-    );
-
-    return;
-
-  }
-
-
-  await loadTodayAttendance();
-
-
-  showAttendanceAction(
-    student
-  );
-
-}
-
-
-/* =========================================================
-   MANUAL STUDENT SEARCH
-   ========================================================= */
-
-function manualStudentSearch() {
-
-  const input =
-    document.getElementById(
-      "manualStudentId"
-    );
-
-
-  const id =
-    input?.value.trim();
-
-
-  if (!id) {
-
-    showToast(
-      "Enter a Student ID.",
-      "error"
-    );
-
-    return;
-
-  }
-
-
-  const student =
-    findStudent(
-      id
-    );
-
-
-  if (!student) {
-
-    showToast(
-      "Student not found.",
-      "error"
-    );
-
-    return;
-
-  }
-
-
-  showAttendanceAction(
-    student
-  );
-
-}
-
-
-/* =========================================================
-   DATE
-   ========================================================= */
-
-function getVientianeDate() {
-
-  const parts =
-    new Intl.DateTimeFormat(
-      "en-CA",
-      {
-        timeZone:
-          "Asia/Vientiane",
-        year:
-          "numeric",
-        month:
-          "2-digit",
-        day:
-          "2-digit"
-      }
-    ).formatToParts(
-      new Date()
-    );
-
-
-  const map = {};
-
-
-  parts.forEach(
-    part => {
-
-      if (
-        part.type !==
-        "literal"
-      ) {
-
-        map[
-          part.type
-        ] =
-          part.value;
-
-      }
-
-    }
-  );
-
-
-  return `${map.year}-${map.month}-${map.day}`;
-
-}
-
-
-/* =========================================================
-   TIME FORMAT
-   ========================================================= */
-
-function formatTime(
-  value
-) {
-
-  if (!value) {
-    return "-";
-  }
-
-
-  return new Date(
-    value
-  ).toLocaleTimeString(
-    "en-US",
-    {
-      timeZone:
-        "Asia/Vientiane",
-      hour:
-        "2-digit",
-      minute:
-        "2-digit",
-      second:
-        "2-digit",
-      hour12:
-        true
-    }
-  );
-
-}
-
-
-/* =========================================================
-   ATTENDANCE ACTION
-   ========================================================= */
-
-function showAttendanceAction(
-  student
-) {
-
-  const modal =
-    document.getElementById(
-      "studentResultModal"
-    );
-
-
-  const result =
-    document.getElementById(
-      "studentResult"
-    );
-
-
-  if (!modal || !result) {
-    return;
-  }
-
-
-  const record =
-    attendanceRecords.find(
-      item =>
-        String(
-          item.student_id
-        ) ===
-        String(
-          student.id
-        )
-    );
-
-
-  const authorized =
-    student.authorized !== false;
-
-
-  const parents =
-    getParentOptions(
-      student.parent
-    );
-
-
-  const parentList =
-    parents.length
-      ? parents
-          .map(
-            parent =>
-              `<li>
-                ${escapeHtml(
-                  parent.label
-                )}:
-                <strong>
-                  ${escapeHtml(
-                    parent.name
-                  )}
-                </strong>
-              </li>`
-          )
-          .join("")
-      : "<li>No authorized person listed.</li>";
-
-
-  result.innerHTML = `
-
-    <div class="student-result">
-
-      <div class="result-avatar">
-        👨‍🎓
-      </div>
-
-
-      <h2>
-        ${escapeHtml(
-          student.name
-        )}
-      </h2>
-
-
-      <p>
-        ${escapeHtml(
-          student.level || ""
-        )}
-      </p>
-
-
-      <p>
-        Student ID:
-        <strong>
-          ${escapeHtml(
-            student.id
-          )}
-        </strong>
-      </p>
-
-
-      <div
-        style="
-          text-align:left;
-          margin:15px 0;
-          padding:12px;
-          background:#f8fafc;
-          border-radius:10px;
-        "
-      >
-
-        <strong>
-          Pickup Authorization
-        </strong>
-
-
-        <div
-          style="margin-top:6px"
-        >
-
-          <span
-            class="status ${
-              authorized
-                ? "authorized"
-                : "not-authorized"
-            }"
-          >
-
-            ${
-              authorized
-                ? "AUTHORIZED"
-                : "UNAUTHORIZED"
-            }
-
-          </span>
-
-        </div>
-
-
-        <div
-          style="
-            margin-top:10px;
-          "
-        >
-
-          <strong>
-            Registered Pickup People:
-          </strong>
-
-
-          <ul
-            style="
-              margin:7px 0;
-              padding-left:20px;
-            "
-          >
-
-            ${parentList}
-
-          </ul>
-
-        </div>
-
-      </div>
-
-
-      ${
-        !authorized
-          ? `
-
-            <div
-              style="
-                padding:14px;
-                background:#fee2e2;
-                border:1px solid #fecaca;
-                color:#991b1b;
-                border-radius:10px;
-                text-align:left;
-                margin-bottom:15px;
-              "
-            >
-
-              <strong>
-                ⚠ UNAUTHORIZED STUDENT
-              </strong>
-
-              <p
-                style="
-                  margin:6px 0 0;
-                "
-              >
-
-                This student is marked
-                <strong>
-                  unauthorized
-                </strong>.
-                Do not release the student
-                without staff verification
-                and approval.
-
-              </p>
-
-            </div>
-
-          `
-          : ""
-      }
-
-
-      <p>
-        Time In:
-        <strong>
-          ${formatTime(
-            record?.time_in
-          )}
-        </strong>
-      </p>
-
-
-      <p>
-        Time Out:
-        <strong>
-          ${formatTime(
-            record?.time_out
-          )}
-        </strong>
-      </p>
-
-
-      ${
-        record?.pickup_person
-          ? `
-
-            <div
-              style="
-                text-align:left;
-                margin:15px 0;
-                padding:12px;
-                background:#ecfdf5;
-                border-radius:10px;
-              "
-            >
-
-              <strong>
-                Pickup Information
-              </strong>
-
-              <p>
-                Person:
-                <strong>
-                  ${escapeHtml(
-                    record.pickup_person
-                  )}
-                </strong>
-              </p>
-
-              <p>
-                Relationship:
-                ${escapeHtml(
-                  record.Pickup_relationship ||
-                    "-"
-                )}
-              </p>
-
-              <p>
-                Phone:
-                ${escapeHtml(
-                  record.pickup_phone ||
-                    "-"
-                )}
-              </p>
-
-              <p>
-                Option:
-                ${escapeHtml(
-                  record.pickup_option ||
-                    "-"
-                )}
-              </p>
-
-              <p>
-                Approved by:
-                ${escapeHtml(
-                  record.approver ||
-                    "-"
-                )}
-              </p>
-
-            </div>
-
-          `
-          : ""
-      }
-
-
-      <div
-        class="result-actions"
-      >
-
-        <button
-          class="time-in-button"
-          id="recordTimeIn"
-          ${
-            record?.time_in
-              ? "disabled"
-              : ""
-          }
-        >
-          ✓ Time In
-        </button>
-
-
-        <button
-          class="time-out-button"
-          id="recordTimeOut"
-          ${
-            !record?.time_in ||
-            record?.time_out
-              ? "disabled"
-              : ""
-          }
-        >
-          ↗ Time Out
-        </button>
-
-      </div>
-
-
-      ${
-        record?.time_in &&
-        !record?.time_out
-          ? `
-
-            <div
-              style="
-                margin-top:20px;
-              "
-            >
-
-              <button
-                class="primary-button"
-                id="openPickup"
-              >
-                👤 Select Pickup Person
-              </button>
-
-            </div>
-
-          `
-          : ""
-      }
-
-    </div>
-
-  `;
-
-
-  modal.classList.add(
-    "show"
-  );
-
-
-  document
-    .getElementById(
-      "recordTimeIn"
-    )
-    ?.addEventListener(
-      "click",
-      () =>
-        recordTimeIn(
-          student
-        )
-    );
-
-
-  document
-    .getElementById(
-      "recordTimeOut"
-    )
-    ?.addEventListener(
-      "click",
-      () =>
-        recordTimeOut(
-          student
-        )
-    );
-
-
-  document
-    .getElementById(
-      "openPickup"
-    )
-    ?.addEventListener(
-      "click",
-      () =>
-        openPickupForm(
-          student
-        )
-    );
-
-}
-
-
-/* =========================================================
-   TIME IN
-   ========================================================= */
-
-async function recordTimeIn(student) {
-
-  console.log("TIME IN clicked:", student);
-
-  try {
-
-    const today = getVientianeDate();
-
-    console.log("Today's date:", today);
-
-    /* Get today's existing record */
-
-    const {
-      data: existingRecords,
-      error: searchError
-    } = await supabaseClient
-      .from("attendance")
-      .select("*")
-      .eq("student_id", student.id)
-      .eq("date", today)
-      .limit(1);
-
-    if (searchError) {
-      throw searchError;
-    }
-
-    const existing =
-      existingRecords &&
-      existingRecords.length
-        ? existingRecords[0]
-        : null;
-
-
-    /* Already timed in */
-
-    if (existing?.time_in) {
-
-      showToast(
-        "This student already has a Time In today.",
-        "error"
-      );
-
-      return;
-    }
-
-
-    /* Current time */
-
-    const now =
-      new Date().toISOString();
-
-
-    /* =====================================================
-       UPDATE EXISTING RECORD
-       ===================================================== */
-
-    if (existing) {
-
-      console.log(
-        "Updating existing attendance:",
-        existing.id
-      );
-
-
-      const {
-        data,
-        error
-      } = await supabaseClient
-        .from("attendance")
-        .update({
-          time_in: now
-        })
-        .eq("id", existing.id)
-        .select()
-        .single();
-
-
-      if (error) {
-        throw error;
-      }
-
-
-      console.log(
-        "TIME IN UPDATED:",
-        data
-      );
-
-    }
-
-
-    /* =====================================================
-       CREATE NEW RECORD
-       ===================================================== */
-
-    else {
-
-      const payload = {
-
-        student_id:
-          student.id,
-
-        student_name:
-          student.name,
-
-        date:
-          today,
-
-        time_in:
-          now
-
-      };
-
-
-      console.log(
-        "Creating attendance:",
-        payload
-      );
-
-
-      const {
-        data,
-        error
-      } = await supabaseClient
-        .from("attendance")
-        .insert(payload)
-        .select()
-        .single();
-
-
-      if (error) {
-        throw error;
-      }
-
-
-      console.log(
-        "TIME IN CREATED:",
-        data
-      );
-
-    }
-
-
-    showToast(
-      `${student.name} — Time In recorded successfully.`,
-      "success"
-    );
-
-
-    /* Reload today's attendance */
-
-    await loadTodayAttendance();
-
-
-    /* Close student modal */
-
-    closeResultModal();
-
-
-  } catch (error) {
-
-    console.error(
-      "TIME IN ERROR:",
-      error
-    );
-
-
-    showToast(
-      `Time In failed: ${
-        error?.message ||
-        "Unknown error"
-      }`,
-      "error"
-    );
-
-  }
-
-}
-
-
-/* =========================================================
-   TIME OUT
-   ========================================================= */
-
-async function recordTimeOut(student) {
-
-  console.log("TIME OUT clicked:", student);
-
-  try {
-
-    const today =
-      getVientianeDate();
-
-
-    console.log(
-      "Today's date:",
-      today
-    );
-
-
-    /* Find today's attendance */
-
-    const {
-      data: existingRecords,
-      error: searchError
-    } = await supabaseClient
-      .from("attendance")
-      .select("*")
-      .eq("student_id", student.id)
-      .eq("date", today)
-      .limit(1);
-
-
-    if (searchError) {
-      throw searchError;
-    }
-
-
-    const existing =
-      existingRecords &&
-      existingRecords.length
-        ? existingRecords[0]
-        : null;
-
-
-    /* No attendance record */
-
-    if (!existing) {
-
-      showToast(
-        "This student has not been timed in today.",
-        "error"
-      );
-
-      return;
-
-    }
-
-
-    /* Time In required */
-
-    if (!existing.time_in) {
-
-      showToast(
-        "Time In must be recorded first.",
-        "error"
-      );
-
-      return;
-
-    }
-
-
-    /* Already timed out */
-
-    if (existing.time_out) {
-
-      showToast(
-        "This student already has a Time Out today.",
-        "error"
-      );
-
-      return;
-
-    }
-
-
-    /* Current time */
-
-    const now =
-      new Date().toISOString();
-
-
-    console.log(
-      "Recording TIME OUT:",
-      now
-    );
-
-
-    /* Update */
-
-    const {
-      data,
-      error
-    } = await supabaseClient
-      .from("attendance")
-      .update({
-        time_out: now
-      })
-      .eq("id", existing.id)
-      .select()
-      .single();
-
-
-    if (error) {
-      throw error;
-    }
-
-
-    console.log(
-      "TIME OUT SUCCESS:",
-      data
-    );
-
-
-    showToast(
-      `${student.name} — Time Out recorded successfully.`,
-      "success"
-    );
-
-
-    /* Reload attendance */
-
-    await loadTodayAttendance();
-
-
-    /* Close modal */
-
-    closeResultModal();
-
-
-  } catch (error) {
-
-    console.error(
-      "TIME OUT ERROR:",
-      error
-    );
-
-
-    showToast(
-      `Time Out failed: ${
-        error?.message ||
-        "Unknown error"
-      }`,
-      "error"
-    );
-
-  }
-
-}
-
-/* =========================================================
-   PICKUP FORM
-   ========================================================= */
-
-function openPickupForm(
-  student
-) {
-
-  const record =
-    attendanceRecords.find(
-      item =>
-        String(
-          item.student_id
-        ) ===
-        String(
-          student.id
-        )
-    );
-
-
-  if (!record) {
-
-    showToast(
-      "Attendance record not found.",
-      "error"
-    );
-
-    return;
-
-  }
-
-
-  const result =
-    document.getElementById(
-      "studentResult"
-    );
-
-
-  const parents =
-    getParentOptions(
-      student.parent
-    );
-
-
-  const authorized =
-    student.authorized !== false;
-
-
-  const pickupOptions =
-    parents.length
-      ? parents
-          .map(
-            (parent, index) => `
-
-              <option
-                value="${escapeAttribute(
-                  parent.name
-                )}"
-                data-parent-index="${index}"
-              >
-
-                ${escapeHtml(
-                  parent.label
-                )}
-                —
-                ${escapeHtml(
-                  parent.name
-                )}
-
-              </option>
-
-            `
-          )
-          .join("")
-      : "";
-
-
-  result.innerHTML = `
-
-    <div class="student-result">
-
-      <div class="result-avatar">
-        👤
-      </div>
-
-
-      <h2>
-        Student Pickup
-      </h2>
-
-
-      <p>
-        ${escapeHtml(
-          student.name
-        )}
-      </p>
-
-
-      ${
-        !authorized
-          ? `
-
-            <div
-              style="
-                padding:12px;
-                background:#fee2e2;
-                color:#991b1b;
-                border-radius:10px;
-                margin:15px 0;
-                text-align:left;
-              "
-            >
-
-              <strong>
-                ⚠ UNAUTHORIZED
-              </strong>
-
-              <p
-                style="
-                  margin:5px 0 0;
-                "
-              >
-
-                This student is not currently
-                authorized for normal pickup.
-                Verify carefully before release.
-
-              </p>
-
-            </div>
-
-          `
-          : ""
-      }
-
-
-      <div
-        style="
-          text-align:left;
-          margin-top:20px;
-        "
-      >
-
-
-        <label>
-          <strong>
-            Who is picking up the student?
-          </strong>
-        </label>
-
-
-        <select
-          id="pickupPersonSelect"
-          style="
-            width:100%;
-            padding:12px;
-            margin:6px 0 14px;
-            border:1px solid #d1d5db;
-            border-radius:8px;
-            background:white;
-          "
-        >
-
-          <option value="">
-            -- Select Authorized Person --
-          </option>
-
-          ${pickupOptions}
-
-          <option value="Other">
-            Other / Guest
-          </option>
-
-        </select>
-
-
-        <div
-          id="otherPickupContainer"
-          style="display:none"
-        >
-
-          <label>
-            Other / Guest Name
-          </label>
-
-          <input
-            id="otherPickupName"
-            type="text"
-            placeholder="Full name"
-            style="
-              width:100%;
-              padding:11px;
-              margin:6px 0 14px;
-              border:1px solid #d1d5db;
-              border-radius:8px;
-            "
-          >
-
-        </div>
-
-
-        <label>
-          Relationship
-        </label>
-
-
-        <input
-          id="pickupRelationshipInput"
-          type="text"
-          placeholder="Mother, Father, Guardian, Aunt..."
-          value="${escapeAttribute(
-            record.Pickup_relationship ||
-              ""
-          )}"
-          style="
-            width:100%;
-            padding:11px;
-            margin:6px 0 14px;
-            border:1px solid #d1d5db;
-            border-radius:8px;
-          "
-        >
-
-
-        <label>
-          Phone
-        </label>
-
-
-        <input
-          id="pickupPhoneInput"
-          type="text"
-          placeholder="Phone number"
-          value="${escapeAttribute(
-            record.pickup_phone ||
-              ""
-          )}"
-          style="
-            width:100%;
-            padding:11px;
-            margin:6px 0 14px;
-            border:1px solid #d1d5db;
-            border-radius:8px;
-          "
-        >
-
-
-        <label>
-          Pickup Option
-        </label>
-
-
-        <select
-          id="pickupOptionInput"
-          style="
-            width:100%;
-            padding:11px;
-            margin:6px 0 14px;
-            border:1px solid #d1d5db;
-            border-radius:8px;
-          "
-        >
-
-          <option value="">
-            Select option
-          </option>
-
-          <option value="Parent">
-            Parent
-          </option>
-
-          <option value="Guardian">
-            Guardian
-          </option>
-
-          <option value="Authorized Person">
-            Authorized Person
-          </option>
-
-          <option value="Guest">
-            Guest
-          </option>
-
-        </select>
-
-
-        <label>
-          Approver / Staff
-        </label>
-
-
-        <input
-          id="approverInput"
-          type="text"
-          placeholder="Staff / Teacher name"
-          value="${escapeAttribute(
-            record.approver ||
-              ""
-          )}"
-          style="
-            width:100%;
-            padding:11px;
-            margin:6px 0 14px;
-            border:1px solid #d1d5db;
-            border-radius:8px;
-          "
-        >
-
-
-        <label>
-          Notes
-        </label>
-
-
-        <textarea
-          id="notesInput"
-          placeholder="Additional security or pickup notes..."
-          style="
-            width:100%;
-            min-height:80px;
-            padding:11px;
-            margin:6px 0 14px;
-            border:1px solid #d1d5db;
-            border-radius:8px;
-          "
-        >${escapeHtml(
-          record.notes || ""
-        )}</textarea>
-
-
-      </div>
-
-
-      <div
-        class="result-actions"
-      >
-
-        <button
-          class="secondary-button"
-          id="cancelPickup"
-        >
-          Cancel
-        </button>
-
-
-        <button
-          class="primary-button"
-          id="savePickup"
-        >
-          Save Pickup
-        </button>
-
-      </div>
-
-
-    </div>
-
-  `;
-
-
-  /* PERSON SELECT */
-
-  document
-    .getElementById(
-      "pickupPersonSelect"
-    )
-    ?.addEventListener(
-      "change",
-      event => {
-
-        const value =
-          event.target.value;
-
-
-        const otherContainer =
-          document.getElementById(
-            "otherPickupContainer"
-          );
-
-
-        if (otherContainer) {
-
-          otherContainer.style.display =
-            value === "Other"
-              ? "block"
-              : "none";
-
-        }
-
-
-        const selected =
-          parents.find(
-            parent =>
-              parent.name ===
-              value
-          );
-
-
-        if (
-          selected
-        ) {
-
-          const relationship =
-            document.getElementById(
-              "pickupRelationshipInput"
-            );
-
-
-          if (
-            relationship &&
-            !relationship.value
-          ) {
-
-            relationship.value =
-              selected.label;
-
-          }
-
-        }
-
-      }
-    );
-
-
-  /* CANCEL */
-
-  document
-    .getElementById(
-      "cancelPickup"
-    )
-    ?.addEventListener(
-      "click",
-      () =>
-        showAttendanceAction(
-          student
-        )
-    );
-
-
-  /* SAVE */
-
-  document
-    .getElementById(
-      "savePickup"
-    )
-    ?.addEventListener(
-      "click",
-      () =>
-        savePickup(
-          student,
-          record
-        )
-    );
-
-}
-
-
-/* =========================================================
-   SAVE PICKUP
-   ========================================================= */
-
-async function savePickup(
-  student,
-  record
-) {
-
-  try {
-
-    const selectedPerson =
-      document
-        .getElementById(
-          "pickupPersonSelect"
-        )
-        .value;
-
-
-    const otherName =
-      document
-        .getElementById(
-          "otherPickupName"
-        )
-        ?.value
-        ?.trim() || "";
-
-
-    if (!selectedPerson) {
-
-      showToast(
-        "Please select who is picking up the student.",
-        "error"
-      );
-
-      return;
-
-    }
-
-
-    let pickup_person =
-      selectedPerson;
-
-
     if (
-      selectedPerson ===
-      "Other"
+        !student.student_id ||
+        !student.student_name ||
+        !student.level
     ) {
 
-      if (!otherName) {
-
         showToast(
-          "Please enter the guest/pickup person's name.",
-          "error"
+            "Please complete the required fields.",
+            "error"
         );
 
         return;
 
-      }
-
-
-      pickup_person =
-        otherName;
-
     }
 
+    try {
 
-    const Pickup_relationship =
-      document
-        .getElementById(
-          "pickupRelationshipInput"
-        )
-        .value
-        .trim();
+        let result;
 
+        if (editingStudentId) {
 
-    const pickup_phone =
-      document
-        .getElementById(
-          "pickupPhoneInput"
-        )
-        .value
-        .trim();
+            result =
+                await supabaseClient
+                    .from("students")
+                    .update(student)
+                    .eq(
+                        "student_id",
+                        editingStudentId
+                    );
 
+        } else {
 
-    const pickup_option =
-      document
-        .getElementById(
-          "pickupOptionInput"
-        )
-        .value;
+            result =
+                await supabaseClient
+                    .from("students")
+                    .insert(
+                        student
+                    );
 
+        }
 
-    const approver =
-      document
-        .getElementById(
-          "approverInput"
-        )
-        .value
-        .trim();
+        if (result.error) {
 
+            throw result.error;
 
-    const notes =
-      document
-        .getElementById(
-          "notesInput"
-        )
-        .value
-        .trim();
+        }
 
-
-    if (!pickup_option) {
-
-      showToast(
-        "Please select the pickup option.",
-        "error"
-      );
-
-      return;
-
-    }
-
-
-    if (!approver) {
-
-      showToast(
-        "Please enter the approving staff/teacher.",
-        "error"
-      );
-
-      return;
-
-    }
-
-
-    const {
-      error
-    } =
-      await supabaseClient
-        .from("attendance")
-        .update({
-
-          pickup_person,
-
-          Pickup_relationship,
-
-          pickup_phone,
-
-          pickup_option,
-
-          approver,
-
-          notes
-
-        })
-        .eq(
-          "id",
-          record.id
+        closeModal(
+            "studentModal"
         );
 
+        showToast(
+            editingStudentId
+                ? "Student updated successfully."
+                : "Student added successfully.",
+            "success"
+        );
 
-    if (error) {
-      throw error;
+        editingStudentId =
+            null;
+
+        await loadStudents();
+
+        populateLevelFilter();
+
+    } catch (error) {
+
+        console.error(
+            "Save student error:",
+            error
+        );
+
+        showToast(
+            error.message ||
+            "Unable to save student.",
+            "error"
+        );
+
     }
-
-
-    showToast(
-      `Pickup saved: ${pickup_person}`,
-      "success"
-    );
-
-
-    closeResultModal();
-
-
-    await loadTodayAttendance();
-
-
-  } catch (error) {
-
-    console.error(
-      "Pickup save error:",
-      error
-    );
-
-
-    showToast(
-      error?.message ||
-        "Unable to save pickup information.",
-      "error"
-    );
-
-  }
 
 }
 
 
 /* =========================================================
-   LOAD TODAY ATTENDANCE
+   EDIT STUDENT
    ========================================================= */
 
-async function loadTodayAttendance() {
+window.editStudent =
+async function(studentId) {
 
-  try {
-
-    const today =
-      getVientianeDate();
-
-
-    console.log(
-      "Loading attendance for:",
-      today
-    );
-
-
-    const {
-      data,
-      error
-    } =
-      await supabaseClient
-        .from("attendance")
-        .select("*")
-        .eq(
-          "date",
-          today
-        )
-        .order(
-          "created_at",
-          {
-            ascending: false
-          }
+    const student =
+        students.find(
+            item =>
+                String(
+                    item.student_id
+                ) ===
+                String(studentId)
         );
 
+    if (!student) {
 
-    if (error) {
-      throw error;
+        showToast(
+            "Student not found.",
+            "error"
+        );
+
+        return;
+
     }
 
+    editingStudentId =
+        student.student_id;
 
-    attendanceRecords =
-      data || [];
+    $("studentId").value =
+        student.student_id || "";
 
+    $("studentName").value =
+        student.student_name || "";
 
-    console.log(
-      "Today's attendance:",
-      attendanceRecords
+    $("studentLevel").value =
+        student.level || "";
+
+    $("studentParent").value =
+        student.parent_name || "";
+
+    $("studentPhone").value =
+        student.phone || "";
+
+    $("studentParent2").value =
+        student.parent_name_2 || "";
+
+    $("studentPhone2").value =
+        student.phone_2 || "";
+
+    $("studentParent3").value =
+        student.parent_name_3 || "";
+
+    $("studentPhone3").value =
+        student.phone_3 || "";
+
+    $("studentAuthorized").checked =
+        student.authorized !== false;
+
+    modalTitle(
+        "Edit Student"
     );
 
+    openModal(
+        "studentModal"
+    );
 
-    updateAttendanceStats();
+};
+
+
+/* =========================================================
+   DELETE STUDENT
+   ========================================================= */
+
+window.deleteStudent =
+async function(studentId) {
+
+    const student =
+        students.find(
+            item =>
+                String(
+                    item.student_id
+                ) ===
+                String(studentId)
+        );
+
+    if (!student) {
+        return;
+    }
+
+    const confirmed =
+        confirm(
+            `Delete ${student.student_name} (${student.student_id})?`
+        );
+
+    if (!confirmed) {
+        return;
+    }
+
+    try {
+
+        const {
+            error
+        } =
+            await supabaseClient
+                .from("students")
+                .delete()
+                .eq(
+                    "student_id",
+                    student.student_id
+                );
+
+        if (error) {
+            throw error;
+        }
+
+        showToast(
+            "Student deleted.",
+            "success"
+        );
+
+        await loadStudents();
+
+        populateLevelFilter();
+
+    } catch (error) {
+
+        console.error(
+            "Delete student error:",
+            error
+        );
+
+        showToast(
+            error.message ||
+            "Unable to delete student.",
+            "error"
+        );
+
+    }
+
+};
+
+
+/* =========================================================
+   MODAL HELPERS
+   ========================================================= */
+
+function openModal(id) {
+
+    const modal =
+        $(id);
+
+    if (modal) {
+
+        modal.classList.add(
+            "active"
+        );
+
+    }
+
+}
+
+
+function closeModal(id) {
+
+    const modal =
+        $(id);
+
+    if (modal) {
+
+        modal.classList.remove(
+            "active"
+        );
+
+    }
+
+}
+
+
+function modalTitle(title) {
+
+    const modal =
+        $("studentModal");
+
+    if (!modal) {
+        return;
+    }
+
+    const heading =
+        modal.querySelector(
+            ".modal-header h2"
+        );
+
+    if (heading) {
+
+        heading.textContent =
+            title;
+
+    }
+
+}
+
+
+/* =========================================================
+   SEARCH
+   ========================================================= */
+
+function setupSearch() {
+
+    $("studentSearch")
+        ?.addEventListener(
+            "input",
+            renderStudents
+        );
+
+    $("levelFilter")
+        ?.addEventListener(
+            "change",
+            renderStudents
+        );
+
+    $("attendanceSearch")
+        ?.addEventListener(
+            "input",
+            renderAttendance
+        );
+
+    $("manualSearchButton")
+        ?.addEventListener(
+            "click",
+            manualStudentSearch
+        );
+
+    $("manualStudentId")
+        ?.addEventListener(
+            "keydown",
+            event => {
+
+                if (
+                    event.key ===
+                    "Enter"
+                ) {
+
+                    event.preventDefault();
+
+                    manualStudentSearch();
+
+                }
+
+            }
+        );
+
+}
+
+
+/* =========================================================
+   LOAD ATTENDANCE
+   ========================================================= */
+
+async function loadAttendance() {
+
+    const {
+        data,
+        error
+    } =
+        await supabaseClient
+            .from("attendance")
+            .select("*")
+            .order(
+                "created_at",
+                {
+                    ascending: false
+                }
+            );
+
+    if (error) {
+
+        console.error(
+            "Load attendance error:",
+            error
+        );
+
+        throw error;
+
+    }
+
+    attendance =
+        data || [];
 
     renderAttendance();
 
-    renderDashboardAttendance();
-
-
-  } catch (error) {
-
-    console.error(
-      "Attendance loading error:",
-      error
-    );
-
-
-    showToast(
-      `Unable to load attendance: ${
-        error?.message ||
-        "Unknown error"
-      }`,
-      "error"
-    );
-
-  }
+    updateDashboard();
 
 }
+
+
 /* =========================================================
-   ATTENDANCE STATS
+   TODAY'S ATTENDANCE
    ========================================================= */
 
-function updateAttendanceStats() {
+function getTodayAttendance() {
 
-  const timeIn =
-    attendanceRecords.filter(
-      record =>
-        record.time_in
-    ).length;
+    const today =
+        new Date();
 
+    const year =
+        today.getFullYear();
 
-  const timeOut =
-    attendanceRecords.filter(
-      record =>
-        record.time_out
-    ).length;
+    const month =
+        String(
+            today.getMonth() + 1
+        )
+            .padStart(2, "0");
 
+    const day =
+        String(
+            today.getDate()
+        )
+            .padStart(2, "0");
 
-  const currentlyIn =
-    attendanceRecords.filter(
-      record =>
-        record.time_in &&
-        !record.time_out
-    ).length;
+    const todayString =
+        `${year}-${month}-${day}`;
 
+    return attendance.filter(
+        record => {
 
-  const timeInElement =
-    document.getElementById(
-      "timeInCount"
+            const source =
+                record.date ||
+                record.created_at;
+
+            if (!source) {
+                return false;
+            }
+
+            return String(
+                source
+            ).substring(0, 10) ===
+                todayString;
+
+        }
     );
-
-
-  const timeOutElement =
-    document.getElementById(
-      "timeOutCount"
-    );
-
-
-  const currentElement =
-    document.getElementById(
-      "currentlyInCount"
-    );
-
-
-  if (timeInElement) {
-
-    timeInElement.textContent =
-      timeIn;
-
-  }
-
-
-  if (timeOutElement) {
-
-    timeOutElement.textContent =
-      timeOut;
-
-  }
-
-
-  if (currentElement) {
-
-    currentElement.textContent =
-      currentlyIn;
-
-  }
 
 }
 
 
 /* =========================================================
-   ATTENDANCE TABLE
+   RENDER ATTENDANCE
    ========================================================= */
 
 function renderAttendance() {
 
-  const body =
-    document.getElementById(
-      "attendanceBody"
-    );
-
-
-  if (!body) {
-    return;
-  }
-
-
-  const search =
-    document
-      .getElementById(
-        "attendanceSearch"
-      )
-      ?.value
-      ?.toLowerCase()
-      ?.trim() || "";
-
-
-  const filtered =
-    attendanceRecords.filter(
-      record => {
-
-        const text = [
-
-          record.student_id,
-          record.student_name,
-          record.pickup_person,
-          record.Pickup_relationship,
-          record.pickup_phone,
-          record.pickup_option,
-          record.approver,
-          record.notes
-
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
-
-
-        return (
-          !search ||
-          text.includes(search)
-        );
-
-      }
-    );
-
-
-  if (!filtered.length) {
-
-    body.innerHTML = `
-
-      <tr>
-
-        <td
-          colspan="8"
-          class="empty-state"
-        >
-
-          No attendance records today.
-
-        </td>
-
-      </tr>
-
-    `;
-
-    return;
-
-  }
-
-
-  body.innerHTML =
-    filtered
-      .map(record => {
-
-        const student =
-          findStudent(
-            record.student_id
-          );
-
-
-        return `
-
-          <tr>
-
-            <td>
-
-              <strong>
-                ${escapeHtml(
-                  record.student_name ||
-                  record.student_id ||
-                  ""
-                )}
-              </strong>
-
-            </td>
-
-
-            <td>
-
-              ${escapeHtml(
-                student?.level ||
-                  "-"
-              )}
-
-            </td>
-
-
-            <td>
-
-              ${formatTime(
-                record.time_in
-              )}
-
-            </td>
-
-
-            <td>
-
-              ${formatTime(
-                record.time_out
-              )}
-
-            </td>
-
-
-            <td>
-
-              ${escapeHtml(
-                record.pickup_person ||
-                  "-"
-              )}
-
-            </td>
-
-
-            <td>
-
-              ${escapeHtml(
-                record.Pickup_relationship ||
-                  "-"
-              )}
-
-            </td>
-
-
-            <td>
-
-              ${escapeHtml(
-                record.approver ||
-                  "-"
-              )}
-
-            </td>
-
-
-            <td>
-
-              <span
-                class="status ${
-                  record.time_out
-                    ? "out"
-                    : "in"
-                }"
-              >
-
-                ${
-                  record.time_out
-                    ? "Completed"
-                    : "In School"
-                }
-
-              </span>
-
-            </td>
-
-          </tr>
-
+    const body =
+        $("attendanceBody");
+
+    if (!body) {
+        return;
+    }
+
+    const search =
+        (
+            $("attendanceSearch")
+                ?.value ||
+            ""
+        )
+            .trim()
+            .toLowerCase();
+
+    const today =
+        getTodayAttendance();
+
+    const filtered =
+        today.filter(record => {
+
+            const text = [
+
+                record.student_id,
+                record.student_name,
+                record.level,
+                record.pickup_person,
+                record.pickup_name,
+                record.pickup_relationship,
+                record.status
+
+            ]
+                .filter(Boolean)
+                .join(" ")
+                .toLowerCase();
+
+            return (
+                !search ||
+                text.includes(search)
+            );
+
+        });
+
+    if (
+        filtered.length === 0
+    ) {
+
+        body.innerHTML = `
+            <tr>
+                <td
+                    colspan="6"
+                    class="empty-state"
+                >
+                    No attendance records today.
+                </td>
+            </tr>
         `;
 
-      })
-      .join("");
+    } else {
+
+        body.innerHTML =
+            filtered.map(
+                record => {
+
+                    return `
+
+                        <tr>
+
+                            <td>
+                                <strong>
+                                    ${escapeHtml(
+                                        getAttendanceStudentName(
+                                            record
+                                        )
+                                    )}
+                                </strong>
+
+                                <small>
+                                    ${escapeHtml(
+                                        record.student_id || ""
+                                    )}
+                                </small>
+                            </td>
+
+                            <td>
+                                ${escapeHtml(
+                                    record.level || "-"
+                                )}
+                            </td>
+
+                            <td>
+                                ${formatDateTime(
+                                    record.time_in
+                                )}
+                            </td>
+
+                            <td>
+                                ${formatDateTime(
+                                    record.time_out
+                                )}
+                            </td>
+
+                            <td>
+                                ${escapeHtml(
+                                    record.pickup_person ||
+                                    record.pickup_name ||
+                                    "-"
+                                )}
+                            </td>
+
+                            <td>
+                                ${attendanceStatusBadge(
+                                    record
+                                )}
+                            </td>
+
+                        </tr>
+
+                    `;
+
+                }
+            ).join("");
+
+    }
+
+    renderDashboardAttendance();
 
 }
 
@@ -4186,521 +1541,724 @@ function renderAttendance() {
 
 function renderDashboardAttendance() {
 
-  const body =
-    document.getElementById(
-      "dashboardAttendanceBody"
+    const body =
+        $("dashboardAttendanceBody");
+
+    if (!body) {
+        return;
+    }
+
+    const today =
+        getTodayAttendance()
+            .slice(0, 8);
+
+    if (
+        today.length === 0
+    ) {
+
+        body.innerHTML = `
+            <tr>
+                <td
+                    colspan="5"
+                    class="empty-state"
+                >
+                    No attendance records yet.
+                </td>
+            </tr>
+        `;
+
+        return;
+
+    }
+
+    body.innerHTML =
+        today.map(
+            record => {
+
+                return `
+
+                    <tr>
+
+                        <td>
+                            ${escapeHtml(
+                                getAttendanceStudentName(
+                                    record
+                                )
+                            )}
+                        </td>
+
+                        <td>
+                            ${escapeHtml(
+                                record.level || "-"
+                            )}
+                        </td>
+
+                        <td>
+                            ${formatDateTime(
+                                record.time_in
+                            )}
+                        </td>
+
+                        <td>
+                            ${formatDateTime(
+                                record.time_out
+                            )}
+                        </td>
+
+                        <td>
+                            ${attendanceStatusBadge(
+                                record
+                            )}
+                        </td>
+
+                    </tr>
+
+                `;
+
+            }
+        ).join("");
+
+}
+
+
+/* =========================================================
+   ATTENDANCE STATUS
+   ========================================================= */
+
+function attendanceStatusBadge(
+    record
+) {
+
+    if (
+        record.time_out
+    ) {
+
+        return `
+            <span class="status-badge present">
+                Completed
+            </span>
+        `;
+
+    }
+
+    if (
+        record.time_in
+    ) {
+
+        return `
+            <span class="status-badge present">
+                Currently In
+            </span>
+        `;
+
+    }
+
+    return `
+        <span class="status-badge">
+            Recorded
+        </span>
+    `;
+
+}
+
+
+/* =========================================================
+   ATTENDANCE STUDENT NAME
+   ========================================================= */
+
+function getAttendanceStudentName(
+    record
+) {
+
+    if (
+        record.student_name
+    ) {
+
+        return record.student_name;
+
+    }
+
+    const student =
+        students.find(
+            item =>
+                String(
+                    item.student_id
+                ) ===
+                String(
+                    record.student_id
+                )
+        );
+
+    return (
+        student?.student_name ||
+        record.student_id ||
+        "Unknown Student"
     );
 
-
-  if (!body) {
-    return;
-  }
+}
 
 
-  const records =
-    attendanceRecords.slice(
-      0,
-      10
+/* =========================================================
+   DASHBOARD COUNTS
+   ========================================================= */
+
+function updateDashboard() {
+
+    const today =
+        getTodayAttendance();
+
+    const timeIn =
+        today.filter(
+            record =>
+                Boolean(
+                    record.time_in
+                )
+        ).length;
+
+    const timeOut =
+        today.filter(
+            record =>
+                Boolean(
+                    record.time_out
+                )
+        ).length;
+
+    const currentlyIn =
+        today.filter(
+            record =>
+                record.time_in &&
+                !record.time_out
+        ).length;
+
+    if ($("timeInCount")) {
+
+        $("timeInCount")
+            .textContent =
+            timeIn;
+
+    }
+
+    if ($("timeOutCount")) {
+
+        $("timeOutCount")
+            .textContent =
+            timeOut;
+
+    }
+
+    if ($("currentlyInCount")) {
+
+        $("currentlyInCount")
+            .textContent =
+            currentlyIn;
+
+    }
+
+    updateTotalStudents();
+
+    renderDashboardAttendance();
+
+}
+
+
+/* =========================================================
+   REFRESH ATTENDANCE
+   ========================================================= */
+
+function setupAttendanceRefresh() {
+
+    $("refreshAttendance")
+        ?.addEventListener(
+            "click",
+            async () => {
+
+                try {
+
+                    await loadAttendance();
+
+                    showToast(
+                        "Attendance refreshed.",
+                        "success"
+                    );
+
+                } catch (error) {
+
+                    showToast(
+                        "Unable to refresh attendance.",
+                        "error"
+                    );
+
+                }
+
+            }
+        );
+
+}
+
+
+/* =========================================================
+   QR SCANNER CONTROLS
+   ========================================================= */
+
+function setupScannerControls() {
+
+    $("startScanner")
+        ?.addEventListener(
+            "click",
+            startScanner
+        );
+
+    $("stopScanner")
+        ?.addEventListener(
+            "click",
+            stopScanner
+        );
+
+}
+
+
+/* =========================================================
+   START QR SCANNER
+   ========================================================= */
+
+async function startScanner() {
+
+    if (scannerRunning) {
+
+        showToast(
+            "Scanner is already running.",
+            "info"
+        );
+
+        return;
+
+    }
+
+    if (
+        typeof Html5Qrcode ===
+        "undefined"
+    ) {
+
+        showToast(
+            "QR scanner library is still loading. Please try again.",
+            "error"
+        );
+
+        return;
+
+    }
+
+    try {
+
+        scanner =
+            new Html5Qrcode(
+                "reader"
+            );
+
+        await scanner.start(
+
+            {
+                facingMode:
+                    "environment"
+            },
+
+            {
+                fps: 10,
+
+                qrbox: {
+                    width: 250,
+                    height: 250
+                }
+
+            },
+
+            async decodedText => {
+
+                await handleQRCode(
+                    decodedText
+                );
+
+            },
+
+            errorMessage => {
+
+                // Scanner continuously reports
+                // normal "QR not found" messages.
+                // We intentionally do not show
+                // these to the user.
+
+            }
+
+        );
+
+        scannerRunning =
+            true;
+
+        showToast(
+            "QR Scanner started.",
+            "success"
+        );
+
+    } catch (error) {
+
+        console.error(
+            "Scanner error:",
+            error
+        );
+
+        scannerRunning =
+            false;
+
+        showToast(
+            "Unable to start camera. Please allow camera access.",
+            "error"
+        );
+
+    }
+
+}
+
+
+/* =========================================================
+   STOP QR SCANNER
+   ========================================================= */
+
+async function stopScanner() {
+
+    if (
+        !scanner ||
+        !scannerRunning
+    ) {
+
+        return;
+
+    }
+
+    try {
+
+        await scanner.stop();
+
+        await scanner.clear();
+
+    } catch (error) {
+
+        console.warn(
+            "Scanner stop warning:",
+            error
+        );
+
+    }
+
+    scanner =
+        null;
+
+    scannerRunning =
+        false;
+
+}
+
+
+/* =========================================================
+   HANDLE QR CODE
+   ========================================================= */
+
+async function handleQRCode(
+    decodedText
+) {
+
+    await stopScanner();
+
+    const studentId =
+        String(
+            decodedText
+        )
+            .trim();
+
+    if (!studentId) {
+
+        showToast(
+            "Invalid QR code.",
+            "error"
+        );
+
+        return;
+
+    }
+
+    await findStudent(
+        studentId
     );
 
+}
 
-  if (!records.length) {
 
-    body.innerHTML = `
+/* =========================================================
+   MANUAL SEARCH
+   ========================================================= */
 
-      <tr>
+async function manualStudentSearch() {
 
-        <td
-          colspan="6"
-          class="empty-state"
-        >
+    const input =
+        $("manualStudentId");
 
-          No attendance records yet.
+    const studentId =
+        input?.value
+            .trim();
 
-        </td>
+    if (!studentId) {
 
-      </tr>
+        showToast(
+            "Enter a Student ID.",
+            "error"
+        );
+
+        return;
+
+    }
+
+    await findStudent(
+        studentId
+    );
+
+}
+
+
+/* =========================================================
+   FIND STUDENT
+   ========================================================= */
+
+async function findStudent(
+    studentId
+) {
+
+    try {
+
+        const {
+            data,
+            error
+        } =
+            await supabaseClient
+                .from("students")
+                .select("*")
+                .eq(
+                    "student_id",
+                    studentId
+                )
+                .maybeSingle();
+
+        if (error) {
+            throw error;
+        }
+
+        if (!data) {
+
+            showToast(
+                `Student ${studentId} was not found.`,
+                "error"
+            );
+
+            return;
+
+        }
+
+        showStudentResult(
+            data
+        );
+
+    } catch (error) {
+
+        console.error(
+            "Find student error:",
+            error
+        );
+
+        showToast(
+            "Unable to find student.",
+            "error"
+        );
+
+    }
+
+}
+
+
+/* =========================================================
+   STUDENT RESULT MODAL
+   ========================================================= */
+
+function showStudentResult(
+    student
+) {
+
+    const result =
+        $("studentResult");
+
+    if (!result) {
+        return;
+    }
+
+    const authorized =
+        student.authorized !== false;
+
+    const parents = [
+
+        {
+            name:
+                student.parent_name,
+            phone:
+                student.phone
+        },
+
+        {
+            name:
+                student.parent_name_2,
+            phone:
+                student.phone_2
+        },
+
+        {
+            name:
+                student.parent_name_3,
+            phone:
+                student.phone_3
+        }
+
+    ]
+        .filter(
+            person =>
+                person.name
+        );
+
+    result.innerHTML = `
+
+        <div class="student-profile">
+
+            <div class="profile-header">
+
+                <div class="profile-avatar">
+                    ${escapeHtml(
+                        getInitials(
+                            student.student_name
+                        )
+                    )}
+                </div>
+
+                <div>
+
+                    <h2>
+                        ${escapeHtml(
+                            student.student_name
+                        )}
+                    </h2>
+
+                    <p>
+                        ${escapeHtml(
+                            student.student_id
+                        )}
+                        •
+                        ${escapeHtml(
+                            student.level || "-"
+                        )}
+                    </p>
+
+                </div>
+
+            </div>
+
+
+            <div class="security-box">
+
+                <strong>
+                    ${
+                        authorized
+                            ? "✓ Authorized Student Pickup"
+                            : "⚠ Pickup Requires Approval"
+                    }
+                </strong>
+
+                <p>
+                    ${
+                        authorized
+                            ? "Registered pickup persons may be selected below."
+                            : "This student's pickup requires staff verification and approval."
+                    }
+                </p>
+
+            </div>
+
+
+            <div class="form-section">
+
+                <h3>
+                    Select Pickup Person
+                </h3>
+
+                ${
+                    parents.length
+                        ? parents.map(
+                            (person, index) => `
+
+                                <button
+                                    type="button"
+                                    class="pickup-select-button"
+                                    onclick="recordTimeOut(
+                                        '${escapeJs(student.student_id)}',
+                                        ${index}
+                                    )"
+                                >
+
+                                    <strong>
+                                        ${escapeHtml(
+                                            person.name
+                                        )}
+                                    </strong>
+
+                                    <span>
+                                        ${escapeHtml(
+                                            person.phone || ""
+                                        )}
+                                    </span>
+
+                                </button>
+
+                            `
+                        ).join("")
+                        : `
+                            <p>
+                                No registered pickup person.
+                            </p>
+                        `
+                }
+
+                <button
+                    type="button"
+                    class="secondary-button"
+                    onclick="recordTimeIn('${escapeJs(
+                        student.student_id
+                    )}')"
+                >
+                    ✓ Record Time In
+                </button>
+
+                <button
+                    type="button"
+                    class="secondary-button"
+                    onclick="recordUnauthorizedPickup('${escapeJs(
+                        student.student_id
+                    )}')"
+                >
+                    ⚠ Unauthorized / Staff Approval
+                </button>
+
+            </div>
+
+        </div>
 
     `;
 
-    return;
-
-  }
-
-
-  body.innerHTML =
-    records
-      .map(record => {
-
-        const student =
-          findStudent(
-            record.student_id
-          );
-
-
-        return `
-
-          <tr>
-
-            <td>
-
-              ${escapeHtml(
-                record.student_name ||
-                record.student_id
-              )}
-
-            </td>
-
-
-            <td>
-
-              ${escapeHtml(
-                student?.level ||
-                  "-"
-              )}
-
-            </td>
-
-
-            <td>
-
-              ${formatTime(
-                record.time_in
-              )}
-
-            </td>
-
-
-            <td>
-
-              ${formatTime(
-                record.time_out
-              )}
-
-            </td>
-
-
-            <td>
-
-              ${escapeHtml(
-                record.pickup_person ||
-                  "-"
-              )}
-
-            </td>
-
-
-            <td>
-
-              <span
-                class="status ${
-                  record.time_out
-                    ? "out"
-                    : "in"
-                }"
-              >
-
-                ${
-                  record.time_out
-                    ? "Completed"
-                    : "In School"
-                }
-
-              </span>
-
-            </td>
-
-          </tr>
-
-        `;
-
-      })
-      .join("");
-
-}
-
-
-/* =========================================================
-   SEARCH
-   ========================================================= */
-
-function initializeSearch() {
-
-  document
-    .getElementById(
-      "studentSearch"
-    )
-    ?.addEventListener(
-      "input",
-      renderStudents
+    openModal(
+        "studentResultModal"
     );
-
-
-  document
-    .getElementById(
-      "levelFilter"
-    )
-    ?.addEventListener(
-      "change",
-      renderStudents
-    );
-
-
-  document
-    .getElementById(
-      "attendanceSearch"
-    )
-    ?.addEventListener(
-      "input",
-      renderAttendance
-    );
-
-
-  document
-    .getElementById(
-      "refreshAttendance"
-    )
-    ?.addEventListener(
-      "click",
-      loadTodayAttendance
-    );
-
-}
-
-
-/* =========================================================
-   REPORTS / CSV
-   ========================================================= */
-
-function initializeReports() {
-
-  document
-    .getElementById(
-      "exportCsv"
-    )
-    ?.addEventListener(
-      "click",
-      exportAttendanceCsv
-    );
-
-}
-
-
-/* =========================================================
-   EXPORT ATTENDANCE
-   ========================================================= */
-
-function exportAttendanceCsv() {
-
-  if (!attendanceRecords.length) {
-
-    showToast(
-      "There are no attendance records to export.",
-      "error"
-    );
-
-    return;
-
-  }
-
-
-  const headers = [
-
-    "Date",
-    "Student ID",
-    "Student Name",
-    "Level",
-    "Time In",
-    "Time Out",
-    "Pickup Person",
-    "Relationship",
-    "Pickup Phone",
-    "Pickup Option",
-    "Approver",
-    "Notes"
-
-  ];
-
-
-  const rows =
-    attendanceRecords.map(
-      record => {
-
-        const student =
-          findStudent(
-            record.student_id
-          );
-
-
-        return [
-
-          record.date ||
-            "",
-
-          record.student_id ||
-            "",
-
-          record.student_name ||
-            "",
-
-          student?.level ||
-            "",
-
-          record.time_in
-            ? formatTime(
-                record.time_in
-              )
-            : "",
-
-          record.time_out
-            ? formatTime(
-                record.time_out
-              )
-            : "",
-
-          record.pickup_person ||
-            "",
-
-          record.Pickup_relationship ||
-            "",
-
-          record.pickup_phone ||
-            "",
-
-          record.pickup_option ||
-            "",
-
-          record.approver ||
-            "",
-
-          record.notes ||
-            ""
-
-        ];
-
-      }
-    );
-
-
-  const csv =
-    [
-
-      headers,
-      ...rows
-
-    ]
-
-      .map(
-        row =>
-          row
-            .map(
-              value =>
-                `"${String(
-                  value ?? ""
-                ).replace(
-                  /"/g,
-                  '""'
-                )}"`
-            )
-            .join(",")
-      )
-      .join("\n");
-
-
-  const blob =
-    new Blob(
-      [csv],
-      {
-        type:
-          "text/csv;charset=utf-8;"
-      }
-    );
-
-
-  const url =
-    URL.createObjectURL(
-      blob
-    );
-
-
-  const link =
-    document.createElement(
-      "a"
-    );
-
-
-  link.href =
-    url;
-
-
-  link.download =
-    `Vision-School-Attendance-${getVientianeDate()}.csv`;
-
-
-  document.body.appendChild(
-    link
-  );
-
-
-  link.click();
-
-
-  link.remove();
-
-
-  URL.revokeObjectURL(
-    url
-  );
-
-
-  showToast(
-    "Attendance Excel-compatible file downloaded.",
-    "success"
-  );
-
-}
-
-
-/* =========================================================
-   REALTIME
-   ========================================================= */
-
-function initializeRealtime() {
-
-  if (realtimeChannel) {
-
-    supabaseClient.removeChannel(
-      realtimeChannel
-    );
-
-  }
-
-
-  realtimeChannel =
-    supabaseClient
-      .channel(
-        "vision-school-attendance"
-      )
-
-      .on(
-
-        "postgres_changes",
-
-        {
-
-          event: "*",
-
-          schema: "public",
-
-          table: "attendance"
-
-        },
-
-        () => {
-
-          loadTodayAttendance();
-
-        }
-
-      )
-
-      .on(
-
-        "postgres_changes",
-
-        {
-
-          event: "*",
-
-          schema: "public",
-
-          table: "students"
-
-        },
-
-        () => {
-
-          loadStudents();
-
-        }
-
-      )
-
-      .subscribe(
-        status => {
-
-          console.log(
-            "Realtime:",
-            status
-          );
-
-        }
-      );
-
-}
-
-
-/* =========================================================
-   MODAL CLOSING
-   ========================================================= */
-
-function initializeModalClosing() {
-
-  document
-    .getElementById(
-      "closeResultModal"
-    )
-    ?.addEventListener(
-      "click",
-      closeResultModal
-    );
-
-
-  document
-    .getElementById(
-      "closeStudentModal"
-    )
-    ?.addEventListener(
-      "click",
-      closeStudentModal
-    );
-
-
-  document
-    .getElementById(
-      "cancelStudent"
-    )
-    ?.addEventListener(
-      "click",
-      closeStudentModal
-    );
-
-
-  document
-    .querySelectorAll(
-      ".modal"
-    )
-    .forEach(modal => {
-
-      modal.addEventListener(
-        "click",
-        event => {
-
-          if (
-            event.target ===
-            modal
-          ) {
-
-            modal.classList.remove(
-              "show"
-            );
-
-          }
-
-        }
-      );
-
-    });
 
 }
 
@@ -4709,14 +2267,888 @@ function initializeModalClosing() {
    CLOSE RESULT MODAL
    ========================================================= */
 
-function closeResultModal() {
+$("closeResultModal")
+    ?.addEventListener(
+        "click",
+        () => closeModal(
+            "studentResultModal"
+        )
+    );
 
-  document
-    .getElementById(
-      "studentResultModal"
-    )
-    ?.classList.remove(
-      "show"
+
+/* =========================================================
+   RECORD TIME IN
+   ========================================================= */
+
+window.recordTimeIn =
+async function(studentId) {
+
+    const student =
+        students.find(
+            item =>
+                String(
+                    item.student_id
+                ) ===
+                String(studentId)
+        );
+
+    if (!student) {
+
+        showToast(
+            "Student not found.",
+            "error"
+        );
+
+        return;
+
+    }
+
+    try {
+
+        const today =
+            getLocalDateString();
+
+        const existing =
+            await getTodayStudentAttendance(
+                studentId
+            );
+
+        if (existing) {
+
+            if (existing.time_in) {
+
+                showToast(
+                    "This student has already timed in today.",
+                    "info"
+                );
+
+                return;
+
+            }
+
+        }
+
+        const now =
+            new Date()
+                .toISOString();
+
+        let result;
+
+        if (existing) {
+
+            result =
+                await supabaseClient
+                    .from("attendance")
+                    .update({
+                        time_in: now
+                    })
+                    .eq(
+                        "id",
+                        existing.id
+                    );
+
+        } else {
+
+            result =
+                await supabaseClient
+                    .from("attendance")
+                    .insert({
+
+                        student_id:
+                            student.student_id,
+
+                        student_name:
+                            student.student_name,
+
+                        level:
+                            student.level,
+
+                        date:
+                            today,
+
+                        time_in:
+                            now,
+
+                        status:
+                            "present"
+
+                    });
+
+        }
+
+        if (result.error) {
+            throw result.error;
+        }
+
+        closeModal(
+            "studentResultModal"
+        );
+
+        showToast(
+            `${student.student_name} timed in successfully.`,
+            "success"
+        );
+
+        await loadAttendance();
+
+    } catch (error) {
+
+        console.error(
+            "Time in error:",
+            error
+        );
+
+        showToast(
+            error.message ||
+            "Unable to record Time In.",
+            "error"
+        );
+
+    }
+
+};
+
+
+/* =========================================================
+   RECORD TIME OUT
+   ========================================================= */
+
+window.recordTimeOut =
+async function(
+    studentId,
+    pickupIndex
+) {
+
+    const student =
+        students.find(
+            item =>
+                String(
+                    item.student_id
+                ) ===
+                String(studentId)
+        );
+
+    if (!student) {
+        return;
+    }
+
+    const parents = [
+
+        {
+            name:
+                student.parent_name,
+            phone:
+                student.phone
+        },
+
+        {
+            name:
+                student.parent_name_2,
+            phone:
+                student.phone_2
+        },
+
+        {
+            name:
+                student.parent_name_3,
+            phone:
+                student.phone_3
+        }
+
+    ]
+        .filter(
+            person =>
+                person.name
+        );
+
+    const pickup =
+        parents[pickupIndex];
+
+    if (!pickup) {
+
+        showToast(
+            "Pickup person not found.",
+            "error"
+        );
+
+        return;
+
+    }
+
+    const confirmed =
+        confirm(
+            `Confirm pickup:\n\nStudent: ${student.student_name}\nPickup: ${pickup.name}\nPhone: ${pickup.phone || "N/A"}`
+        );
+
+    if (!confirmed) {
+        return;
+    }
+
+    try {
+
+        const existing =
+            await getTodayStudentAttendance(
+                studentId
+            );
+
+        const now =
+            new Date()
+                .toISOString();
+
+        const data = {
+
+            time_out:
+                now,
+
+            pickup_person:
+                pickup.name,
+
+            pickup_phone:
+                pickup.phone || "",
+
+            pickup_option:
+                "Authorized",
+
+            status:
+                "completed"
+
+        };
+
+        let result;
+
+        if (existing) {
+
+            result =
+                await supabaseClient
+                    .from("attendance")
+                    .update(data)
+                    .eq(
+                        "id",
+                        existing.id
+                    );
+
+        } else {
+
+            result =
+                await supabaseClient
+                    .from("attendance")
+                    .insert({
+
+                        student_id:
+                            student.student_id,
+
+                        student_name:
+                            student.student_name,
+
+                        level:
+                            student.level,
+
+                        date:
+                            getLocalDateString(),
+
+                        time_out:
+                            now,
+
+                        pickup_person:
+                            pickup.name,
+
+                        pickup_phone:
+                            pickup.phone || "",
+
+                        pickup_option:
+                            "Authorized",
+
+                        status:
+                            "completed"
+
+                    });
+
+        }
+
+        if (result.error) {
+            throw result.error;
+        }
+
+        closeModal(
+            "studentResultModal"
+        );
+
+        showToast(
+            `${student.student_name} released to ${pickup.name}.`,
+            "success"
+        );
+
+        await loadAttendance();
+
+    } catch (error) {
+
+        console.error(
+            "Time out error:",
+            error
+        );
+
+        showToast(
+            error.message ||
+            "Unable to record pickup.",
+            "error"
+        );
+
+    }
+
+};
+
+
+/* =========================================================
+   UNAUTHORIZED PICKUP
+   ========================================================= */
+
+window.recordUnauthorizedPickup =
+async function(studentId) {
+
+    const student =
+        students.find(
+            item =>
+                String(
+                    item.student_id
+                ) ===
+                String(studentId)
+        );
+
+    if (!student) {
+        return;
+    }
+
+    const pickupName =
+        prompt(
+            "Enter the name of the person requesting pickup:"
+        );
+
+    if (!pickupName) {
+        return;
+    }
+
+    const approver =
+        prompt(
+            "Enter the staff member approving the pickup:"
+        );
+
+    if (!approver) {
+        return;
+    }
+
+    const confirmed =
+        confirm(
+            `Confirm staff-approved pickup?\n\nStudent: ${student.student_name}\nPerson: ${pickupName}\nApproved by: ${approver}`
+        );
+
+    if (!confirmed) {
+        return;
+    }
+
+    try {
+
+        const existing =
+            await getTodayStudentAttendance(
+                studentId
+            );
+
+        const now =
+            new Date()
+                .toISOString();
+
+        const data = {
+
+            time_out:
+                now,
+
+            pickup_person:
+                pickupName,
+
+            pickup_option:
+                "Staff Approved",
+
+            approver:
+                approver,
+
+            notes:
+                "Pickup person not listed as normal authorized pickup.",
+
+            status:
+                "completed"
+
+        };
+
+        let result;
+
+        if (existing) {
+
+            result =
+                await supabaseClient
+                    .from("attendance")
+                    .update(data)
+                    .eq(
+                        "id",
+                        existing.id
+                    );
+
+        } else {
+
+            result =
+                await supabaseClient
+                    .from("attendance")
+                    .insert({
+
+                        student_id:
+                            student.student_id,
+
+                        student_name:
+                            student.student_name,
+
+                        level:
+                            student.level,
+
+                        date:
+                            getLocalDateString(),
+
+                        time_out:
+                            now,
+
+                        pickup_person:
+                            pickupName,
+
+                        pickup_option:
+                            "Staff Approved",
+
+                        approver:
+                            approver,
+
+                        notes:
+                            "Pickup person not listed as normal authorized pickup.",
+
+                        status:
+                            "completed"
+
+                    });
+
+        }
+
+        if (result.error) {
+            throw result.error;
+        }
+
+        closeModal(
+            "studentResultModal"
+        );
+
+        showToast(
+            "Staff-approved pickup recorded.",
+            "success"
+        );
+
+        await loadAttendance();
+
+    } catch (error) {
+
+        console.error(
+            "Unauthorized pickup error:",
+            error
+        );
+
+        showToast(
+            error.message ||
+            "Unable to record pickup.",
+            "error"
+        );
+
+    }
+
+};
+
+
+/* =========================================================
+   GET TODAY STUDENT ATTENDANCE
+   ========================================================= */
+
+async function getTodayStudentAttendance(
+    studentId
+) {
+
+    const today =
+        getLocalDateString();
+
+    const {
+        data,
+        error
+    } =
+        await supabaseClient
+            .from("attendance")
+            .select("*")
+            .eq(
+                "student_id",
+                studentId
+            )
+            .eq(
+                "date",
+                today
+            )
+            .order(
+                "created_at",
+                {
+                    ascending: false
+                }
+            )
+            .limit(1);
+
+    if (error) {
+        throw error;
+    }
+
+    return data?.[0] || null;
+
+}
+
+
+/* =========================================================
+   QR CODE DISPLAY
+   ========================================================= */
+
+window.showStudentQR =
+function(studentId) {
+
+    const student =
+        students.find(
+            item =>
+                String(
+                    item.student_id
+                ) ===
+                String(studentId)
+        );
+
+    if (!student) {
+        return;
+    }
+
+    const qrWindow =
+        window.open(
+            "",
+            "_blank",
+            "width=450,height=600"
+        );
+
+    if (!qrWindow) {
+
+        showToast(
+            "Please allow pop-ups to display the QR code.",
+            "error"
+        );
+
+        return;
+
+    }
+
+    qrWindow.document.write(`
+
+        <!DOCTYPE html>
+
+        <html>
+
+        <head>
+
+            <title>
+                Vision School QR - ${escapeHtml(
+                    student.student_name
+                )}
+            </title>
+
+            <script
+                src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"
+            ></script>
+
+            <style>
+
+                body {
+
+                    font-family:
+                        Arial,
+                        sans-serif;
+
+                    text-align:
+                        center;
+
+                    padding:
+                        30px;
+
+                }
+
+                .card {
+
+                    max-width:
+                        350px;
+
+                    margin:
+                        auto;
+
+                    padding:
+                        30px;
+
+                    border:
+                        1px solid #ddd;
+
+                    border-radius:
+                        20px;
+
+                }
+
+                h1 {
+
+                    margin-bottom:
+                        5px;
+
+                }
+
+                .id {
+
+                    font-weight:
+                        bold;
+
+                    font-size:
+                        18px;
+
+                    margin:
+                        10px;
+
+                }
+
+                #qrcode {
+
+                    margin:
+                        25px auto;
+
+                    width:
+                        256px;
+
+                    height:
+                        256px;
+
+                }
+
+            </style>
+
+        </head>
+
+        <body>
+
+            <div class="card">
+
+                <h1>
+                    Vision School
+                </h1>
+
+                <h2>
+                    ${escapeHtml(
+                        student.student_name
+                    )}
+                </h2>
+
+                <div class="id">
+                    ${escapeHtml(
+                        student.student_id
+                    )}
+                </div>
+
+                <div>
+                    ${escapeHtml(
+                        student.level || ""
+                    )}
+                </div>
+
+                <div id="qrcode"></div>
+
+                <p>
+                    Scan this QR code for attendance.
+                </p>
+
+            </div>
+
+            <script>
+
+                new QRCode(
+                    document.getElementById(
+                        "qrcode"
+                    ),
+                    {
+                        text:
+                            ${JSON.stringify(
+                                student.student_id
+                            )},
+                        width: 256,
+                        height: 256
+                    }
+                );
+
+            </script>
+
+        </body>
+
+        </html>
+
+    `);
+
+    qrWindow.document.close();
+
+};
+
+
+/* =========================================================
+   EXPORT CSV
+   ========================================================= */
+
+function setupExport() {
+
+    $("exportCsv")
+        ?.addEventListener(
+            "click",
+            exportCSV
+        );
+
+}
+
+
+function exportCSV() {
+
+    const today =
+        getTodayAttendance();
+
+    if (
+        today.length === 0
+    ) {
+
+        showToast(
+            "There are no attendance records to export.",
+            "info"
+        );
+
+        return;
+
+    }
+
+    const headers = [
+
+        "Date",
+        "Student ID",
+        "Student Name",
+        "Level",
+        "Time In",
+        "Time Out",
+        "Pickup Person",
+        "Pickup Relationship",
+        "Pickup Phone",
+        "Pickup Option",
+        "Approver",
+        "Notes"
+
+    ];
+
+    const rows =
+        today.map(record => [
+
+            record.date || "",
+
+            record.student_id || "",
+
+            getAttendanceStudentName(
+                record
+            ),
+
+            record.level || "",
+
+            formatDateTime(
+                record.time_in
+            ),
+
+            formatDateTime(
+                record.time_out
+            ),
+
+            record.pickup_person ||
+            record.pickup_name ||
+            "",
+
+            record.pickup_relationship ||
+            "",
+
+            record.pickup_phone ||
+            "",
+
+            record.pickup_option ||
+            "",
+
+            record.approver ||
+            "",
+
+            record.notes ||
+            ""
+
+        ]);
+
+    const csv = [
+
+        headers,
+
+        ...rows
+
+    ]
+        .map(
+            row =>
+                row
+                    .map(csvEscape)
+                    .join(",")
+        )
+        .join("\n");
+
+    const blob =
+        new Blob(
+            [
+                "\ufeff" +
+                csv
+            ],
+            {
+                type:
+                    "text/csv;charset=utf-8;"
+            }
+        );
+
+    const url =
+        URL.createObjectURL(
+            blob
+        );
+
+    const link =
+        document.createElement(
+            "a"
+        );
+
+    link.href =
+        url;
+
+    link.download =
+        `Vision-School-Attendance-${getLocalDateString()}.csv`;
+
+    document.body.appendChild(
+        link
+    );
+
+    link.click();
+
+    link.remove();
+
+    URL.revokeObjectURL(
+        url
+    );
+
+    showToast(
+        "Attendance CSV exported.",
+        "success"
     );
 
 }
@@ -4727,120 +3159,274 @@ function closeResultModal() {
    ========================================================= */
 
 function showToast(
-  message,
-  type = "info"
+    message,
+    type = "info"
 ) {
 
-  const toast =
-    document.getElementById(
-      "toast"
+    const toast =
+        $("toast");
+
+    if (!toast) {
+        return;
+    }
+
+    toast.textContent =
+        message;
+
+    toast.className =
+        `toast ${type} show`;
+
+    clearTimeout(
+        showToast.timeout
     );
 
+    showToast.timeout =
+        setTimeout(
+            () => {
 
-  if (!toast) {
-    return;
-  }
+                toast.classList.remove(
+                    "show"
+                );
 
-
-  toast.textContent =
-    message;
-
-
-  toast.classList.remove(
-    "show"
-  );
-
-
-  toast.classList.remove(
-    "success",
-    "error",
-    "info"
-  );
-
-
-  toast.classList.add(
-    type
-  );
-
-
-  clearTimeout(
-    toastTimer
-  );
-
-
-  void toast.offsetWidth;
-
-
-  toast.classList.add(
-    "show"
-  );
-
-
-  toastTimer =
-    setTimeout(
-      () => {
-
-        toast.classList.remove(
-          "show"
+            },
+            3500
         );
 
-      },
-      3500
+}
+
+
+/* =========================================================
+   DATE / TIME HELPERS
+   ========================================================= */
+
+function getLocalDateString() {
+
+    const now =
+        new Date();
+
+    const year =
+        now.getFullYear();
+
+    const month =
+        String(
+            now.getMonth() + 1
+        )
+            .padStart(2, "0");
+
+    const day =
+        String(
+            now.getDate()
+        )
+            .padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
+
+}
+
+
+function formatDateTime(
+    value
+) {
+
+    if (!value) {
+        return "-";
+    }
+
+    const date =
+        new Date(value);
+
+    if (
+        Number.isNaN(
+            date.getTime()
+        )
+    ) {
+
+        return String(value);
+
+    }
+
+    return date.toLocaleString(
+        "en-US",
+        {
+            month: "short",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true
+        }
     );
 
 }
 
 
 /* =========================================================
-   SECURITY / HTML ESCAPING
+   SECURITY / HTML HELPERS
    ========================================================= */
 
 function escapeHtml(
-  value
+    value
 ) {
 
-  return String(
-    value ?? ""
-  )
-
-    .replace(
-      /&/g,
-      "&amp;"
+    return String(
+        value ?? ""
     )
+        .replace(
+            /&/g,
+            "&amp;"
+        )
+        .replace(
+            /</g,
+            "&lt;"
+        )
+        .replace(
+            />/g,
+            "&gt;"
+        )
+        .replace(
+            /"/g,
+            "&quot;"
+        )
+        .replace(
+            /'/g,
+            "&#039;"
+        );
 
-    .replace(
-      /</g,
-      "&lt;"
+}
+
+
+function escapeJs(
+    value
+) {
+
+    return String(
+        value ?? ""
     )
+        .replace(
+            /\\/g,
+            "\\\\"
+        )
+        .replace(
+            /'/g,
+            "\\'"
+        )
+        .replace(
+            /"/g,
+            '\\"'
+        );
 
-    .replace(
-      />/g,
-      "&gt;"
+}
+
+
+function csvEscape(
+    value
+) {
+
+    const string =
+        String(
+            value ?? ""
+        );
+
+    return `"${string.replace(
+        /"/g,
+        '""'
+    )}"`;
+
+}
+
+
+function getInitials(
+    name
+) {
+
+    return String(
+        name || "VS"
     )
-
-    .replace(
-      /"/g,
-      "&quot;"
-    )
-
-    .replace(
-      /'/g,
-      "&#039;"
-    );
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map(
+            word =>
+                word[0]
+        )
+        .join("")
+        .toUpperCase();
 
 }
 
 
 /* =========================================================
-   ATTRIBUTE ESCAPING
+   CLOSE MODALS WITH ESCAPE
    ========================================================= */
 
-function escapeAttribute(
-  value
-) {
+document.addEventListener(
+    "keydown",
+    event => {
 
-  return escapeHtml(
-    value
-  );
+        if (
+            event.key !==
+            "Escape"
+        ) {
 
-}
+            return;
+
+        }
+
+        closeModal(
+            "studentModal"
+        );
+
+        closeModal(
+            "studentResultModal"
+        );
+
+    }
+);
+
+
+/* =========================================================
+   ONLINE / OFFLINE DETECTION
+   ========================================================= */
+
+window.addEventListener(
+    "online",
+    () => {
+
+        updateConnectionStatus(
+            "online"
+        );
+
+    }
+);
+
+
+window.addEventListener(
+    "offline",
+    () => {
+
+        updateConnectionStatus(
+            "offline"
+        );
+
+    }
+);
+
+
+/* =========================================================
+   EXPOSE IMPORTANT FUNCTIONS
+   ========================================================= */
+
+window.startScanner =
+    startScanner;
+
+window.stopScanner =
+    stopScanner;
+
+window.showSection =
+    showSection;
+
+window.findStudent =
+    findStudent;
+
+console.log(
+    "Vision School app.js loaded successfully."
+);
