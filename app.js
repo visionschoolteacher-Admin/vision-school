@@ -3583,212 +3583,324 @@ function openPickupForm(
    SAVE PICKUP
 ========================================================= */
 
-async function savePickup(
-    student,
-    record,
-    closeAfterSave = false
-) {
+/* =========================================================
+   SAVE PICKUP
+   ========================================================= */
 
-    try {
+async function savePickup(student, record) {
 
-        const selectedPerson =
-            document
-                .getElementById(
-                    "pickupPersonSelect"
-                )
-                .value;
+  try {
 
+    console.log("Saving pickup information...");
+    console.log("Student:", student);
+    console.log("Attendance record:", record);
 
-        const otherName =
-            document
-                .getElementById(
-                    "otherPickupName"
-                )
-                ?.value
-                ?.trim() || "";
 
+    /* =====================================================
+       GET PICKUP PERSON
+       ===================================================== */
 
-        if (!selectedPerson) {
+    const personSelect =
+      document.getElementById("pickupPersonSelect");
 
-            showToast(
-                "Please select who is picking up the student.",
-                "error"
-            );
-
-            return;
-        }
-
-
-        let pickup_person =
-            selectedPerson;
-
-
-        if (
-            selectedPerson ===
-            "Other"
-        ) {
-
-            if (!otherName) {
-
-                showToast(
-                    "Please enter the guest/pickup person's name.",
-                    "error"
-                );
-
-                return;
-            }
-
-
-            pickup_person =
-                otherName;
-        }
-
-
-        const Pickup_relationship =
-            document
-                .getElementById(
-                    "pickupRelationshipInput"
-                )
-                .value
-                .trim();
-
-
-        const pickup_phone =
-            document
-                .getElementById(
-                    "pickupPhoneInput"
-                )
-                .value
-                .trim();
-
-
-        const pickup_option =
-            document
-                .getElementById(
-                    "pickupOptionInput"
-                )
-                .value;
-
-
-        const approver =
-            document
-                .getElementById(
-                    "approverInput"
-                )
-                .value
-                .trim();
-
-
-        const notes =
-            document
-                .getElementById(
-                    "notesInput"
-                )
-                .value
-                .trim();
-
-
-        if (!pickup_option) {
-
-            showToast(
-                "Please select the pickup option.",
-                "error"
-            );
-
-            return;
-        }
-
-
-        if (!approver) {
-
-            showToast(
-                "Please enter the approving staff/teacher.",
-                "error"
-            );
-
-            return;
-        }
-
-
-        /*
-         IMPORTANT SECURITY RULE:
-
-         If student is marked unauthorized,
-         staff approval is still required.
-        */
-
-        const {
-            error
-        } =
-            await supabaseClient
-                .from("attendance")
-                .update({
-
-                    pickup_person,
-
-                    Pickup_relationship,
-
-                    pickup_phone,
-
-                    pickup_option,
-
-                    approver,
-
-                    notes
-
-                })
-                .eq(
-                    "id",
-                    record.id
-                );
-
-
-        if (error) {
-            throw error;
-        }
-
-
-        showToast(
-            `Pickup saved: ${pickup_person}`,
-            "success"
-        );
-
-
-        await loadTodayAttendance();
-
-
-        /*
-         If this pickup was part of Time Out,
-         complete Time Out after pickup verification.
-        */
-
-        if (closeAfterSave) {
-
-            await recordTimeOut(
-                student
-            );
-
-        } else {
-
-            closeResultModal();
-
-        }
-
-
-    } catch (error) {
-
-        console.error(
-            "Pickup save error:",
-            error
-        );
-
-
-        showToast(
-            error?.message ||
-            "Unable to save pickup information.",
-            "error"
-        );
+    if (!personSelect) {
+      throw new Error(
+        "Pickup person selector was not found."
+      );
     }
+
+    const selectedPerson =
+      personSelect.value;
+
+
+    const otherName =
+      document
+        .getElementById("otherPickupName")
+        ?.value
+        ?.trim() || "";
+
+
+    if (!selectedPerson) {
+
+      showToast(
+        "Please select who is picking up the student.",
+        "error"
+      );
+
+      return;
+    }
+
+
+    let pickup_person =
+      selectedPerson;
+
+
+    /* =====================================================
+       OTHER PERSON
+       ===================================================== */
+
+    if (selectedPerson === "Other") {
+
+      if (!otherName) {
+
+        showToast(
+          "Please enter the pickup person's name.",
+          "error"
+        );
+
+        return;
+      }
+
+      pickup_person =
+        otherName;
+    }
+
+
+    /* =====================================================
+       GET OTHER PICKUP INFORMATION
+       ===================================================== */
+
+    const relationship =
+      document
+        .getElementById("pickupRelationshipInput")
+        ?.value
+        ?.trim() || "";
+
+
+    const phone =
+      document
+        .getElementById("pickupPhoneInput")
+        ?.value
+        ?.trim() || "";
+
+
+    const pickup_option =
+      document
+        .getElementById("pickupOptionInput")
+        ?.value || "";
+
+
+    const approver =
+      document
+        .getElementById("approverInput")
+        ?.value
+        ?.trim() || "";
+
+
+    const notes =
+      document
+        .getElementById("notesInput")
+        ?.value
+        ?.trim() || "";
+
+
+    /* =====================================================
+       VALIDATION
+       ===================================================== */
+
+    if (!pickup_option) {
+
+      showToast(
+        "Please select the pickup option.",
+        "error"
+      );
+
+      return;
+    }
+
+
+    if (!approver) {
+
+      showToast(
+        "Please enter the approving staff/teacher.",
+        "error"
+      );
+
+      return;
+    }
+
+
+    /* =====================================================
+       VERIFY ATTENDANCE RECORD
+       ===================================================== */
+
+    if (
+      !record ||
+      record.id === undefined ||
+      record.id === null
+    ) {
+
+      console.error(
+        "Invalid attendance record:",
+        record
+      );
+
+      throw new Error(
+        "Attendance record ID is missing."
+      );
+    }
+
+
+    console.log(
+      "Updating attendance ID:",
+      record.id
+    );
+
+
+    /* =====================================================
+       SUPABASE PAYLOAD
+
+       IMPORTANT:
+       Use lowercase pickup_relationship.
+       PostgreSQL/Supabase commonly stores the column
+       using lowercase naming.
+       ===================================================== */
+
+    const payload = {
+
+      pickup_person:
+        pickup_person,
+
+      pickup_relationship:
+        relationship,
+
+      pickup_phone:
+        phone,
+
+      pickup_option:
+        pickup_option,
+
+      approver:
+        approver,
+
+      notes:
+        notes
+
+    };
+
+
+    console.log(
+      "Pickup update payload:",
+      payload
+    );
+
+
+    /* =====================================================
+       UPDATE ATTENDANCE
+       ===================================================== */
+
+    const {
+      data,
+      error
+    } =
+      await supabaseClient
+        .from("attendance")
+        .update(payload)
+        .eq(
+          "id",
+          record.id
+        )
+        .select()
+        .single();
+
+
+    /* =====================================================
+       SUPABASE ERROR
+       ===================================================== */
+
+    if (error) {
+
+      console.error(
+        "Supabase pickup update error:",
+        error
+      );
+
+      console.error(
+        "Error message:",
+        error.message
+      );
+
+      console.error(
+        "Error details:",
+        error.details
+      );
+
+      console.error(
+        "Error hint:",
+        error.hint
+      );
+
+      console.error(
+        "Error code:",
+        error.code
+      );
+
+      throw error;
+    }
+
+
+    /* =====================================================
+       SUCCESS
+       ===================================================== */
+
+    console.log(
+      "Pickup saved successfully:",
+      data
+    );
+
+
+    showToast(
+      `Pickup saved: ${pickup_person}`,
+      "success"
+    );
+
+
+    /* Close modal */
+
+    closeResultModal();
+
+
+    /* Reload attendance */
+
+    await loadTodayAttendance();
+
+
+  } catch (error) {
+
+    console.error(
+      "Pickup save error:",
+      error
+    );
+
+
+    let message =
+      error?.message ||
+      "Unable to save pickup information.";
+
+
+    /*
+       Give a clearer message for missing columns.
+    */
+
+    if (
+      message
+        .toLowerCase()
+        .includes("pickup_relationship")
+    ) {
+
+      message =
+        "Supabase could not find the pickup_relationship column. Please check the attendance table column name.";
+
+    }
+
+
+    showToast(
+      message,
+      "error"
+    );
+
+  }
+
 }
 
 
