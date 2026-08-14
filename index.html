@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
+
     <meta charset="UTF-8">
 
     <meta
@@ -17,7 +19,41 @@
         name="description"
         content="Vision School Student Attendance and Pickup Management System"
     >
-	<link
+
+    <!-- =====================================================
+         PWA
+         ===================================================== -->
+
+    <link
+        rel="manifest"
+        href="manifest.json"
+    >
+
+    <meta
+        name="mobile-web-app-capable"
+        content="yes"
+    >
+
+    <meta
+        name="apple-mobile-web-app-capable"
+        content="yes"
+    >
+
+    <meta
+        name="apple-mobile-web-app-status-bar-style"
+        content="default"
+    >
+
+    <meta
+        name="apple-mobile-web-app-title"
+        content="Vision School"
+    >
+
+    <!-- =====================================================
+         FAVICON / APP ICON
+         ===================================================== -->
+
+    <link
         rel="icon"
         href="logo.png"
         type="image/png"
@@ -27,22 +63,36 @@
         rel="apple-touch-icon"
         href="logo.png"
     >
-<link
-    rel="manifest"
-    href="manifest.json"
->
-    <title>Vision School | Student Attendance System</title>
 
-    <!-- MAIN CSS -->
-    <link rel="stylesheet" href="style.css">
+    <title>
+        Vision School | Student Attendance System
+    </title>
 
-    <!-- SUPABASE -->
+
+    <!-- =====================================================
+         MAIN STYLESHEET
+         ===================================================== -->
+
+    <link
+        rel="stylesheet"
+        href="style.css"
+    >
+
+
+    <!-- =====================================================
+         SUPABASE
+         ===================================================== -->
+
     <script
         src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
         defer
     ></script>
 
-    <!-- QR SCANNER -->
+
+    <!-- =====================================================
+         QR SCANNER
+         ===================================================== -->
+
     <script
         src="https://unpkg.com/html5-qrcode"
         defer
@@ -50,89 +100,157 @@
 
 </head>
 
+
 <body>
 
+
+<!-- =========================================================
+     APP
+     ========================================================= -->
+
 <div class="app">
+
 
     <!-- =====================================================
          SIDEBAR
          ===================================================== -->
 
-    <aside id="sidebar" class="sidebar">
+    <aside
+        id="sidebar"
+        class="sidebar"
+    >
 
-        <!-- SCHOOL LOGO -->
+
+        <!-- =================================================
+             SCHOOL BRAND
+             ================================================= -->
+
         <div class="brand">
 
             <div class="brand-logo">
+
                 <img
-    src="./logo.png"
-    alt="Vision School"
-    class="school-logo"
->
+                    src="logo.png"
+                    alt="Vision School Logo"
+                    class="school-logo"
                 >
+
             </div>
 
+
             <div class="brand-text">
-                <h1>Vision School</h1>
-                <span>Attendance System</span>
+
+                <h1>
+                    Vision School
+                </h1>
+
+                <span>
+                    Attendance System
+                </span>
+
             </div>
 
         </div>
 
 
-        <!-- NAVIGATION -->
+        <!-- =================================================
+             NAVIGATION
+             ================================================= -->
 
         <nav class="sidebar-nav">
+
 
             <button
                 type="button"
                 class="nav-item active"
                 data-section="dashboard"
             >
-                <span class="nav-icon">⌂</span>
-                <span>Dashboard</span>
+
+                <span class="nav-icon">
+                    ⌂
+                </span>
+
+                <span>
+                    Dashboard
+                </span>
+
             </button>
+
 
             <button
                 type="button"
                 class="nav-item"
                 data-section="students"
             >
-                <span class="nav-icon">👨‍🎓</span>
-                <span>Students</span>
+
+                <span class="nav-icon">
+                    👨‍🎓
+                </span>
+
+                <span>
+                    Students
+                </span>
+
             </button>
+
 
             <button
                 type="button"
                 class="nav-item"
                 data-section="scanner"
             >
-                <span class="nav-icon">▣</span>
-                <span>QR Scanner</span>
+
+                <span class="nav-icon">
+                    ▣
+                </span>
+
+                <span>
+                    QR Scanner
+                </span>
+
             </button>
+
 
             <button
                 type="button"
                 class="nav-item"
                 data-section="attendance"
             >
-                <span class="nav-icon">✓</span>
-                <span>Attendance</span>
+
+                <span class="nav-icon">
+                    ✓
+                </span>
+
+                <span>
+                    Attendance
+                </span>
+
             </button>
+
 
             <button
                 type="button"
                 class="nav-item"
                 data-section="reports"
             >
-                <span class="nav-icon">▤</span>
-                <span>Reports</span>
+
+                <span class="nav-icon">
+                    ▤
+                </span>
+
+                <span>
+                    Reports
+                </span>
+
             </button>
+
 
         </nav>
 
 
-        <!-- PICKUP SECURITY -->
+        <!-- =================================================
+             SIDEBAR SECURITY
+             ================================================= -->
 
         <div class="sidebar-security">
 
@@ -147,14 +265,19 @@
             </p>
 
             <div class="security-status">
+
                 <span class="security-dot"></span>
+
                 Secure Pickup System
+
             </div>
 
         </div>
 
 
-        <!-- SIDEBAR FOOTER -->
+        <!-- =================================================
+             SIDEBAR FOOTER
+             ================================================= -->
 
         <div class="sidebar-footer">
 
@@ -177,20 +300,26 @@
 
         </div>
 
+
     </aside>
 
 
     <!-- =====================================================
          MAIN CONTENT
-         ===================================================== -->
+         ================================================= -->
 
     <main class="main-content">
 
-        <!-- TOP BAR -->
+
+        <!-- =================================================
+             TOP HEADER
+             ================================================= -->
 
         <header class="topbar">
 
+
             <div class="topbar-left">
+
 
                 <button
                     type="button"
@@ -200,6 +329,7 @@
                 >
                     ☰
                 </button>
+
 
                 <div>
 
@@ -213,10 +343,12 @@
 
                 </div>
 
+
             </div>
 
 
             <div class="topbar-right">
+
 
                 <div class="live-clock">
 
@@ -230,19 +362,22 @@
 
                 </div>
 
+
             </div>
+
 
         </header>
 
 
-        <!-- =====================================================
+        <!-- =================================================
              DASHBOARD
-             ===================================================== -->
+             ================================================= -->
 
         <section
             id="dashboard"
             class="page-section active"
         >
+
 
             <div class="dashboard-header">
 
@@ -259,6 +394,7 @@
 
                 </div>
 
+
                 <div
                     id="dashboardDate"
                     class="dashboard-date"
@@ -266,10 +402,14 @@
                     --
                 </div>
 
+
             </div>
 
 
+            <!-- STATISTICS -->
+
             <div class="stats-grid">
+
 
                 <div class="stat-card">
 
@@ -278,11 +418,15 @@
                     </div>
 
                     <div>
-                        <span>Total Students</span>
+
+                        <span>
+                            Total Students
+                        </span>
 
                         <strong id="totalStudents">
                             0
                         </strong>
+
                     </div>
 
                 </div>
@@ -295,11 +439,15 @@
                     </div>
 
                     <div>
-                        <span>Time In</span>
+
+                        <span>
+                            Time In
+                        </span>
 
                         <strong id="timeInCount">
                             0
                         </strong>
+
                     </div>
 
                 </div>
@@ -312,11 +460,15 @@
                     </div>
 
                     <div>
-                        <span>Currently In</span>
+
+                        <span>
+                            Currently In
+                        </span>
 
                         <strong id="currentlyInCount">
                             0
                         </strong>
+
                     </div>
 
                 </div>
@@ -329,14 +481,19 @@
                     </div>
 
                     <div>
-                        <span>Time Out</span>
+
+                        <span>
+                            Time Out
+                        </span>
 
                         <strong id="timeOutCount">
                             0
                         </strong>
+
                     </div>
 
                 </div>
+
 
             </div>
 
@@ -344,6 +501,7 @@
             <!-- QUICK ACTIONS -->
 
             <div class="section-card">
+
 
                 <div class="section-card-header">
 
@@ -364,12 +522,16 @@
 
                 <div class="quick-actions">
 
+
                     <button
                         type="button"
                         class="quick-action"
                         data-section="scanner"
                     >
-                        <span>📷</span>
+
+                        <span>
+                            📷
+                        </span>
 
                         <strong>
                             Scan QR
@@ -378,6 +540,7 @@
                         <small>
                             Record student attendance
                         </small>
+
                     </button>
 
 
@@ -386,7 +549,10 @@
                         class="quick-action"
                         data-section="students"
                     >
-                        <span>👨‍🎓</span>
+
+                        <span>
+                            👨‍🎓
+                        </span>
 
                         <strong>
                             Students
@@ -395,6 +561,7 @@
                         <small>
                             Manage student records
                         </small>
+
                     </button>
 
 
@@ -403,7 +570,10 @@
                         class="quick-action"
                         data-section="attendance"
                     >
-                        <span>✓</span>
+
+                        <span>
+                            ✓
+                        </span>
 
                         <strong>
                             Attendance
@@ -412,6 +582,7 @@
                         <small>
                             View today's records
                         </small>
+
                     </button>
 
 
@@ -420,7 +591,10 @@
                         class="quick-action"
                         data-section="reports"
                     >
-                        <span>📊</span>
+
+                        <span>
+                            📊
+                        </span>
 
                         <strong>
                             Reports
@@ -429,9 +603,12 @@
                         <small>
                             Export attendance
                         </small>
+
                     </button>
 
+
                 </div>
+
 
             </div>
 
@@ -440,7 +617,9 @@
 
             <div class="section-card">
 
+
                 <div class="section-card-header">
+
 
                     <div>
 
@@ -454,6 +633,7 @@
 
                     </div>
 
+
                     <button
                         type="button"
                         class="secondary-button"
@@ -462,26 +642,44 @@
                         View All
                     </button>
 
+
                 </div>
 
 
                 <div class="table-container">
 
+
                     <table>
+
 
                         <thead>
 
                             <tr>
 
-                                <th>Student</th>
-                                <th>Level</th>
-                                <th>Time In</th>
-                                <th>Time Out</th>
-                                <th>Status</th>
+                                <th>
+                                    Student
+                                </th>
+
+                                <th>
+                                    Level
+                                </th>
+
+                                <th>
+                                    Time In
+                                </th>
+
+                                <th>
+                                    Time Out
+                                </th>
+
+                                <th>
+                                    Status
+                                </th>
 
                             </tr>
 
                         </thead>
+
 
                         <tbody id="dashboardAttendanceBody">
 
@@ -498,27 +696,34 @@
 
                         </tbody>
 
+
                     </table>
+
 
                 </div>
 
+
             </div>
+
 
         </section>
 
 
-        <!-- =====================================================
+        <!-- =================================================
              STUDENTS
-             ===================================================== -->
+             ================================================= -->
 
         <section
             id="students"
             class="page-section"
         >
 
+
             <div class="section-card">
 
+
                 <div class="section-card-header">
+
 
                     <div>
 
@@ -533,6 +738,7 @@
 
                     </div>
 
+
                     <button
                         type="button"
                         id="addStudentButton"
@@ -541,16 +747,19 @@
                         + Add Student
                     </button>
 
+
                 </div>
 
 
                 <div class="filters">
+
 
                     <input
                         type="search"
                         id="studentSearch"
                         placeholder="Search student, ID, parent or phone..."
                     >
+
 
                     <select id="levelFilter">
 
@@ -560,29 +769,56 @@
 
                     </select>
 
+
                 </div>
 
 
                 <div class="table-container">
 
+
                     <table>
+
 
                         <thead>
 
                             <tr>
 
-                                <th>Student ID</th>
-                                <th>Student</th>
-                                <th>Level</th>
-                                <th>Parent / Guardian</th>
-                                <th>Phone</th>
-                                <th>Pickup Authorization</th>
-                                <th>Actions</th>
-                                <th>QR</th>
+                                <th>
+                                    Student ID
+                                </th>
+
+                                <th>
+                                    Student
+                                </th>
+
+                                <th>
+                                    Level
+                                </th>
+
+                                <th>
+                                    Parent / Guardian
+                                </th>
+
+                                <th>
+                                    Phone
+                                </th>
+
+                                <th>
+                                    Pickup Authorization
+                                </th>
+
+                                <th>
+                                    Actions
+                                </th>
+
+                                <th>
+                                    QR
+                                </th>
 
                             </tr>
 
                         </thead>
+
 
                         <tbody id="studentsBody">
 
@@ -599,29 +835,37 @@
 
                         </tbody>
 
+
                     </table>
+
 
                 </div>
 
+
             </div>
+
 
         </section>
 
 
-        <!-- =====================================================
+        <!-- =================================================
              QR SCANNER
-             ===================================================== -->
+             ================================================= -->
 
         <section
             id="scanner"
             class="page-section"
         >
 
+
             <div class="scanner-layout">
+
 
                 <div class="section-card scanner-card">
 
+
                     <div class="section-card-header">
+
 
                         <div>
 
@@ -636,6 +880,7 @@
 
                         </div>
 
+
                     </div>
 
 
@@ -647,6 +892,7 @@
 
                     <div class="scanner-controls">
 
+
                         <button
                             type="button"
                             id="startScanner"
@@ -654,6 +900,7 @@
                         >
                             📷 Start Scanner
                         </button>
+
 
                         <button
                             type="button"
@@ -663,22 +910,27 @@
                             Stop Scanner
                         </button>
 
+
                     </div>
 
 
                     <div class="manual-search">
 
+
                         <label for="manualStudentId">
                             Manual Student ID
                         </label>
 
+
                         <div class="manual-search-row">
+
 
                             <input
                                 type="text"
                                 id="manualStudentId"
                                 placeholder="Enter Student ID"
                             >
+
 
                             <button
                                 type="button"
@@ -688,26 +940,32 @@
                                 Search
                             </button>
 
+
                         </div>
 
+
                     </div>
+
 
                 </div>
 
 
-                <!-- INSTRUCTIONS -->
-
                 <div class="section-card">
+
 
                     <h3>
                         How it works
                     </h3>
 
+
                     <div class="instruction-list">
+
 
                         <div class="instruction">
 
-                            <span>1</span>
+                            <span>
+                                1
+                            </span>
 
                             <div>
 
@@ -727,7 +985,9 @@
 
                         <div class="instruction">
 
-                            <span>2</span>
+                            <span>
+                                2
+                            </span>
 
                             <div>
 
@@ -747,7 +1007,9 @@
 
                         <div class="instruction">
 
-                            <span>3</span>
+                            <span>
+                                3
+                            </span>
 
                             <div>
 
@@ -767,7 +1029,9 @@
 
                         <div class="instruction">
 
-                            <span>4</span>
+                            <span>
+                                4
+                            </span>
 
                             <div>
 
@@ -784,6 +1048,7 @@
                             </div>
 
                         </div>
+
 
                     </div>
 
@@ -803,25 +1068,31 @@
 
                     </div>
 
+
                 </div>
 
+
             </div>
+
 
         </section>
 
 
-        <!-- =====================================================
+        <!-- =================================================
              ATTENDANCE
-             ===================================================== -->
+             ================================================= -->
 
         <section
             id="attendance"
             class="page-section"
         >
 
+
             <div class="section-card">
 
+
                 <div class="section-card-header">
+
 
                     <div>
 
@@ -836,6 +1107,7 @@
 
                     </div>
 
+
                     <button
                         type="button"
                         id="refreshAttendance"
@@ -844,10 +1116,12 @@
                         ↻ Refresh
                     </button>
 
+
                 </div>
 
 
                 <div class="filters">
+
 
                     <input
                         type="search"
@@ -855,27 +1129,48 @@
                         placeholder="Search attendance, student or pickup person..."
                     >
 
+
                 </div>
 
 
                 <div class="table-container">
 
+
                     <table>
+
 
                         <thead>
 
                             <tr>
 
-                                <th>Student</th>
-                                <th>Level</th>
-                                <th>Time In</th>
-                                <th>Time Out</th>
-                                <th>Pickup Person</th>
-                                <th>Status</th>
+                                <th>
+                                    Student
+                                </th>
+
+                                <th>
+                                    Level
+                                </th>
+
+                                <th>
+                                    Time In
+                                </th>
+
+                                <th>
+                                    Time Out
+                                </th>
+
+                                <th>
+                                    Pickup Person
+                                </th>
+
+                                <th>
+                                    Status
+                                </th>
 
                             </tr>
 
                         </thead>
+
 
                         <tbody id="attendanceBody">
 
@@ -892,16 +1187,18 @@
 
                         </tbody>
 
+
                     </table>
 
+
                 </div>
+
 
             </div>
 
 
-            <!-- SECURITY -->
-
             <div class="section-card">
+
 
                 <div class="section-card-header">
 
@@ -923,11 +1220,14 @@
 
                 <div class="security-grid">
 
+
                     <div class="security-info authorized-info">
+
 
                         <div class="security-info-icon">
                             ✓
                         </div>
+
 
                         <div>
 
@@ -936,21 +1236,26 @@
                             </h4>
 
                             <p>
-                                Select the exact parent,
+                                The staff member should
+                                select the exact parent,
                                 guardian, or authorized
-                                person collecting the student.
+                                person who is collecting
+                                the student.
                             </p>
 
                         </div>
+
 
                     </div>
 
 
                     <div class="security-info unauthorized-info">
 
+
                         <div class="security-info-icon">
                             !
                         </div>
+
 
                         <div>
 
@@ -959,34 +1264,43 @@
                             </h4>
 
                             <p>
-                                Do not release the student
-                                until the pickup has been
-                                verified and approved.
+                                If the person is not listed
+                                as authorized, do not release
+                                the student until the staff
+                                member verifies and approves
+                                the pickup.
                             </p>
 
                         </div>
 
+
                     </div>
+
 
                 </div>
 
+
             </div>
+
 
         </section>
 
 
-        <!-- =====================================================
+        <!-- =================================================
              REPORTS
-             ===================================================== -->
+             ================================================= -->
 
         <section
             id="reports"
             class="page-section"
         >
 
+
             <div class="section-card">
 
+
                 <div class="section-card-header">
+
 
                     <div>
 
@@ -1001,6 +1315,7 @@
 
                     </div>
 
+
                     <button
                         type="button"
                         id="exportCsv"
@@ -1009,24 +1324,30 @@
                         📥 Export Excel / CSV
                     </button>
 
+
                 </div>
 
 
                 <div class="report-info">
 
+
                     <div class="report-icon">
                         📊
                     </div>
 
+
                     <div>
+
 
                         <h3>
                             Excel-Compatible Attendance File
                         </h3>
 
+
                         <p>
                             The exported file contains:
                         </p>
+
 
                         <ul>
 
@@ -1045,18 +1366,23 @@
 
                         </ul>
 
+
                     </div>
 
+
                 </div>
+
 
             </div>
 
 
             <div class="section-card">
 
+
                 <h3>
                     Pickup Verification Records
                 </h3>
+
 
                 <p>
                     Pickup details are recorded together
@@ -1067,11 +1393,14 @@
 
                 <div class="security-grid">
 
+
                     <div class="security-info authorized-info">
+
 
                         <div class="security-info-icon">
                             ✓
                         </div>
+
 
                         <div>
 
@@ -1086,14 +1415,17 @@
 
                         </div>
 
+
                     </div>
 
 
                     <div class="security-info unauthorized-info">
 
+
                         <div class="security-info-icon">
                             !
                         </div>
+
 
                         <div>
 
@@ -1103,26 +1435,33 @@
 
                             <p>
                                 Requires staff verification
-                                and approval.
+                                and approval before the
+                                student is released.
                             </p>
 
                         </div>
 
+
                     </div>
+
 
                 </div>
 
+
             </div>
+
 
         </section>
 
+
     </main>
+
 
 </div>
 
 
 <!-- =========================================================
-     ADD / EDIT STUDENT MODAL
+     STUDENT ADD / EDIT MODAL
      ========================================================= -->
 
 <div
@@ -1130,9 +1469,12 @@
     class="modal"
 >
 
+
     <div class="modal-content">
 
+
         <div class="modal-header">
+
 
             <div>
 
@@ -1146,6 +1488,7 @@
 
             </div>
 
+
             <button
                 type="button"
                 id="closeStudentModal"
@@ -1154,18 +1497,23 @@
                 ×
             </button>
 
+
         </div>
 
 
         <form id="studentForm">
 
+
             <div class="form-section">
+
 
                 <h3>
                     Student Information
                 </h3>
 
+
                 <div class="form-grid">
+
 
                     <div class="form-group">
 
@@ -1214,26 +1562,31 @@
 
                     </div>
 
+
                 </div>
+
 
             </div>
 
 
-            <!-- PARENT 1 -->
-
             <div class="form-section">
+
 
                 <h3>
                     Parent / Guardian Information
                 </h3>
 
+
                 <p class="form-help">
-                    Register up to three authorized
-                    parents or guardians.
+                    You may register up to three people
+                    who are authorized to pick up this student.
                 </p>
 
 
+                <!-- PARENT 1 -->
+
                 <div class="pickup-person-card">
+
 
                     <div class="pickup-person-title">
 
@@ -1247,7 +1600,9 @@
 
                     </div>
 
+
                     <div class="form-grid">
+
 
                         <div class="form-group">
 
@@ -1278,7 +1633,9 @@
 
                         </div>
 
+
                     </div>
+
 
                 </div>
 
@@ -1286,6 +1643,7 @@
                 <!-- PARENT 2 -->
 
                 <div class="pickup-person-card">
+
 
                     <div class="pickup-person-title">
 
@@ -1299,7 +1657,9 @@
 
                     </div>
 
+
                     <div class="form-grid">
+
 
                         <div class="form-group">
 
@@ -1330,7 +1690,9 @@
 
                         </div>
 
+
                     </div>
+
 
                 </div>
 
@@ -1338,6 +1700,7 @@
                 <!-- PARENT 3 -->
 
                 <div class="pickup-person-card">
+
 
                     <div class="pickup-person-title">
 
@@ -1351,7 +1714,9 @@
 
                     </div>
 
+
                     <div class="form-grid">
+
 
                         <div class="form-group">
 
@@ -1382,14 +1747,18 @@
 
                         </div>
 
+
                     </div>
+
 
                 </div>
 
 
                 <div class="authorization-box">
 
+
                     <label class="checkbox-label">
+
 
                         <input
                             type="checkbox"
@@ -1397,56 +1766,69 @@
                             checked
                         >
 
+
                         <span>
                             Student is authorized
                             for normal pickup.
                         </span>
 
+
                     </label>
 
+
                     <p>
-                        If unchecked, staff must verify
-                        and approve pickup before release.
+                        If this is unchecked, staff should
+                        verify and approve any pickup before
+                        releasing the student.
                     </p>
 
+
                 </div>
+
 
             </div>
 
 
-            <!-- SECURITY -->
-
             <div class="form-section">
+
 
                 <h3>
                     🔐 Pickup Security
                 </h3>
 
+
                 <div class="security-box">
+
 
                     <strong>
                         Important
                     </strong>
 
+
                     <p>
-                        Registered parent and guardian
+                        The registered parent/guardian
                         information is used by staff to
-                        verify who is authorized to collect
+                        identify who is authorized to collect
                         the student.
                     </p>
 
+
                     <p>
                         If the person collecting the student
-                        is not listed, staff must verify and
-                        approve the pickup.
+                        is not listed, staff should not release
+                        the student until the pickup has been
+                        verified and approved.
                     </p>
 
+
                 </div>
+
 
             </div>
 
 
             <div class="modal-actions">
+
 
                 <button
                     type="button"
@@ -1456,6 +1838,7 @@
                     Cancel
                 </button>
 
+
                 <button
                     type="submit"
                     class="primary-button"
@@ -1463,17 +1846,21 @@
                     Save Student
                 </button>
 
+
             </div>
+
 
         </form>
 
+
     </div>
+
 
 </div>
 
 
 <!-- =========================================================
-     STUDENT RESULT / PICKUP MODAL
+     STUDENT RESULT / PROFILE / PICKUP MODAL
      ========================================================= -->
 
 <div
@@ -1481,9 +1868,12 @@
     class="modal"
 >
 
+
     <div class="modal-content result-modal">
 
+
         <div class="modal-header">
+
 
             <div>
 
@@ -1497,6 +1887,7 @@
 
             </div>
 
+
             <button
                 type="button"
                 id="closeResultModal"
@@ -1505,34 +1896,42 @@
                 ×
             </button>
 
+
         </div>
 
 
         <div id="studentResult">
 
+
             <div class="loading-state">
                 Loading...
             </div>
 
+
         </div>
 
+
     </div>
+
 
 </div>
 
 
-<!-- TOAST -->
+<!-- =========================================================
+     TOAST
+     ========================================================= -->
 
 <div
     id="toast"
     class="toast"
     role="status"
     aria-live="polite"
-></div>
+>
+</div>
 
 
 <!-- =========================================================
-     APP JS
+     APP JAVASCRIPT
      ========================================================= -->
 
 <script
@@ -1542,49 +1941,67 @@
 
 
 <!-- =========================================================
-     LOGO SAFETY CSS
+     PWA SERVICE WORKER REGISTRATION
+     ========================================================= -->
+
+<script>
+
+    if ("serviceWorker" in navigator) {
+
+        window.addEventListener("load", function () {
+
+            navigator.serviceWorker
+                .register("./sw.js")
+                .then(function (registration) {
+
+                    console.log(
+                        "Vision School Service Worker registered:",
+                        registration.scope
+                    );
+
+                })
+                .catch(function (error) {
+
+                    console.error(
+                        "Vision School Service Worker registration failed:",
+                        error
+                    );
+
+                });
+
+        });
+
+    }
+
+</script>
+
+
+<!-- =========================================================
+     ADDITIONAL STYLES
      ========================================================= -->
 
 <style>
 
-    /*
-     * IMPORTANT:
-     * The logo file must be located at:
-     *
-     * images/vision-school-logo.png
-     *
-     * inside the GitHub project.
-     */
-
     .brand-logo {
-        width: 58px;
-        height: 58px;
-        min-width: 58px;
-
+        width: 52px;
+        height: 52px;
+        min-width: 52px;
+        border-radius: 12px;
+        background: #ffffff;
         display: flex;
         align-items: center;
         justify-content: center;
-
         overflow: hidden;
-
-        border-radius: 12px;
-
-        background: #ffffff;
-
-        box-shadow:
-            0 3px 12px rgba(0,0,0,0.15);
+        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.12);
     }
 
 
-    .school-logo {
-        display: block;
-
+    .brand-logo .school-logo {
         width: 100%;
         height: 100%;
-
         object-fit: contain;
-
-        padding: 4px;
+        padding: 5px;
+        display: block;
     }
 
 
@@ -1602,7 +2019,7 @@
 
     .brand-text span {
         font-size: 11px;
-        opacity: .75;
+        opacity: 0.75;
     }
 
 
@@ -1659,15 +2076,13 @@
     .authorization-box p {
         margin: 8px 0 0 28px;
         font-size: 13px;
-        opacity: .8;
+        opacity: 0.8;
     }
 
 
     .security-grid {
         display: grid;
-        grid-template-columns:
-            repeat(2, minmax(0, 1fr));
-
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 16px;
         margin-top: 16px;
     }
@@ -1676,11 +2091,8 @@
     .security-info {
         display: flex;
         gap: 14px;
-
         padding: 18px;
-
         border-radius: 12px;
-
         border: 1px solid #e5e7eb;
     }
 
@@ -1689,13 +2101,10 @@
         width: 38px;
         height: 38px;
         min-width: 38px;
-
         border-radius: 50%;
-
         display: flex;
         align-items: center;
         justify-content: center;
-
         font-weight: 800;
     }
 
@@ -1719,7 +2128,6 @@
 
     .security-info p {
         margin: 0;
-
         font-size: 13px;
         line-height: 1.5;
     }
@@ -1727,20 +2135,15 @@
 
     .security-box {
         margin-top: 18px;
-
         padding: 16px;
-
         border-radius: 12px;
-
         background: #fff7ed;
-
         border: 1px solid #fed7aa;
     }
 
 
     .security-box p {
         margin: 7px 0 0;
-
         font-size: 13px;
         line-height: 1.5;
     }
@@ -1748,19 +2151,15 @@
 
     .sidebar-security {
         margin: 20px 14px;
-
         padding: 14px;
-
         border-radius: 12px;
-
-        background: rgba(255,255,255,.08);
+        background: rgba(255, 255, 255, 0.08);
     }
 
 
     .security-title {
         font-size: 13px;
         font-weight: 700;
-
         margin-bottom: 7px;
     }
 
@@ -1768,9 +2167,7 @@
     .sidebar-security p {
         font-size: 11px;
         line-height: 1.5;
-
-        opacity: .75;
-
+        opacity: 0.75;
         margin: 0 0 10px;
     }
 
@@ -1778,10 +2175,8 @@
     .security-status {
         font-size: 10px;
         font-weight: 700;
-
         display: flex;
         align-items: center;
-
         gap: 6px;
     }
 
@@ -1789,9 +2184,7 @@
     .security-dot {
         width: 7px;
         height: 7px;
-
         border-radius: 50%;
-
         background: #22c55e;
     }
 
@@ -1808,16 +2201,11 @@
             gap: 8px;
         }
 
-
-        .brand-logo {
-            width: 48px;
-            height: 48px;
-            min-width: 48px;
-        }
-
     }
 
 </style>
 
+
 </body>
+
 </html>
