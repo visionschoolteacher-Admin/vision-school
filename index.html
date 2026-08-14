@@ -1,120 +1,989 @@
+# Vision School — Complete Replacement `index.html`
+
+```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
+
   <meta
     name="viewport"
-    content="width=device-width, initial-scale=1.0, maximum-scale=1.0"
-  />
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <meta
+    name="theme-color"
+    content="#2563eb"
+  >
 
   <title>Vision School | Student Attendance</title>
 
-  <meta name="theme-color" content="#2563eb" />
-  <meta
-    name="description"
-    content="Vision School Student Attendance and QR Pickup System"
-  />
+  <!-- =====================================================
+       STYLES
+       ===================================================== -->
 
-  <link rel="manifest" href="manifest.json" />
-  <link rel="icon" href="logo.png" />
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
 
-  <link rel="stylesheet" href="style.css" />
+    :root {
+      --primary: #2563eb;
+      --primary-dark: #1d4ed8;
+      --secondary: #0f172a;
+      --background: #f8fafc;
+      --surface: #ffffff;
+      --border: #e2e8f0;
+      --text: #0f172a;
+      --muted: #64748b;
+      --success: #16a34a;
+      --danger: #dc2626;
+      --warning: #d97706;
+      --sidebar-width: 250px;
+      --radius: 12px;
+      --shadow: 0 4px 20px rgba(15, 23, 42, 0.07);
+    }
 
-  <!-- Supabase -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    body {
+      font-family:
+        Inter,
+        ui-sans-serif,
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif;
 
-  <!-- QR Scanner -->
-  <script src="https://unpkg.com/html5-qrcode" defer></script>
+      background: var(--background);
+      color: var(--text);
+      min-height: 100vh;
+    }
 
-  <script src="app.js" defer></script>
+    button,
+    input,
+    select,
+    textarea {
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    /* =====================================================
+       LAYOUT
+       ===================================================== */
+
+    .app {
+      min-height: 100vh;
+      display: flex;
+    }
+
+    .sidebar {
+      width: var(--sidebar-width);
+      background: #0f172a;
+      color: white;
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .brand {
+      padding: 24px 20px;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+    }
+
+    .brand h1 {
+      font-size: 21px;
+      font-weight: 800;
+    }
+
+    .brand p {
+      font-size: 12px;
+      color: #94a3b8;
+      margin-top: 4px;
+    }
+
+    .nav {
+      padding: 18px 12px;
+      flex: 1;
+    }
+
+    .nav-item {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border: 0;
+      background: transparent;
+      color: #cbd5e1;
+      padding: 12px 14px;
+      margin-bottom: 6px;
+      border-radius: 9px;
+      text-align: left;
+      transition: .2s;
+    }
+
+    .nav-item:hover {
+      background: rgba(255,255,255,.08);
+      color: white;
+    }
+
+    .nav-item.active {
+      background: var(--primary);
+      color: white;
+    }
+
+    .sidebar-footer {
+      padding: 16px;
+      border-top: 1px solid rgba(255,255,255,.08);
+      color: #94a3b8;
+      font-size: 12px;
+    }
+
+    .main {
+      margin-left: var(--sidebar-width);
+      width: calc(100% - var(--sidebar-width));
+      min-height: 100vh;
+    }
+
+    /* =====================================================
+       HEADER
+       ===================================================== */
+
+    .topbar {
+      height: 76px;
+      background: white;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 28px;
+      position: sticky;
+      top: 0;
+      z-index: 900;
+    }
+
+    .page-heading h2 {
+      font-size: 21px;
+      font-weight: 800;
+    }
+
+    .page-heading p {
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 3px;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+    }
+
+    .clock-box {
+      text-align: right;
+    }
+
+    .clock {
+      font-weight: 800;
+      font-size: 16px;
+    }
+
+    .clock-date {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .connection {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .connection-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #94a3b8;
+    }
+
+    .connection-dot.connected {
+      background: var(--success);
+      box-shadow: 0 0 0 4px rgba(22,163,74,.12);
+    }
+
+    .connection-dot.offline {
+      background: var(--danger);
+    }
+
+    .mobile-menu {
+      display: none;
+      border: 0;
+      background: transparent;
+      font-size: 24px;
+    }
+
+    /* =====================================================
+       CONTENT
+       ===================================================== */
+
+    .content {
+      padding: 28px;
+    }
+
+    .page-section {
+      display: none;
+    }
+
+    .page-section.active {
+      display: block;
+    }
+
+    /* =====================================================
+       CARDS
+       ===================================================== */
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 18px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      box-shadow: var(--shadow);
+    }
+
+    .stat-label {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .stat-value {
+      font-size: 30px;
+      font-weight: 800;
+      margin-top: 8px;
+    }
+
+    .card {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      margin-bottom: 22px;
+      overflow: hidden;
+    }
+
+    .card-header {
+      padding: 18px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .card-header h3 {
+      font-size: 16px;
+      font-weight: 800;
+    }
+
+    .card-body {
+      padding: 20px;
+    }
+
+    /* =====================================================
+       BUTTONS
+       ===================================================== */
+
+    .primary-button,
+    .secondary-button,
+    .danger-button,
+    .time-in-button,
+    .time-out-button,
+    .small-button {
+      border: 0;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-weight: 700;
+      transition: .2s;
+    }
+
+    .primary-button {
+      background: var(--primary);
+      color: white;
+    }
+
+    .primary-button:hover {
+      background: var(--primary-dark);
+    }
+
+    .secondary-button {
+      background: #e2e8f0;
+      color: #334155;
+    }
+
+    .danger-button {
+      background: var(--danger);
+      color: white;
+    }
+
+    .time-in-button {
+      background: #16a34a;
+      color: white;
+    }
+
+    .time-out-button {
+      background: #f59e0b;
+      color: white;
+    }
+
+    .small-button {
+      padding: 7px 10px;
+      font-size: 12px;
+      background: #eff6ff;
+      color: #1d4ed8;
+      margin: 2px;
+    }
+
+    .small-button:hover {
+      background: #dbeafe;
+    }
+
+    .small-button.delete-student {
+      background: #fee2e2;
+      color: #b91c1c;
+    }
+
+    button:disabled {
+      opacity: .45;
+      cursor: not-allowed;
+    }
+
+    /* =====================================================
+       TOOLBAR
+       ===================================================== */
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 18px;
+      flex-wrap: wrap;
+    }
+
+    .toolbar-left,
+    .toolbar-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .search-input,
+    .form-input,
+    .form-select,
+    .form-textarea {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      background: white;
+      color: var(--text);
+      outline: none;
+    }
+
+    .search-input {
+      min-width: 240px;
+    }
+
+    .search-input:focus,
+    .form-input:focus,
+    .form-select:focus,
+    .form-textarea:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(37,99,235,.1);
+    }
+
+    /* =====================================================
+       TABLE
+       ===================================================== */
+
+    .table-wrap {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 800px;
+    }
+
+    th {
+      background: #f8fafc;
+      color: #64748b;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .03em;
+      text-align: left;
+      padding: 13px 14px;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    td {
+      padding: 13px 14px;
+      border-bottom: 1px solid #f1f5f9;
+      font-size: 13px;
+      vertical-align: middle;
+    }
+
+    tr:hover td {
+      background: #fafcff;
+    }
+
+    .empty-state {
+      text-align: center;
+      color: var(--muted);
+      padding: 35px !important;
+    }
+
+    /* =====================================================
+       STATUS
+       ===================================================== */
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 5px 9px;
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .status.authorized {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .status.not-authorized {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .status.in {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .status.out {
+      background: #e2e8f0;
+      color: #475569;
+    }
+
+    /* =====================================================
+       SCANNER
+       ===================================================== */
+
+    .scanner-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 22px;
+    }
+
+    .scanner-box {
+      background: #0f172a;
+      border-radius: 12px;
+      padding: 18px;
+      min-height: 380px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #reader {
+      width: 100%;
+      max-width: 460px;
+      background: white;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .scanner-controls {
+      display: flex;
+      gap: 10px;
+      margin-top: 15px;
+      flex-wrap: wrap;
+    }
+
+    .manual-search {
+      margin-top: 20px;
+    }
+
+    /* =====================================================
+       FORM
+       ===================================================== */
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .form-group.full {
+      grid-column: 1 / -1;
+    }
+
+    .form-label {
+      font-size: 12px;
+      font-weight: 800;
+      color: #475569;
+    }
+
+    .required {
+      color: var(--danger);
+    }
+
+    .authorization-box {
+      grid-column: 1 / -1;
+      padding: 15px;
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+
+    .authorization-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .authorization-row input {
+      width: 18px;
+      height: 18px;
+    }
+
+    .authorization-help {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 7px;
+    }
+
+    .parent-section {
+      grid-column: 1 / -1;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      background: #fafcff;
+    }
+
+    .parent-section-title {
+      font-weight: 800;
+      margin-bottom: 14px;
+    }
+
+    .parent-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      padding: 18px 20px;
+      border-top: 1px solid var(--border);
+    }
+
+    /* =====================================================
+       PICKUP
+       ===================================================== */
+
+    .pickup-warning {
+      padding: 13px;
+      border-radius: 9px;
+      background: #fff7ed;
+      border: 1px solid #fed7aa;
+      color: #9a3412;
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 16px;
+    }
+
+    .pickup-authorized {
+      padding: 13px;
+      border-radius: 9px;
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      color: #166534;
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 16px;
+    }
+
+    .pickup-person-card {
+      border: 2px solid var(--primary);
+      border-radius: 10px;
+      padding: 14px;
+      background: #eff6ff;
+      margin-bottom: 15px;
+    }
+
+    .pickup-person-card h4 {
+      margin-bottom: 5px;
+    }
+
+    .pickup-person-card p {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .result-avatar {
+      width: 64px;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 12px;
+      background: #eff6ff;
+      border-radius: 50%;
+      font-size: 30px;
+    }
+
+    .student-result {
+      text-align: center;
+    }
+
+    .student-result hr {
+      border: 0;
+      border-top: 1px solid var(--border);
+      margin: 18px 0;
+    }
+
+    .student-result p {
+      margin: 8px 0;
+    }
+
+    .result-actions {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 20px;
+    }
+
+    /* =====================================================
+       MODAL
+       ===================================================== */
+
+    .modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(15,23,42,.55);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      z-index: 3000;
+    }
+
+    .modal.show {
+      display: flex;
+    }
+
+    .modal-content {
+      width: 100%;
+      max-width: 650px;
+      max-height: 90vh;
+      overflow-y: auto;
+      background: white;
+      border-radius: 14px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.2);
+    }
+
+    .modal-content.large {
+      max-width: 800px;
+    }
+
+    .modal-header {
+      padding: 18px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .modal-header h2 {
+      font-size: 18px;
+    }
+
+    .close-modal {
+      border: 0;
+      background: transparent;
+      font-size: 25px;
+      color: var(--muted);
+    }
+
+    .modal-body {
+      padding: 20px;
+    }
+
+    /* =====================================================
+       TOAST
+       ===================================================== */
+
+    .toast {
+      position: fixed;
+      right: 22px;
+      bottom: 22px;
+      background: #0f172a;
+      color: white;
+      padding: 13px 17px;
+      border-radius: 9px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.18);
+      z-index: 5000;
+      transform: translateY(20px);
+      opacity: 0;
+      pointer-events: none;
+      transition: .25s;
+      max-width: 380px;
+      font-size: 13px;
+    }
+
+    .toast.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    /* =====================================================
+       MOBILE
+       ===================================================== */
+
+    @media (max-width: 1100px) {
+      .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .scanner-layout {
+        grid-template-columns: 1fr;
+      }
+
+      .parent-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 800px) {
+      .sidebar {
+        transform: translateX(-100%);
+        transition: .25s;
+      }
+
+      .sidebar.open {
+        transform: translateX(0);
+      }
+
+      .main {
+        margin-left: 0;
+        width: 100%;
+      }
+
+      .mobile-menu {
+        display: block;
+      }
+
+      .topbar {
+        padding: 0 16px;
+      }
+
+      .content {
+        padding: 18px;
+      }
+
+      .clock-box {
+        display: none;
+      }
+
+      .form-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .stats-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    @media (max-width: 520px) {
+      .stats-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .header-right {
+        gap: 8px;
+      }
+
+      .connection {
+        display: none;
+      }
+
+      .search-input {
+        min-width: 100%;
+      }
+
+      .toolbar-left,
+      .toolbar-right {
+        width: 100%;
+      }
+    }
+  </style>
 </head>
 
 <body>
 
-  <!-- =========================
+<div class="app">
+
+  <!-- =====================================================
        SIDEBAR
-  ========================== -->
-  <aside class="sidebar" id="sidebar">
+       ===================================================== -->
+
+  <aside id="sidebar" class="sidebar">
 
     <div class="brand">
-      <div class="brand-logo">
-        <img src="logo.png" alt="Vision School Logo" />
-      </div>
-
-      <div class="brand-text">
-        <strong>VISION</strong>
-        <span>SCHOOL</span>
-      </div>
+      <h1>Vision School</h1>
+      <p>Student Attendance System</p>
     </div>
 
-    <nav class="navigation">
+    <nav class="nav">
 
-      <button class="nav-item active" data-section="dashboard">
-        <span class="nav-icon">▦</span>
+      <button
+        class="nav-item active"
+        data-section="dashboard">
+        📊
         <span>Dashboard</span>
       </button>
 
-      <button class="nav-item" data-section="students">
-        <span class="nav-icon">👨‍🎓</span>
+      <button
+        class="nav-item"
+        data-section="students">
+        👨‍🎓
         <span>Students</span>
       </button>
 
-      <button class="nav-item" data-section="scanner">
-        <span class="nav-icon">▣</span>
+      <button
+        class="nav-item"
+        data-section="scanner">
+        ▣
         <span>QR Scanner</span>
       </button>
 
-      <button class="nav-item" data-section="attendance">
-        <span class="nav-icon">✓</span>
+      <button
+        class="nav-item"
+        data-section="attendance">
+        🕒
         <span>Attendance</span>
       </button>
 
-      <button class="nav-item" data-section="reports">
-        <span class="nav-icon">▤</span>
+      <button
+        class="nav-item"
+        data-section="reports">
+        📄
         <span>Reports</span>
       </button>
 
     </nav>
 
     <div class="sidebar-footer">
-      <div class="connection-status">
-        <span id="connectionDot"></span>
-        <span id="connectionText">Connecting...</span>
-      </div>
-
-      <small>Vision School</small>
-      <small>Student Management System</small>
+      Vision School<br>
+      Student Pick-up & Attendance
     </div>
 
   </aside>
 
 
-  <!-- =========================
-       MAIN CONTENT
-  ========================== -->
-  <main class="main-content">
+  <!-- =====================================================
+       MAIN
+       ===================================================== -->
+
+  <main class="main">
 
     <!-- HEADER -->
+
     <header class="topbar">
 
-      <button class="mobile-menu" id="mobileMenu">
-        ☰
-      </button>
+      <div style="display:flex;align-items:center;gap:12px;">
 
-      <div>
-        <h1 id="pageTitle">Dashboard</h1>
-        <p id="pageSubtitle">Student attendance overview</p>
+        <button
+          id="mobileMenu"
+          class="mobile-menu">
+          ☰
+        </button>
+
+        <div class="page-heading">
+
+          <h2 id="pageTitle">
+            Dashboard
+          </h2>
+
+          <p id="pageSubtitle">
+            Student attendance overview
+          </p>
+
+        </div>
+
       </div>
 
-      <div class="topbar-right">
 
-        <div class="live-clock">
-          <span class="clock-icon">◷</span>
+      <div class="header-right">
 
-          <div>
-            <strong id="liveTime">--:--:--</strong>
-            <span id="liveDate">Loading date...</span>
+        <div class="connection">
+
+          <span
+            id="connectionDot"
+            class="connection-dot">
+          </span>
+
+          <span id="connectionText">
+            Connecting...
+          </span>
+
+        </div>
+
+        <div class="clock-box">
+
+          <div
+            id="liveTime"
+            class="clock">
+            --:--:--
           </div>
+
+          <div
+            id="liveDate"
+            class="clock-date">
+            Loading...
+          </div>
+
         </div>
 
       </div>
@@ -122,531 +991,774 @@
     </header>
 
 
-    <!-- =========================
-         DASHBOARD
-    ========================== -->
-    <section class="page-section active" id="dashboard">
-
-      <div class="welcome-card">
-
-        <div>
-          <span class="eyebrow">VISION SCHOOL</span>
-
-          <h2>Good day! 👋</h2>
-
-          <p>
-            Manage student attendance and pickup securely using QR scanning.
-          </p>
-        </div>
-
-        <div class="welcome-date">
-          <span id="dashboardDate">Loading...</span>
-        </div>
-
-      </div>
+    <div class="content">
 
 
-      <!-- STAT CARDS -->
+      <!-- =================================================
+           DASHBOARD
+           ================================================= -->
 
-      <div class="stats-grid">
+      <section
+        id="dashboard"
+        class="page-section active">
 
-        <div class="stat-card">
-          <div class="stat-icon blue">👨‍🎓</div>
+        <div class="stats-grid">
 
-          <div>
-            <span>Total Students</span>
-            <strong id="totalStudents">0</strong>
+          <div class="stat-card">
+            <div class="stat-label">
+              Total Students
+            </div>
+
+            <div
+              id="totalStudents"
+              class="stat-value">
+              0
+            </div>
           </div>
-        </div>
 
 
-        <div class="stat-card">
-          <div class="stat-icon green">✓</div>
+          <div class="stat-card">
+            <div class="stat-label">
+              Time In Today
+            </div>
 
-          <div>
-            <span>Time In Today</span>
-            <strong id="timeInCount">0</strong>
+            <div
+              id="timeInCount"
+              class="stat-value">
+              0
+            </div>
           </div>
-        </div>
 
 
-        <div class="stat-card">
-          <div class="stat-icon orange">↗</div>
+          <div class="stat-card">
+            <div class="stat-label">
+              Currently In School
+            </div>
 
-          <div>
-            <span>Time Out Today</span>
-            <strong id="timeOutCount">0</strong>
+            <div
+              id="currentlyInCount"
+              class="stat-value">
+              0
+            </div>
           </div>
-        </div>
 
 
-        <div class="stat-card">
-          <div class="stat-icon purple">◉</div>
+          <div class="stat-card">
+            <div class="stat-label">
+              Time Out Today
+            </div>
 
-          <div>
-            <span>Currently In School</span>
-            <strong id="currentlyInCount">0</strong>
+            <div
+              id="timeOutCount"
+              class="stat-value">
+              0
+            </div>
           </div>
+
         </div>
 
-      </div>
 
+        <div class="card">
 
-      <!-- QUICK ACTIONS -->
+          <div class="card-header">
 
-      <div class="section-heading">
-        <div>
-          <h3>Quick Actions</h3>
-          <p>Frequently used attendance functions</p>
-        </div>
-      </div>
+            <div>
+              <h3>
+                Today's Attendance
+              </h3>
 
-      <div class="quick-actions">
+              <p
+                id="dashboardDate"
+                style="
+                  font-size:12px;
+                  color:#64748b;
+                  margin-top:4px;
+                ">
+              </p>
+            </div>
 
-        <button class="action-card" data-section="scanner">
-          <div class="action-icon">▣</div>
-          <div>
-            <strong>Scan QR Code</strong>
-            <span>Record student attendance</span>
-          </div>
-          <b>→</b>
-        </button>
-
-
-        <button class="action-card" data-section="students">
-          <div class="action-icon">👨‍🎓</div>
-          <div>
-            <strong>Manage Students</strong>
-            <span>View and add students</span>
-          </div>
-          <b>→</b>
-        </button>
-
-
-        <button class="action-card" data-section="reports">
-          <div class="action-icon">▤</div>
-          <div>
-            <strong>View Reports</strong>
-            <span>Check attendance records</span>
-          </div>
-          <b>→</b>
-        </button>
-
-      </div>
-
-
-      <!-- RECENT ATTENDANCE -->
-
-      <div class="section-heading">
-        <div>
-          <h3>Today's Attendance</h3>
-          <p>Latest student activity</p>
-        </div>
-
-        <button class="small-button" data-section="attendance">
-          View All
-        </button>
-      </div>
-
-      <div class="table-container">
-
-        <table>
-
-          <thead>
-            <tr>
-              <th>Student</th>
-              <th>Level</th>
-              <th>Time In</th>
-              <th>Time Out</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-
-          <tbody id="dashboardAttendanceBody">
-            <tr>
-              <td colspan="5" class="empty-state">
-                No attendance records yet.
-              </td>
-            </tr>
-          </tbody>
-
-        </table>
-
-      </div>
-
-    </section>
-
-
-    <!-- =========================
-         STUDENTS
-    ========================== -->
-    <section class="page-section" id="students">
-
-      <div class="section-header">
-
-        <div>
-          <h2>Students</h2>
-          <p>Manage Vision School students</p>
-        </div>
-
-        <button class="primary-button" id="addStudentButton">
-          + Add Student
-        </button>
-
-      </div>
-
-
-      <div class="toolbar">
-
-        <input
-          type="search"
-          id="studentSearch"
-          placeholder="Search student name, ID, level..."
-        />
-
-        <select id="levelFilter">
-          <option value="">All Levels</option>
-        </select>
-
-      </div>
-
-
-      <div class="table-container">
-
-        <table>
-
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Student</th>
-              <th>Level</th>
-              <th>Parent / Guardian</th>
-              <th>Phone</th>
-              <th>Authorized</th>
-              <th>QR</th>
-            </tr>
-          </thead>
-
-          <tbody id="studentsBody"></tbody>
-
-        </table>
-
-      </div>
-
-    </section>
-
-
-    <!-- =========================
-         SCANNER
-    ========================== -->
-    <section class="page-section" id="scanner">
-
-      <div class="section-header">
-
-        <div>
-          <h2>QR Scanner</h2>
-          <p>Scan a student's QR code to record attendance</p>
-        </div>
-
-      </div>
-
-
-      <div class="scanner-layout">
-
-        <div class="scanner-card">
-
-          <div id="reader"></div>
-
-          <div class="scanner-controls">
-
-            <button class="primary-button" id="startScanner">
-              Start Camera
-            </button>
-
-            <button class="secondary-button" id="stopScanner">
-              Stop Camera
+            <button
+              class="secondary-button"
+              data-section="attendance">
+              View All
             </button>
 
           </div>
 
-          <p class="scanner-help">
-            Allow camera access when your browser asks for permission.
-          </p>
+
+          <div class="table-wrap">
+
+            <table>
+
+              <thead>
+                <tr>
+                  <th>Student</th>
+                  <th>Level</th>
+                  <th>Time In</th>
+                  <th>Time Out</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+
+              <tbody
+                id="dashboardAttendanceBody">
+              </tbody>
+
+            </table>
+
+          </div>
 
         </div>
 
+      </section>
 
-        <div class="manual-card">
 
-          <h3>Manual Student ID</h3>
+      <!-- =================================================
+           STUDENTS
+           ================================================= -->
 
-          <p>
-            If the QR code cannot be scanned, enter the student's ID manually.
-          </p>
+      <section
+        id="students"
+        class="page-section">
 
-          <div class="manual-input">
+        <div class="toolbar">
+
+          <div class="toolbar-left">
 
             <input
-              type="text"
-              id="manualStudentId"
-              placeholder="Enter student ID"
-            />
+              id="studentSearch"
+              class="search-input"
+              type="search"
+              placeholder="Search student, ID, parent, phone..."
+            >
 
-            <button class="primary-button" id="manualSearchButton">
-              Find Student
+            <select
+              id="levelFilter"
+              class="form-select"
+              style="width:auto;">
+              <option value="">
+                All Levels
+              </option>
+            </select>
+
+          </div>
+
+
+          <div class="toolbar-right">
+
+            <button
+              id="addStudentButton"
+              class="primary-button">
+              + Add Student
             </button>
 
           </div>
 
         </div>
 
-      </div>
 
-    </section>
+        <div class="card">
+
+          <div class="card-header">
+
+            <div>
+              <h3>
+                Student Directory
+              </h3>
+
+              <p style="
+                color:#64748b;
+                font-size:12px;
+                margin-top:4px;
+              ">
+                Manage students, parents and authorization
+              </p>
+            </div>
+
+          </div>
 
 
-    <!-- =========================
-         ATTENDANCE
-    ========================== -->
-    <section class="page-section" id="attendance">
+          <div class="table-wrap">
 
-      <div class="section-header">
+            <table>
 
-        <div>
-          <h2>Attendance</h2>
-          <p>Today's student attendance records</p>
+              <thead>
+
+                <tr>
+                  <th>Student ID</th>
+                  <th>Name</th>
+                  <th>Level</th>
+                  <th>Parent / Guardian 1</th>
+                  <th>Phone</th>
+                  <th>Authorization</th>
+                  <th>Actions</th>
+                  <th>QR</th>
+                </tr>
+
+              </thead>
+
+              <tbody id="studentsBody">
+              </tbody>
+
+            </table>
+
+          </div>
+
         </div>
 
-        <button class="secondary-button" id="refreshAttendance">
-          ↻ Refresh
-        </button>
-
-      </div>
+      </section>
 
 
-      <div class="toolbar">
+      <!-- =================================================
+           QR SCANNER
+           ================================================= -->
 
-        <input
-          type="search"
-          id="attendanceSearch"
-          placeholder="Search attendance..."
-        />
+      <section
+        id="scanner"
+        class="page-section">
 
-      </div>
+        <div class="scanner-layout">
 
+          <div class="card">
 
-      <div class="table-container">
+            <div class="card-header">
 
-        <table>
+              <h3>
+                Scan Student QR Code
+              </h3>
 
-          <thead>
-            <tr>
-              <th>Student</th>
-              <th>Level</th>
-              <th>Time In</th>
-              <th>Time Out</th>
-              <th>Pickup Person</th>
-              <th>Status</th>
-            </tr>
-          </thead>
+            </div>
 
-          <tbody id="attendanceBody"></tbody>
+            <div class="card-body">
 
-        </table>
+              <div class="scanner-box">
 
-      </div>
+                <div id="reader">
+                </div>
 
-    </section>
+              </div>
 
 
-    <!-- =========================
-         REPORTS
-    ========================== -->
-    <section class="page-section" id="reports">
+              <div class="scanner-controls">
 
-      <div class="section-header">
+                <button
+                  id="startScanner"
+                  class="primary-button">
+                  Start Camera
+                </button>
 
-        <div>
-          <h2>Reports</h2>
-          <p>Download attendance records</p>
+                <button
+                  id="stopScanner"
+                  class="secondary-button">
+                  Stop Camera
+                </button>
+
+              </div>
+
+            </div>
+
+          </div>
+
+
+          <div class="card">
+
+            <div class="card-header">
+
+              <h3>
+                Manual Search
+              </h3>
+
+            </div>
+
+            <div class="card-body">
+
+              <p style="
+                color:#64748b;
+                font-size:13px;
+                margin-bottom:14px;
+              ">
+                If the QR scanner cannot be used,
+                enter the student's ID manually.
+              </p>
+
+              <input
+                id="manualStudentId"
+                class="form-input"
+                type="text"
+                placeholder="Enter Student ID"
+              >
+
+              <button
+                id="manualSearchButton"
+                class="primary-button"
+                style="margin-top:10px;">
+                Find Student
+              </button>
+
+            </div>
+
+          </div>
+
         </div>
 
-      </div>
+      </section>
 
 
-      <div class="report-card">
+      <!-- =================================================
+           ATTENDANCE
+           ================================================= -->
 
-        <div class="report-icon">
-          ▤
+      <section
+        id="attendance"
+        class="page-section">
+
+        <div class="toolbar">
+
+          <div class="toolbar-left">
+
+            <input
+              id="attendanceSearch"
+              class="search-input"
+              type="search"
+              placeholder="Search attendance..."
+            >
+
+          </div>
+
+          <div class="toolbar-right">
+
+            <button
+              id="refreshAttendance"
+              class="secondary-button">
+              ↻ Refresh
+            </button>
+
+          </div>
+
         </div>
 
-        <div>
-          <h3>Attendance Report</h3>
 
-          <p>
-            Export the current attendance records as a CSV file.
-          </p>
+        <div class="card">
 
-          <button class="primary-button" id="exportCsv">
-            Download CSV
-          </button>
+          <div class="card-header">
+
+            <div>
+              <h3>
+                Today's Attendance
+              </h3>
+
+              <p style="
+                color:#64748b;
+                font-size:12px;
+                margin-top:4px;
+              ">
+                Time in, time out and pickup information
+              </p>
+            </div>
+
+          </div>
+
+
+          <div class="table-wrap">
+
+            <table>
+
+              <thead>
+
+                <tr>
+                  <th>Student</th>
+                  <th>Level</th>
+                  <th>Time In</th>
+                  <th>Time Out</th>
+                  <th>Pickup Person</th>
+                  <th>Status</th>
+                </tr>
+
+              </thead>
+
+              <tbody id="attendanceBody">
+              </tbody>
+
+            </table>
+
+          </div>
+
         </div>
 
-      </div>
+      </section>
 
-    </section>
+
+      <!-- =================================================
+           REPORTS
+           ================================================= -->
+
+      <section
+        id="reports"
+        class="page-section">
+
+        <div class="card">
+
+          <div class="card-header">
+
+            <div>
+
+              <h3>
+                Attendance Reports
+              </h3>
+
+              <p style="
+                color:#64748b;
+                font-size:12px;
+                margin-top:4px;
+              ">
+                Export attendance and pickup records
+              </p>
+
+            </div>
+
+          </div>
+
+          <div class="card-body">
+
+            <button
+              id="exportCsv"
+              class="primary-button">
+              📥 Export Attendance to Excel
+            </button>
+
+            <p style="
+              color:#64748b;
+              font-size:12px;
+              margin-top:12px;
+            ">
+              The downloaded CSV file can be opened
+              directly using Microsoft Excel.
+            </p>
+
+          </div>
+
+        </div>
+
+      </section>
+
+    </div>
 
   </main>
 
+</div>
 
-  <!-- =========================
-       STUDENT MODAL
-  ========================== -->
-  <div class="modal" id="studentModal">
 
-    <div class="modal-content">
+<!-- =====================================================
+     ADD / EDIT STUDENT MODAL
+     ===================================================== -->
 
-      <div class="modal-header">
+<div
+  id="studentModal"
+  class="modal">
 
-        <div>
-          <h2>Add Student</h2>
-          <p>Create a new Vision School student record.</p>
+  <div class="modal-content large">
+
+    <div class="modal-header">
+
+      <h2>
+        Add Student
+      </h2>
+
+      <button
+        id="closeStudentModal"
+        class="close-modal">
+        ×
+      </button>
+
+    </div>
+
+
+    <form id="studentForm">
+
+      <div class="modal-body">
+
+        <div class="form-grid">
+
+          <!-- STUDENT ID -->
+
+          <div class="form-group">
+
+            <label class="form-label">
+              Student ID
+              <span class="required">*</span>
+            </label>
+
+            <input
+              id="studentId"
+              class="form-input"
+              type="text"
+              required
+              placeholder="Example: VS001"
+            >
+
+          </div>
+
+
+          <!-- NAME -->
+
+          <div class="form-group">
+
+            <label class="form-label">
+              Student Name
+              <span class="required">*</span>
+            </label>
+
+            <input
+              id="studentName"
+              class="form-input"
+              type="text"
+              required
+              placeholder="Student full name"
+            >
+
+          </div>
+
+
+          <!-- LEVEL -->
+
+          <div class="form-group">
+
+            <label class="form-label">
+              Level / Class
+              <span class="required">*</span>
+            </label>
+
+            <input
+              id="studentLevel"
+              class="form-input"
+              type="text"
+              required
+              placeholder="Example: Primary 2"
+            >
+
+          </div>
+
+
+          <!-- PHONE -->
+
+          <div class="form-group">
+
+            <label class="form-label">
+              Main Phone
+            </label>
+
+            <input
+              id="studentPhone"
+              class="form-input"
+              type="text"
+              placeholder="Parent/guardian phone"
+            >
+
+          </div>
+
+
+          <!-- PARENTS -->
+
+          <div class="parent-section">
+
+            <div class="parent-section-title">
+              👨‍👩‍👧 Authorized Pickup Persons
+            </div>
+
+            <p style="
+              color:#64748b;
+              font-size:12px;
+              margin-bottom:15px;
+            ">
+              Add up to three parents or guardians.
+              Staff will later choose exactly which
+              person is picking up the student.
+            </p>
+
+
+            <div class="parent-grid">
+
+              <!-- PARENT 1 -->
+
+              <div class="form-group">
+
+                <label class="form-label">
+                  Parent / Guardian 1
+                </label>
+
+                <input
+                  id="studentParent"
+                  class="form-input"
+                  type="text"
+                  placeholder="First authorized person"
+                >
+
+              </div>
+
+
+              <!-- PARENT 2 -->
+
+              <div class="form-group">
+
+                <label class="form-label">
+                  Parent / Guardian 2
+                </label>
+
+                <input
+                  id="studentParent2"
+                  class="form-input"
+                  type="text"
+                  placeholder="Second authorized person"
+                >
+
+              </div>
+
+
+              <!-- PARENT 3 -->
+
+              <div class="form-group">
+
+                <label class="form-label">
+                  Parent / Guardian 3
+                </label>
+
+                <input
+                  id="studentParent3"
+                  class="form-input"
+                  type="text"
+                  placeholder="Third authorized person"
+                >
+
+              </div>
+
+            </div>
+
+          </div>
+
+
+          <!-- AUTHORIZATION -->
+
+          <div class="authorization-box">
+
+            <div class="authorization-row">
+
+              <input
+                id="studentAuthorized"
+                type="checkbox"
+                checked
+              >
+
+              <label
+                for="studentAuthorized"
+                style="font-weight:800;">
+                Student is Authorized for Pickup
+              </label>
+
+            </div>
+
+            <div class="authorization-help">
+              Uncheck this if the student should NOT
+              be released without additional staff
+              approval.
+            </div>
+
+          </div>
+
         </div>
-
-        <button class="modal-close" id="closeStudentModal">
-          ×
-        </button>
 
       </div>
 
 
-      <form id="studentForm">
+      <div class="modal-footer">
 
-        <div class="form-grid">
+        <button
+          id="cancelStudent"
+          type="button"
+          class="secondary-button">
+          Cancel
+        </button>
 
-          <div class="form-group">
-            <label>Student ID *</label>
+        <button
+          type="submit"
+          class="primary-button">
+          Save Student
+        </button>
 
-            <input
-              type="text"
-              id="studentId"
-              required
-              placeholder="Example: VS001"
-            />
-          </div>
+      </div>
 
-
-          <div class="form-group">
-            <label>Student Name *</label>
-
-            <input
-              type="text"
-              id="studentName"
-              required
-              placeholder="Full name"
-            />
-          </div>
-
-
-          <div class="form-group">
-            <label>Level *</label>
-
-            <input
-              type="text"
-              id="studentLevel"
-              required
-              placeholder="Example: Primary 2"
-            />
-          </div>
-
-
-          <div class="form-group">
-            <label>Parent / Guardian</label>
-
-            <input
-              type="text"
-              id="studentParent"
-              placeholder="Parent or guardian"
-            />
-          </div>
-
-
-          <div class="form-group">
-            <label>Phone</label>
-
-            <input
-              type="tel"
-              id="studentPhone"
-              placeholder="Phone number"
-            />
-          </div>
-
-
-          <div class="form-group checkbox-group">
-
-            <label>
-              <input
-                type="checkbox"
-                id="studentAuthorized"
-                checked
-              />
-
-              Authorized
-            </label>
-
-          </div>
-
-        </div>
-
-
-        <div class="modal-actions">
-
-          <button
-            type="button"
-            class="secondary-button"
-            id="cancelStudent"
-          >
-            Cancel
-          </button>
-
-          <button
-            type="submit"
-            class="primary-button"
-          >
-            Save Student
-          </button>
-
-        </div>
-
-      </form>
-
-    </div>
+    </form>
 
   </div>
 
+</div>
 
-  <!-- =========================
-       STUDENT RESULT MODAL
-  ========================== -->
-  <div class="modal" id="studentResultModal">
 
-    <div class="modal-content result-modal">
+<!-- =====================================================
+     STUDENT RESULT / PROFILE / PICKUP MODAL
+     ===================================================== -->
 
-      <button class="modal-close" id="closeResultModal">
+<div
+  id="studentResultModal"
+  class="modal">
+
+  <div class="modal-content large">
+
+    <div class="modal-header">
+
+      <h2>
+        Student Information
+      </h2>
+
+      <button
+        id="closeResultModal"
+        class="close-modal">
         ×
       </button>
 
-      <div id="studentResult"></div>
+    </div>
 
+
+    <div
+      id="studentResult"
+      class="modal-body">
     </div>
 
   </div>
 
+</div>
 
-  <!-- =========================
-       TOAST
-  ========================== -->
-  <div id="toast" class="toast"></div>
+
+<!-- =====================================================
+     TOAST
+     ===================================================== -->
+
+<div
+  id="toast"
+  class="toast">
+</div>
+
+
+<!-- =====================================================
+     SUPABASE
+     ===================================================== -->
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+
+<!-- =====================================================
+     HTML5 QR CODE
+     ===================================================== -->
+
+<script src="https://unpkg.com/html5-qrcode"></script>
+
+
+<!-- =====================================================
+     APPLICATION
+     ===================================================== -->
+
+<script src="app.js"></script>
+
 
 </body>
 </html>
+```
