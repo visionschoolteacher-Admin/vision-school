@@ -1,1764 +1,1963 @@
-# Vision School — Complete Replacement `index.html`
-
-```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <meta
+        name="theme-color"
+        content="#1d4ed8"
+    >
+
+    <meta
+        name="description"
+        content="Vision School Student Attendance and Pickup Management System"
+    >
+
+    <title>
+        Vision School | Student Attendance System
+    </title>
+
+    <!-- =====================================================
+         MAIN STYLESHEET
+         ===================================================== -->
+
+    <link
+        rel="stylesheet"
+        href="style.css"
+    >
+
+    <!-- =====================================================
+         SUPABASE
+         ===================================================== -->
+
+    <script
+        src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
+        defer
+    ></script>
+
+    <!-- =====================================================
+         QR SCANNER
+         ===================================================== -->
+
+    <script
+        src="https://unpkg.com/html5-qrcode"
+        defer
+    ></script>
 
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0"
-  >
-
-  <meta
-    name="theme-color"
-    content="#2563eb"
-  >
-
-  <title>Vision School | Student Attendance</title>
-
-  <!-- =====================================================
-       STYLES
-       ===================================================== -->
-
-  <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
-    :root {
-      --primary: #2563eb;
-      --primary-dark: #1d4ed8;
-      --secondary: #0f172a;
-      --background: #f8fafc;
-      --surface: #ffffff;
-      --border: #e2e8f0;
-      --text: #0f172a;
-      --muted: #64748b;
-      --success: #16a34a;
-      --danger: #dc2626;
-      --warning: #d97706;
-      --sidebar-width: 250px;
-      --radius: 12px;
-      --shadow: 0 4px 20px rgba(15, 23, 42, 0.07);
-    }
-
-    body {
-      font-family:
-        Inter,
-        ui-sans-serif,
-        system-ui,
-        -apple-system,
-        BlinkMacSystemFont,
-        "Segoe UI",
-        sans-serif;
-
-      background: var(--background);
-      color: var(--text);
-      min-height: 100vh;
-    }
-
-    button,
-    input,
-    select,
-    textarea {
-      font: inherit;
-    }
-
-    button {
-      cursor: pointer;
-    }
-
-    /* =====================================================
-       LAYOUT
-       ===================================================== */
-
-    .app {
-      min-height: 100vh;
-      display: flex;
-    }
-
-    .sidebar {
-      width: var(--sidebar-width);
-      background: #0f172a;
-      color: white;
-      position: fixed;
-      top: 0;
-      left: 0;
-      bottom: 0;
-      z-index: 1000;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .brand {
-      padding: 24px 20px;
-      border-bottom: 1px solid rgba(255,255,255,.08);
-    }
-
-    .brand h1 {
-      font-size: 21px;
-      font-weight: 800;
-    }
-
-    .brand p {
-      font-size: 12px;
-      color: #94a3b8;
-      margin-top: 4px;
-    }
-
-    .nav {
-      padding: 18px 12px;
-      flex: 1;
-    }
-
-    .nav-item {
-      width: 100%;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      border: 0;
-      background: transparent;
-      color: #cbd5e1;
-      padding: 12px 14px;
-      margin-bottom: 6px;
-      border-radius: 9px;
-      text-align: left;
-      transition: .2s;
-    }
-
-    .nav-item:hover {
-      background: rgba(255,255,255,.08);
-      color: white;
-    }
-
-    .nav-item.active {
-      background: var(--primary);
-      color: white;
-    }
-
-    .sidebar-footer {
-      padding: 16px;
-      border-top: 1px solid rgba(255,255,255,.08);
-      color: #94a3b8;
-      font-size: 12px;
-    }
-
-    .main {
-      margin-left: var(--sidebar-width);
-      width: calc(100% - var(--sidebar-width));
-      min-height: 100vh;
-    }
-
-    /* =====================================================
-       HEADER
-       ===================================================== */
-
-    .topbar {
-      height: 76px;
-      background: white;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 28px;
-      position: sticky;
-      top: 0;
-      z-index: 900;
-    }
-
-    .page-heading h2 {
-      font-size: 21px;
-      font-weight: 800;
-    }
-
-    .page-heading p {
-      color: var(--muted);
-      font-size: 13px;
-      margin-top: 3px;
-    }
-
-    .header-right {
-      display: flex;
-      align-items: center;
-      gap: 18px;
-    }
-
-    .clock-box {
-      text-align: right;
-    }
-
-    .clock {
-      font-weight: 800;
-      font-size: 16px;
-    }
-
-    .clock-date {
-      font-size: 11px;
-      color: var(--muted);
-      margin-top: 2px;
-    }
-
-    .connection {
-      display: flex;
-      align-items: center;
-      gap: 7px;
-      font-size: 12px;
-      color: var(--muted);
-    }
-
-    .connection-dot {
-      width: 9px;
-      height: 9px;
-      border-radius: 50%;
-      background: #94a3b8;
-    }
-
-    .connection-dot.connected {
-      background: var(--success);
-      box-shadow: 0 0 0 4px rgba(22,163,74,.12);
-    }
-
-    .connection-dot.offline {
-      background: var(--danger);
-    }
-
-    .mobile-menu {
-      display: none;
-      border: 0;
-      background: transparent;
-      font-size: 24px;
-    }
-
-    /* =====================================================
-       CONTENT
-       ===================================================== */
-
-    .content {
-      padding: 28px;
-    }
-
-    .page-section {
-      display: none;
-    }
-
-    .page-section.active {
-      display: block;
-    }
-
-    /* =====================================================
-       CARDS
-       ===================================================== */
-
-    .stats-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 18px;
-      margin-bottom: 24px;
-    }
-
-    .stat-card {
-      background: white;
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 20px;
-      box-shadow: var(--shadow);
-    }
-
-    .stat-label {
-      color: var(--muted);
-      font-size: 13px;
-    }
-
-    .stat-value {
-      font-size: 30px;
-      font-weight: 800;
-      margin-top: 8px;
-    }
-
-    .card {
-      background: white;
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      margin-bottom: 22px;
-      overflow: hidden;
-    }
-
-    .card-header {
-      padding: 18px 20px;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-    }
-
-    .card-header h3 {
-      font-size: 16px;
-      font-weight: 800;
-    }
-
-    .card-body {
-      padding: 20px;
-    }
-
-    /* =====================================================
-       BUTTONS
-       ===================================================== */
-
-    .primary-button,
-    .secondary-button,
-    .danger-button,
-    .time-in-button,
-    .time-out-button,
-    .small-button {
-      border: 0;
-      border-radius: 8px;
-      padding: 10px 14px;
-      font-weight: 700;
-      transition: .2s;
-    }
-
-    .primary-button {
-      background: var(--primary);
-      color: white;
-    }
-
-    .primary-button:hover {
-      background: var(--primary-dark);
-    }
-
-    .secondary-button {
-      background: #e2e8f0;
-      color: #334155;
-    }
-
-    .danger-button {
-      background: var(--danger);
-      color: white;
-    }
-
-    .time-in-button {
-      background: #16a34a;
-      color: white;
-    }
-
-    .time-out-button {
-      background: #f59e0b;
-      color: white;
-    }
-
-    .small-button {
-      padding: 7px 10px;
-      font-size: 12px;
-      background: #eff6ff;
-      color: #1d4ed8;
-      margin: 2px;
-    }
-
-    .small-button:hover {
-      background: #dbeafe;
-    }
-
-    .small-button.delete-student {
-      background: #fee2e2;
-      color: #b91c1c;
-    }
-
-    button:disabled {
-      opacity: .45;
-      cursor: not-allowed;
-    }
-
-    /* =====================================================
-       TOOLBAR
-       ===================================================== */
-
-    .toolbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 18px;
-      flex-wrap: wrap;
-    }
-
-    .toolbar-left,
-    .toolbar-right {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-
-    .search-input,
-    .form-input,
-    .form-select,
-    .form-textarea {
-      width: 100%;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 10px 12px;
-      background: white;
-      color: var(--text);
-      outline: none;
-    }
-
-    .search-input {
-      min-width: 240px;
-    }
-
-    .search-input:focus,
-    .form-input:focus,
-    .form-select:focus,
-    .form-textarea:focus {
-      border-color: var(--primary);
-      box-shadow: 0 0 0 3px rgba(37,99,235,.1);
-    }
-
-    /* =====================================================
-       TABLE
-       ===================================================== */
-
-    .table-wrap {
-      overflow-x: auto;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      min-width: 800px;
-    }
-
-    th {
-      background: #f8fafc;
-      color: #64748b;
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: .03em;
-      text-align: left;
-      padding: 13px 14px;
-      border-bottom: 1px solid var(--border);
-      white-space: nowrap;
-    }
-
-    td {
-      padding: 13px 14px;
-      border-bottom: 1px solid #f1f5f9;
-      font-size: 13px;
-      vertical-align: middle;
-    }
-
-    tr:hover td {
-      background: #fafcff;
-    }
-
-    .empty-state {
-      text-align: center;
-      color: var(--muted);
-      padding: 35px !important;
-    }
-
-    /* =====================================================
-       STATUS
-       ===================================================== */
-
-    .status {
-      display: inline-flex;
-      align-items: center;
-      border-radius: 999px;
-      padding: 5px 9px;
-      font-size: 11px;
-      font-weight: 800;
-    }
-
-    .status.authorized {
-      background: #dcfce7;
-      color: #166534;
-    }
-
-    .status.not-authorized {
-      background: #fee2e2;
-      color: #991b1b;
-    }
-
-    .status.in {
-      background: #dcfce7;
-      color: #166534;
-    }
-
-    .status.out {
-      background: #e2e8f0;
-      color: #475569;
-    }
-
-    /* =====================================================
-       SCANNER
-       ===================================================== */
-
-    .scanner-layout {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 22px;
-    }
-
-    .scanner-box {
-      background: #0f172a;
-      border-radius: 12px;
-      padding: 18px;
-      min-height: 380px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    #reader {
-      width: 100%;
-      max-width: 460px;
-      background: white;
-      border-radius: 10px;
-      overflow: hidden;
-    }
-
-    .scanner-controls {
-      display: flex;
-      gap: 10px;
-      margin-top: 15px;
-      flex-wrap: wrap;
-    }
-
-    .manual-search {
-      margin-top: 20px;
-    }
-
-    /* =====================================================
-       FORM
-       ===================================================== */
-
-    .form-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 16px;
-    }
-
-    .form-group {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    .form-group.full {
-      grid-column: 1 / -1;
-    }
-
-    .form-label {
-      font-size: 12px;
-      font-weight: 800;
-      color: #475569;
-    }
-
-    .required {
-      color: var(--danger);
-    }
-
-    .authorization-box {
-      grid-column: 1 / -1;
-      padding: 15px;
-      background: #f8fafc;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-    }
-
-    .authorization-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .authorization-row input {
-      width: 18px;
-      height: 18px;
-    }
-
-    .authorization-help {
-      font-size: 12px;
-      color: var(--muted);
-      margin-top: 7px;
-    }
-
-    .parent-section {
-      grid-column: 1 / -1;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 16px;
-      background: #fafcff;
-    }
-
-    .parent-section-title {
-      font-weight: 800;
-      margin-bottom: 14px;
-    }
-
-    .parent-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 12px;
-    }
-
-    .modal-footer {
-      display: flex;
-      justify-content: flex-end;
-      gap: 10px;
-      padding: 18px 20px;
-      border-top: 1px solid var(--border);
-    }
-
-    /* =====================================================
-       PICKUP
-       ===================================================== */
-
-    .pickup-warning {
-      padding: 13px;
-      border-radius: 9px;
-      background: #fff7ed;
-      border: 1px solid #fed7aa;
-      color: #9a3412;
-      font-size: 13px;
-      font-weight: 700;
-      margin-bottom: 16px;
-    }
-
-    .pickup-authorized {
-      padding: 13px;
-      border-radius: 9px;
-      background: #f0fdf4;
-      border: 1px solid #bbf7d0;
-      color: #166534;
-      font-size: 13px;
-      font-weight: 700;
-      margin-bottom: 16px;
-    }
-
-    .pickup-person-card {
-      border: 2px solid var(--primary);
-      border-radius: 10px;
-      padding: 14px;
-      background: #eff6ff;
-      margin-bottom: 15px;
-    }
-
-    .pickup-person-card h4 {
-      margin-bottom: 5px;
-    }
-
-    .pickup-person-card p {
-      color: var(--muted);
-      font-size: 12px;
-    }
-
-    .result-avatar {
-      width: 64px;
-      height: 64px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin: 0 auto 12px;
-      background: #eff6ff;
-      border-radius: 50%;
-      font-size: 30px;
-    }
-
-    .student-result {
-      text-align: center;
-    }
-
-    .student-result hr {
-      border: 0;
-      border-top: 1px solid var(--border);
-      margin: 18px 0;
-    }
-
-    .student-result p {
-      margin: 8px 0;
-    }
-
-    .result-actions {
-      display: flex;
-      justify-content: center;
-      gap: 10px;
-      flex-wrap: wrap;
-      margin-top: 20px;
-    }
-
-    /* =====================================================
-       MODAL
-       ===================================================== */
-
-    .modal {
-      position: fixed;
-      inset: 0;
-      background: rgba(15,23,42,.55);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-      z-index: 3000;
-    }
-
-    .modal.show {
-      display: flex;
-    }
-
-    .modal-content {
-      width: 100%;
-      max-width: 650px;
-      max-height: 90vh;
-      overflow-y: auto;
-      background: white;
-      border-radius: 14px;
-      box-shadow: 0 20px 60px rgba(0,0,0,.2);
-    }
-
-    .modal-content.large {
-      max-width: 800px;
-    }
-
-    .modal-header {
-      padding: 18px 20px;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-
-    .modal-header h2 {
-      font-size: 18px;
-    }
-
-    .close-modal {
-      border: 0;
-      background: transparent;
-      font-size: 25px;
-      color: var(--muted);
-    }
-
-    .modal-body {
-      padding: 20px;
-    }
-
-    /* =====================================================
-       TOAST
-       ===================================================== */
-
-    .toast {
-      position: fixed;
-      right: 22px;
-      bottom: 22px;
-      background: #0f172a;
-      color: white;
-      padding: 13px 17px;
-      border-radius: 9px;
-      box-shadow: 0 10px 30px rgba(0,0,0,.18);
-      z-index: 5000;
-      transform: translateY(20px);
-      opacity: 0;
-      pointer-events: none;
-      transition: .25s;
-      max-width: 380px;
-      font-size: 13px;
-    }
-
-    .toast.show {
-      transform: translateY(0);
-      opacity: 1;
-    }
-
-    /* =====================================================
-       MOBILE
-       ===================================================== */
-
-    @media (max-width: 1100px) {
-      .stats-grid {
-        grid-template-columns: repeat(2, 1fr);
-      }
-
-      .scanner-layout {
-        grid-template-columns: 1fr;
-      }
-
-      .parent-grid {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    @media (max-width: 800px) {
-      .sidebar {
-        transform: translateX(-100%);
-        transition: .25s;
-      }
-
-      .sidebar.open {
-        transform: translateX(0);
-      }
-
-      .main {
-        margin-left: 0;
-        width: 100%;
-      }
-
-      .mobile-menu {
-        display: block;
-      }
-
-      .topbar {
-        padding: 0 16px;
-      }
-
-      .content {
-        padding: 18px;
-      }
-
-      .clock-box {
-        display: none;
-      }
-
-      .form-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .stats-grid {
-        grid-template-columns: 1fr 1fr;
-      }
-    }
-
-    @media (max-width: 520px) {
-      .stats-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .header-right {
-        gap: 8px;
-      }
-
-      .connection {
-        display: none;
-      }
-
-      .search-input {
-        min-width: 100%;
-      }
-
-      .toolbar-left,
-      .toolbar-right {
-        width: 100%;
-      }
-    }
-  </style>
 </head>
 
 <body>
 
+<!-- =========================================================
+     APP
+     ========================================================= -->
+
 <div class="app">
 
-  <!-- =====================================================
-       SIDEBAR
-       ===================================================== -->
+    <!-- =====================================================
+         SIDEBAR
+         ===================================================== -->
 
-  <aside id="sidebar" class="sidebar">
+    <aside
+        id="sidebar"
+        class="sidebar"
+    >
 
-    <div class="brand">
-      <h1>Vision School</h1>
-      <p>Student Attendance System</p>
-    </div>
+        <!-- SCHOOL BRAND -->
+        <div class="brand">
 
-    <nav class="nav">
+            <div class="brand-logo">
+                <img
+                    src="images/vision-school-logo.png"
+                    alt="Vision School Logo"
+                    onerror="this.style.display='none'; this.parentElement.classList.add('logo-fallback');"
+                >
 
-      <button
-        class="nav-item active"
-        data-section="dashboard">
-        📊
-        <span>Dashboard</span>
-      </button>
-
-      <button
-        class="nav-item"
-        data-section="students">
-        👨‍🎓
-        <span>Students</span>
-      </button>
-
-      <button
-        class="nav-item"
-        data-section="scanner">
-        ▣
-        <span>QR Scanner</span>
-      </button>
-
-      <button
-        class="nav-item"
-        data-section="attendance">
-        🕒
-        <span>Attendance</span>
-      </button>
-
-      <button
-        class="nav-item"
-        data-section="reports">
-        📄
-        <span>Reports</span>
-      </button>
-
-    </nav>
-
-    <div class="sidebar-footer">
-      Vision School<br>
-      Student Pick-up & Attendance
-    </div>
-
-  </aside>
-
-
-  <!-- =====================================================
-       MAIN
-       ===================================================== -->
-
-  <main class="main">
-
-    <!-- HEADER -->
-
-    <header class="topbar">
-
-      <div style="display:flex;align-items:center;gap:12px;">
-
-        <button
-          id="mobileMenu"
-          class="mobile-menu">
-          ☰
-        </button>
-
-        <div class="page-heading">
-
-          <h2 id="pageTitle">
-            Dashboard
-          </h2>
-
-          <p id="pageSubtitle">
-            Student attendance overview
-          </p>
-
-        </div>
-
-      </div>
-
-
-      <div class="header-right">
-
-        <div class="connection">
-
-          <span
-            id="connectionDot"
-            class="connection-dot">
-          </span>
-
-          <span id="connectionText">
-            Connecting...
-          </span>
-
-        </div>
-
-        <div class="clock-box">
-
-          <div
-            id="liveTime"
-            class="clock">
-            --:--:--
-          </div>
-
-          <div
-            id="liveDate"
-            class="clock-date">
-            Loading...
-          </div>
-
-        </div>
-
-      </div>
-
-    </header>
-
-
-    <div class="content">
-
-
-      <!-- =================================================
-           DASHBOARD
-           ================================================= -->
-
-      <section
-        id="dashboard"
-        class="page-section active">
-
-        <div class="stats-grid">
-
-          <div class="stat-card">
-            <div class="stat-label">
-              Total Students
+                <span class="logo-fallback-text">
+                    VS
+                </span>
             </div>
 
-            <div
-              id="totalStudents"
-              class="stat-value">
-              0
+            <div class="brand-text">
+
+                <h1>
+                    Vision School
+                </h1>
+
+                <span>
+                    Attendance System
+                </span>
+
             </div>
-          </div>
-
-
-          <div class="stat-card">
-            <div class="stat-label">
-              Time In Today
-            </div>
-
-            <div
-              id="timeInCount"
-              class="stat-value">
-              0
-            </div>
-          </div>
-
-
-          <div class="stat-card">
-            <div class="stat-label">
-              Currently In School
-            </div>
-
-            <div
-              id="currentlyInCount"
-              class="stat-value">
-              0
-            </div>
-          </div>
-
-
-          <div class="stat-card">
-            <div class="stat-label">
-              Time Out Today
-            </div>
-
-            <div
-              id="timeOutCount"
-              class="stat-value">
-              0
-            </div>
-          </div>
 
         </div>
 
 
-        <div class="card">
+        <!-- NAVIGATION -->
 
-          <div class="card-header">
-
-            <div>
-              <h3>
-                Today's Attendance
-              </h3>
-
-              <p
-                id="dashboardDate"
-                style="
-                  font-size:12px;
-                  color:#64748b;
-                  margin-top:4px;
-                ">
-              </p>
-            </div>
+        <nav class="sidebar-nav">
 
             <button
-              class="secondary-button"
-              data-section="attendance">
-              View All
-            </button>
-
-          </div>
-
-
-          <div class="table-wrap">
-
-            <table>
-
-              <thead>
-                <tr>
-                  <th>Student</th>
-                  <th>Level</th>
-                  <th>Time In</th>
-                  <th>Time Out</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-
-              <tbody
-                id="dashboardAttendanceBody">
-              </tbody>
-
-            </table>
-
-          </div>
-
-        </div>
-
-      </section>
-
-
-      <!-- =================================================
-           STUDENTS
-           ================================================= -->
-
-      <section
-        id="students"
-        class="page-section">
-
-        <div class="toolbar">
-
-          <div class="toolbar-left">
-
-            <input
-              id="studentSearch"
-              class="search-input"
-              type="search"
-              placeholder="Search student, ID, parent, phone..."
+                type="button"
+                class="nav-item active"
+                data-section="dashboard"
             >
-
-            <select
-              id="levelFilter"
-              class="form-select"
-              style="width:auto;">
-              <option value="">
-                All Levels
-              </option>
-            </select>
-
-          </div>
-
-
-          <div class="toolbar-right">
-
-            <button
-              id="addStudentButton"
-              class="primary-button">
-              + Add Student
+                <span class="nav-icon">⌂</span>
+                <span>Dashboard</span>
             </button>
 
-          </div>
+
+            <button
+                type="button"
+                class="nav-item"
+                data-section="students"
+            >
+                <span class="nav-icon">👨‍🎓</span>
+                <span>Students</span>
+            </button>
+
+
+            <button
+                type="button"
+                class="nav-item"
+                data-section="scanner"
+            >
+                <span class="nav-icon">▣</span>
+                <span>QR Scanner</span>
+            </button>
+
+
+            <button
+                type="button"
+                class="nav-item"
+                data-section="attendance"
+            >
+                <span class="nav-icon">✓</span>
+                <span>Attendance</span>
+            </button>
+
+
+            <button
+                type="button"
+                class="nav-item"
+                data-section="reports"
+            >
+                <span class="nav-icon">▤</span>
+                <span>Reports</span>
+            </button>
+
+        </nav>
+
+
+        <!-- SIDEBAR SECURITY INFORMATION -->
+
+        <div class="sidebar-security">
+
+            <div class="security-title">
+                🔐 Pickup Security
+            </div>
+
+            <p>
+                Only authorized parents, guardians,
+                or approved persons should pick up
+                students.
+            </p>
+
+            <div class="security-status">
+                <span class="security-dot"></span>
+                Secure Pickup System
+            </div>
 
         </div>
 
 
-        <div class="card">
+        <!-- SIDEBAR FOOTER -->
 
-          <div class="card-header">
+        <div class="sidebar-footer">
 
-            <div>
-              <h3>
-                Student Directory
-              </h3>
+            <div class="connection-status">
 
-              <p style="
-                color:#64748b;
-                font-size:12px;
-                margin-top:4px;
-              ">
-                Manage students, parents and authorization
-              </p>
+                <span
+                    id="connectionDot"
+                    class="connection-dot offline"
+                ></span>
+
+                <span id="connectionText">
+                    Connecting...
+                </span>
+
             </div>
 
-          </div>
-
-
-          <div class="table-wrap">
-
-            <table>
-
-              <thead>
-
-                <tr>
-                  <th>Student ID</th>
-                  <th>Name</th>
-                  <th>Level</th>
-                  <th>Parent / Guardian 1</th>
-                  <th>Phone</th>
-                  <th>Authorization</th>
-                  <th>Actions</th>
-                  <th>QR</th>
-                </tr>
-
-              </thead>
-
-              <tbody id="studentsBody">
-              </tbody>
-
-            </table>
-
-          </div>
+            <small>
+                Vision School
+            </small>
 
         </div>
 
-      </section>
+    </aside>
 
 
-      <!-- =================================================
-           QR SCANNER
-           ================================================= -->
+    <!-- =====================================================
+         MAIN CONTENT
+         ===================================================== -->
 
-      <section
-        id="scanner"
-        class="page-section">
+    <main class="main-content">
 
-        <div class="scanner-layout">
 
-          <div class="card">
+        <!-- =================================================
+             TOP HEADER
+             ================================================= -->
 
-            <div class="card-header">
+        <header class="topbar">
 
-              <h3>
-                Scan Student QR Code
-              </h3>
+            <div class="topbar-left">
 
-            </div>
+                <button
+                    type="button"
+                    id="mobileMenu"
+                    class="mobile-menu"
+                    aria-label="Open menu"
+                >
+                    ☰
+                </button>
 
-            <div class="card-body">
+                <div>
 
-              <div class="scanner-box">
+                    <h2 id="pageTitle">
+                        Dashboard
+                    </h2>
 
-                <div id="reader">
+                    <p id="pageSubtitle">
+                        Student attendance overview
+                    </p>
+
                 </div>
 
-              </div>
+            </div>
 
 
-              <div class="scanner-controls">
+            <div class="topbar-right">
 
-                <button
-                  id="startScanner"
-                  class="primary-button">
-                  Start Camera
-                </button>
+                <div class="live-clock">
 
-                <button
-                  id="stopScanner"
-                  class="secondary-button">
-                  Stop Camera
-                </button>
+                    <strong id="liveTime">
+                        --:--:--
+                    </strong>
 
-              </div>
+                    <span id="liveDate">
+                        Loading date...
+                    </span>
+
+                </div>
 
             </div>
 
-          </div>
+        </header>
 
 
-          <div class="card">
+        <!-- =================================================
+             DASHBOARD
+             ================================================= -->
 
-            <div class="card-header">
+        <section
+            id="dashboard"
+            class="page-section active"
+        >
 
-              <h3>
-                Manual Search
-              </h3>
+            <div class="dashboard-header">
 
-            </div>
+                <div>
 
-            <div class="card-body">
+                    <h1>
+                        Good day, Vision School
+                    </h1>
 
-              <p style="
-                color:#64748b;
-                font-size:13px;
-                margin-bottom:14px;
-              ">
-                If the QR scanner cannot be used,
-                enter the student's ID manually.
-              </p>
+                    <p>
+                        Monitor student attendance
+                        and pickup activity.
+                    </p>
 
-              <input
-                id="manualStudentId"
-                class="form-input"
-                type="text"
-                placeholder="Enter Student ID"
-              >
+                </div>
 
-              <button
-                id="manualSearchButton"
-                class="primary-button"
-                style="margin-top:10px;">
-                Find Student
-              </button>
+                <div
+                    id="dashboardDate"
+                    class="dashboard-date"
+                >
+                    --
+                </div>
 
             </div>
 
-          </div>
 
-        </div>
+            <!-- STATISTICS -->
 
-      </section>
-
-
-      <!-- =================================================
-           ATTENDANCE
-           ================================================= -->
-
-      <section
-        id="attendance"
-        class="page-section">
-
-        <div class="toolbar">
-
-          <div class="toolbar-left">
-
-            <input
-              id="attendanceSearch"
-              class="search-input"
-              type="search"
-              placeholder="Search attendance..."
-            >
-
-          </div>
-
-          <div class="toolbar-right">
-
-            <button
-              id="refreshAttendance"
-              class="secondary-button">
-              ↻ Refresh
-            </button>
-
-          </div>
-
-        </div>
+            <div class="stats-grid">
 
 
-        <div class="card">
+                <div class="stat-card">
 
-          <div class="card-header">
+                    <div class="stat-icon">
+                        👨‍🎓
+                    </div>
 
-            <div>
-              <h3>
-                Today's Attendance
-              </h3>
+                    <div>
 
-              <p style="
-                color:#64748b;
-                font-size:12px;
-                margin-top:4px;
-              ">
-                Time in, time out and pickup information
-              </p>
-            </div>
+                        <span>
+                            Total Students
+                        </span>
 
-          </div>
+                        <strong id="totalStudents">
+                            0
+                        </strong>
 
+                    </div>
 
-          <div class="table-wrap">
-
-            <table>
-
-              <thead>
-
-                <tr>
-                  <th>Student</th>
-                  <th>Level</th>
-                  <th>Time In</th>
-                  <th>Time Out</th>
-                  <th>Pickup Person</th>
-                  <th>Status</th>
-                </tr>
-
-              </thead>
-
-              <tbody id="attendanceBody">
-              </tbody>
-
-            </table>
-
-          </div>
-
-        </div>
-
-      </section>
+                </div>
 
 
-      <!-- =================================================
-           REPORTS
-           ================================================= -->
+                <div class="stat-card">
 
-      <section
-        id="reports"
-        class="page-section">
+                    <div class="stat-icon">
+                        ✓
+                    </div>
 
-        <div class="card">
+                    <div>
 
-          <div class="card-header">
+                        <span>
+                            Time In
+                        </span>
 
-            <div>
+                        <strong id="timeInCount">
+                            0
+                        </strong>
 
-              <h3>
-                Attendance Reports
-              </h3>
+                    </div>
 
-              <p style="
-                color:#64748b;
-                font-size:12px;
-                margin-top:4px;
-              ">
-                Export attendance and pickup records
-              </p>
+                </div>
+
+
+                <div class="stat-card">
+
+                    <div class="stat-icon">
+                        🏫
+                    </div>
+
+                    <div>
+
+                        <span>
+                            Currently In
+                        </span>
+
+                        <strong id="currentlyInCount">
+                            0
+                        </strong>
+
+                    </div>
+
+                </div>
+
+
+                <div class="stat-card">
+
+                    <div class="stat-icon">
+                        ↗
+                    </div>
+
+                    <div>
+
+                        <span>
+                            Time Out
+                        </span>
+
+                        <strong id="timeOutCount">
+                            0
+                        </strong>
+
+                    </div>
+
+                </div>
 
             </div>
 
-          </div>
 
-          <div class="card-body">
+            <!-- QUICK ACTIONS -->
 
-            <button
-              id="exportCsv"
-              class="primary-button">
-              📥 Export Attendance to Excel
-            </button>
+            <div class="section-card">
 
-            <p style="
-              color:#64748b;
-              font-size:12px;
-              margin-top:12px;
-            ">
-              The downloaded CSV file can be opened
-              directly using Microsoft Excel.
-            </p>
+                <div class="section-card-header">
 
-          </div>
+                    <div>
 
-        </div>
+                        <h3>
+                            Quick Actions
+                        </h3>
 
-      </section>
+                        <p>
+                            Common attendance tasks
+                        </p>
 
-    </div>
+                    </div>
 
-  </main>
+                </div>
+
+
+                <div class="quick-actions">
+
+                    <button
+                        type="button"
+                        class="quick-action"
+                        data-section="scanner"
+                    >
+
+                        <span>
+                            📷
+                        </span>
+
+                        <strong>
+                            Scan QR
+                        </strong>
+
+                        <small>
+                            Record student attendance
+                        </small>
+
+                    </button>
+
+
+                    <button
+                        type="button"
+                        class="quick-action"
+                        data-section="students"
+                    >
+
+                        <span>
+                            👨‍🎓
+                        </span>
+
+                        <strong>
+                            Students
+                        </strong>
+
+                        <small>
+                            Manage student records
+                        </small>
+
+                    </button>
+
+
+                    <button
+                        type="button"
+                        class="quick-action"
+                        data-section="attendance"
+                    >
+
+                        <span>
+                            ✓
+                        </span>
+
+                        <strong>
+                            Attendance
+                        </strong>
+
+                        <small>
+                            View today's records
+                        </small>
+
+                    </button>
+
+
+                    <button
+                        type="button"
+                        class="quick-action"
+                        data-section="reports"
+                    >
+
+                        <span>
+                            📊
+                        </span>
+
+                        <strong>
+                            Reports
+                        </strong>
+
+                        <small>
+                            Export attendance
+                        </small>
+
+                    </button>
+
+                </div>
+
+            </div>
+
+
+            <!-- RECENT ATTENDANCE -->
+
+            <div class="section-card">
+
+                <div class="section-card-header">
+
+                    <div>
+
+                        <h3>
+                            Recent Attendance
+                        </h3>
+
+                        <p>
+                            Latest student activity
+                        </p>
+
+                    </div>
+
+                    <button
+                        type="button"
+                        class="secondary-button"
+                        data-section="attendance"
+                    >
+                        View All
+                    </button>
+
+                </div>
+
+
+                <div class="table-container">
+
+                    <table>
+
+                        <thead>
+
+                            <tr>
+
+                                <th>
+                                    Student
+                                </th>
+
+                                <th>
+                                    Level
+                                </th>
+
+                                <th>
+                                    Time In
+                                </th>
+
+                                <th>
+                                    Time Out
+                                </th>
+
+                                <th>
+                                    Status
+                                </th>
+
+                            </tr>
+
+                        </thead>
+
+                        <tbody id="dashboardAttendanceBody">
+
+                            <tr>
+
+                                <td
+                                    colspan="5"
+                                    class="empty-state"
+                                >
+                                    No attendance records yet.
+                                </td>
+
+                            </tr>
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- =================================================
+             STUDENTS
+             ================================================= -->
+
+        <section
+            id="students"
+            class="page-section"
+        >
+
+            <div class="section-card">
+
+                <div class="section-card-header">
+
+                    <div>
+
+                        <h3>
+                            Student Management
+                        </h3>
+
+                        <p>
+                            Manage student information
+                            and authorized pickup persons.
+                        </p>
+
+                    </div>
+
+                    <button
+                        type="button"
+                        id="addStudentButton"
+                        class="primary-button"
+                    >
+                        + Add Student
+                    </button>
+
+                </div>
+
+
+                <!-- SEARCH -->
+
+                <div class="filters">
+
+                    <input
+                        type="search"
+                        id="studentSearch"
+                        placeholder="Search student, ID, parent or phone..."
+                    >
+
+
+                    <select
+                        id="levelFilter"
+                    >
+
+                        <option value="">
+                            All Levels
+                        </option>
+
+                    </select>
+
+                </div>
+
+
+                <!-- STUDENT TABLE -->
+
+                <div class="table-container">
+
+                    <table>
+
+                        <thead>
+
+                            <tr>
+
+                                <th>
+                                    Student ID
+                                </th>
+
+                                <th>
+                                    Student
+                                </th>
+
+                                <th>
+                                    Level
+                                </th>
+
+                                <th>
+                                    Parent / Guardian
+                                </th>
+
+                                <th>
+                                    Phone
+                                </th>
+
+                                <th>
+                                    Pickup Authorization
+                                </th>
+
+                                <th>
+                                    Actions
+                                </th>
+
+                                <th>
+                                    QR
+                                </th>
+
+                            </tr>
+
+                        </thead>
+
+
+                        <tbody id="studentsBody">
+
+                            <tr>
+
+                                <td
+                                    colspan="8"
+                                    class="empty-state"
+                                >
+                                    Loading students...
+                                </td>
+
+                            </tr>
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- =================================================
+             QR SCANNER
+             ================================================= -->
+
+        <section
+            id="scanner"
+            class="page-section"
+        >
+
+            <div class="scanner-layout">
+
+
+                <!-- SCANNER -->
+
+                <div class="section-card scanner-card">
+
+                    <div class="section-card-header">
+
+                        <div>
+
+                            <h3>
+                                QR Attendance Scanner
+                            </h3>
+
+                            <p>
+                                Scan the student's QR code
+                                to record attendance.
+                            </p>
+
+                        </div>
+
+                    </div>
+
+
+                    <div
+                        id="reader"
+                        class="qr-reader"
+                    ></div>
+
+
+                    <div class="scanner-controls">
+
+                        <button
+                            type="button"
+                            id="startScanner"
+                            class="primary-button"
+                        >
+                            📷 Start Scanner
+                        </button>
+
+                        <button
+                            type="button"
+                            id="stopScanner"
+                            class="secondary-button"
+                        >
+                            Stop Scanner
+                        </button>
+
+                    </div>
+
+
+                    <!-- MANUAL SEARCH -->
+
+                    <div class="manual-search">
+
+                        <label
+                            for="manualStudentId"
+                        >
+                            Manual Student ID
+                        </label>
+
+                        <div class="manual-search-row">
+
+                            <input
+                                type="text"
+                                id="manualStudentId"
+                                placeholder="Enter Student ID"
+                            >
+
+                            <button
+                                type="button"
+                                id="manualSearchButton"
+                                class="primary-button"
+                            >
+                                Search
+                            </button>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- SCANNER INFORMATION -->
+
+                <div class="section-card">
+
+                    <h3>
+                        How it works
+                    </h3>
+
+                    <div class="instruction-list">
+
+                        <div class="instruction">
+
+                            <span>
+                                1
+                            </span>
+
+                            <div>
+
+                                <strong>
+                                    Scan QR Code
+                                </strong>
+
+                                <p>
+                                    Scan the student's
+                                    assigned QR code.
+                                </p>
+
+                            </div>
+
+                        </div>
+
+
+                        <div class="instruction">
+
+                            <span>
+                                2
+                            </span>
+
+                            <div>
+
+                                <strong>
+                                    Verify Student
+                                </strong>
+
+                                <p>
+                                    Confirm the student's
+                                    name and level.
+                                </p>
+
+                            </div>
+
+                        </div>
+
+
+                        <div class="instruction">
+
+                            <span>
+                                3
+                            </span>
+
+                            <div>
+
+                                <strong>
+                                    Time In / Time Out
+                                </strong>
+
+                                <p>
+                                    Select the appropriate
+                                    attendance action.
+                                </p>
+
+                            </div>
+
+                        </div>
+
+
+                        <div class="instruction">
+
+                            <span>
+                                4
+                            </span>
+
+                            <div>
+
+                                <strong>
+                                    Verify Pickup
+                                </strong>
+
+                                <p>
+                                    Select the authorized
+                                    parent or guardian
+                                    picking up the student.
+                                </p>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="security-box">
+
+                        <strong>
+                            🔐 Security Reminder
+                        </strong>
+
+                        <p>
+                            Never release a student to an
+                            unauthorized person without
+                            proper staff approval and
+                            verification.
+                        </p>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- =================================================
+             ATTENDANCE
+             ================================================= -->
+
+        <section
+            id="attendance"
+            class="page-section"
+        >
+
+            <div class="section-card">
+
+                <div class="section-card-header">
+
+                    <div>
+
+                        <h3>
+                            Today's Attendance
+                        </h3>
+
+                        <p>
+                            Student attendance and
+                            pickup information.
+                        </p>
+
+                    </div>
+
+                    <button
+                        type="button"
+                        id="refreshAttendance"
+                        class="secondary-button"
+                    >
+                        ↻ Refresh
+                    </button>
+
+                </div>
+
+
+                <div class="filters">
+
+                    <input
+                        type="search"
+                        id="attendanceSearch"
+                        placeholder="Search attendance, student or pickup person..."
+                    >
+
+                </div>
+
+
+                <div class="table-container">
+
+                    <table>
+
+                        <thead>
+
+                            <tr>
+
+                                <th>
+                                    Student
+                                </th>
+
+                                <th>
+                                    Level
+                                </th>
+
+                                <th>
+                                    Time In
+                                </th>
+
+                                <th>
+                                    Time Out
+                                </th>
+
+                                <th>
+                                    Pickup Person
+                                </th>
+
+                                <th>
+                                    Status
+                                </th>
+
+                            </tr>
+
+                        </thead>
+
+
+                        <tbody id="attendanceBody">
+
+                            <tr>
+
+                                <td
+                                    colspan="6"
+                                    class="empty-state"
+                                >
+                                    Loading attendance...
+                                </td>
+
+                            </tr>
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            </div>
+
+
+            <!-- PICKUP SECURITY INFORMATION -->
+
+            <div class="section-card">
+
+                <div class="section-card-header">
+
+                    <div>
+
+                        <h3>
+                            🔐 Pickup Security Information
+                        </h3>
+
+                        <p>
+                            Verify the person collecting
+                            the student before release.
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <div class="security-grid">
+
+                    <div class="security-info authorized-info">
+
+                        <div class="security-info-icon">
+                            ✓
+                        </div>
+
+                        <div>
+
+                            <h4>
+                                Authorized Pickup
+                            </h4>
+
+                            <p>
+                                The staff member should
+                                select the exact parent,
+                                guardian, or authorized
+                                person who is collecting
+                                the student.
+                            </p>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="security-info unauthorized-info">
+
+                        <div class="security-info-icon">
+                            !
+                        </div>
+
+                        <div>
+
+                            <h4>
+                                Unauthorized Person
+                            </h4>
+
+                            <p>
+                                If the person is not listed
+                                as authorized, do not release
+                                the student until the staff
+                                member verifies and approves
+                                the pickup.
+                            </p>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- =================================================
+             REPORTS
+             ================================================= -->
+
+        <section
+            id="reports"
+            class="page-section"
+        >
+
+            <div class="section-card">
+
+                <div class="section-card-header">
+
+                    <div>
+
+                        <h3>
+                            Attendance Reports
+                        </h3>
+
+                        <p>
+                            Export today's attendance
+                            records for Excel.
+                        </p>
+
+                    </div>
+
+                    <button
+                        type="button"
+                        id="exportCsv"
+                        class="primary-button"
+                    >
+                        📥 Export Excel / CSV
+                    </button>
+
+                </div>
+
+
+                <div class="report-info">
+
+                    <div class="report-icon">
+                        📊
+                    </div>
+
+                    <div>
+
+                        <h3>
+                            Excel-Compatible Attendance File
+                        </h3>
+
+                        <p>
+                            The exported file contains:
+                        </p>
+
+                        <ul>
+
+                            <li>
+                                Date
+                            </li>
+
+                            <li>
+                                Student ID
+                            </li>
+
+                            <li>
+                                Student Name
+                            </li>
+
+                            <li>
+                                Level
+                            </li>
+
+                            <li>
+                                Time In
+                            </li>
+
+                            <li>
+                                Time Out
+                            </li>
+
+                            <li>
+                                Pickup Person
+                            </li>
+
+                            <li>
+                                Pickup Relationship
+                            </li>
+
+                            <li>
+                                Pickup Phone
+                            </li>
+
+                            <li>
+                                Pickup Option
+                            </li>
+
+                            <li>
+                                Approver
+                            </li>
+
+                            <li>
+                                Notes
+                            </li>
+
+                        </ul>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- REPORT SECURITY -->
+
+            <div class="section-card">
+
+                <h3>
+                    Pickup Verification Records
+                </h3>
+
+                <p>
+                    Pickup details are recorded together
+                    with attendance so the school can
+                    identify who collected each student.
+                </p>
+
+
+                <div class="security-grid">
+
+                    <div class="security-info authorized-info">
+
+                        <div class="security-info-icon">
+                            ✓
+                        </div>
+
+                        <div>
+
+                            <h4>
+                                Authorized
+                            </h4>
+
+                            <p>
+                                Parent, guardian, or approved
+                                pickup person.
+                            </p>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="security-info unauthorized-info">
+
+                        <div class="security-info-icon">
+                            !
+                        </div>
+
+                        <div>
+
+                            <h4>
+                                Unauthorized
+                            </h4>
+
+                            <p>
+                                Requires staff verification
+                                and approval before the
+                                student is released.
+                            </p>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+    </main>
 
 </div>
 
 
-<!-- =====================================================
-     ADD / EDIT STUDENT MODAL
-     ===================================================== -->
+<!-- =========================================================
+     STUDENT ADD / EDIT MODAL
+     ========================================================= -->
 
 <div
-  id="studentModal"
-  class="modal">
+    id="studentModal"
+    class="modal"
+>
 
-  <div class="modal-content large">
+    <div class="modal-content">
 
-    <div class="modal-header">
+        <div class="modal-header">
 
-      <h2>
-        Add Student
-      </h2>
+            <div>
 
-      <button
-        id="closeStudentModal"
-        class="close-modal">
-        ×
-      </button>
+                <h2>
+                    Add Student
+                </h2>
 
-    </div>
-
-
-    <form id="studentForm">
-
-      <div class="modal-body">
-
-        <div class="form-grid">
-
-          <!-- STUDENT ID -->
-
-          <div class="form-group">
-
-            <label class="form-label">
-              Student ID
-              <span class="required">*</span>
-            </label>
-
-            <input
-              id="studentId"
-              class="form-input"
-              type="text"
-              required
-              placeholder="Example: VS001"
-            >
-
-          </div>
-
-
-          <!-- NAME -->
-
-          <div class="form-group">
-
-            <label class="form-label">
-              Student Name
-              <span class="required">*</span>
-            </label>
-
-            <input
-              id="studentName"
-              class="form-input"
-              type="text"
-              required
-              placeholder="Student full name"
-            >
-
-          </div>
-
-
-          <!-- LEVEL -->
-
-          <div class="form-group">
-
-            <label class="form-label">
-              Level / Class
-              <span class="required">*</span>
-            </label>
-
-            <input
-              id="studentLevel"
-              class="form-input"
-              type="text"
-              required
-              placeholder="Example: Primary 2"
-            >
-
-          </div>
-
-
-          <!-- PHONE -->
-
-          <div class="form-group">
-
-            <label class="form-label">
-              Main Phone
-            </label>
-
-            <input
-              id="studentPhone"
-              class="form-input"
-              type="text"
-              placeholder="Parent/guardian phone"
-            >
-
-          </div>
-
-
-          <!-- PARENTS -->
-
-          <div class="parent-section">
-
-            <div class="parent-section-title">
-              👨‍👩‍👧 Authorized Pickup Persons
-            </div>
-
-            <p style="
-              color:#64748b;
-              font-size:12px;
-              margin-bottom:15px;
-            ">
-              Add up to three parents or guardians.
-              Staff will later choose exactly which
-              person is picking up the student.
-            </p>
-
-
-            <div class="parent-grid">
-
-              <!-- PARENT 1 -->
-
-              <div class="form-group">
-
-                <label class="form-label">
-                  Parent / Guardian 1
-                </label>
-
-                <input
-                  id="studentParent"
-                  class="form-input"
-                  type="text"
-                  placeholder="First authorized person"
-                >
-
-              </div>
-
-
-              <!-- PARENT 2 -->
-
-              <div class="form-group">
-
-                <label class="form-label">
-                  Parent / Guardian 2
-                </label>
-
-                <input
-                  id="studentParent2"
-                  class="form-input"
-                  type="text"
-                  placeholder="Second authorized person"
-                >
-
-              </div>
-
-
-              <!-- PARENT 3 -->
-
-              <div class="form-group">
-
-                <label class="form-label">
-                  Parent / Guardian 3
-                </label>
-
-                <input
-                  id="studentParent3"
-                  class="form-input"
-                  type="text"
-                  placeholder="Third authorized person"
-                >
-
-              </div>
+                <p>
+                    Enter student and pickup information.
+                </p>
 
             </div>
 
-          </div>
-
-
-          <!-- AUTHORIZATION -->
-
-          <div class="authorization-box">
-
-            <div class="authorization-row">
-
-              <input
-                id="studentAuthorized"
-                type="checkbox"
-                checked
-              >
-
-              <label
-                for="studentAuthorized"
-                style="font-weight:800;">
-                Student is Authorized for Pickup
-              </label>
-
-            </div>
-
-            <div class="authorization-help">
-              Uncheck this if the student should NOT
-              be released without additional staff
-              approval.
-            </div>
-
-          </div>
+            <button
+                type="button"
+                id="closeStudentModal"
+                class="modal-close"
+            >
+                ×
+            </button>
 
         </div>
 
-      </div>
+
+        <form
+            id="studentForm"
+        >
+
+            <!-- STUDENT INFORMATION -->
+
+            <div class="form-section">
+
+                <h3>
+                    Student Information
+                </h3>
 
 
-      <div class="modal-footer">
+                <div class="form-grid">
 
-        <button
-          id="cancelStudent"
-          type="button"
-          class="secondary-button">
-          Cancel
-        </button>
+                    <div class="form-group">
 
-        <button
-          type="submit"
-          class="primary-button">
-          Save Student
-        </button>
+                        <label
+                            for="studentId"
+                        >
+                            Student ID *
+                        </label>
 
-      </div>
+                        <input
+                            type="text"
+                            id="studentId"
+                            required
+                            placeholder="Example: VS001"
+                        >
 
-    </form>
+                    </div>
 
-  </div>
+
+                    <div class="form-group">
+
+                        <label
+                            for="studentName"
+                        >
+                            Student Name *
+                        </label>
+
+                        <input
+                            type="text"
+                            id="studentName"
+                            required
+                            placeholder="Full name"
+                        >
+
+                    </div>
+
+
+                    <div class="form-group">
+
+                        <label
+                            for="studentLevel"
+                        >
+                            Level / Grade *
+                        </label>
+
+                        <input
+                            type="text"
+                            id="studentLevel"
+                            required
+                            placeholder="Example: Primary 2"
+                        >
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- PARENT / GUARDIAN -->
+
+            <div class="form-section">
+
+                <h3>
+                    Parent / Guardian Information
+                </h3>
+
+                <p class="form-help">
+                    You may register up to three people
+                    who are authorized to pick up this student.
+                </p>
+
+
+                <!-- PRIMARY PARENT -->
+
+                <div class="pickup-person-card">
+
+                    <div class="pickup-person-title">
+
+                        <strong>
+                            Parent / Guardian 1
+                        </strong>
+
+                        <span class="authorized-label">
+                            Authorized
+                        </span>
+
+                    </div>
+
+
+                    <div class="form-grid">
+
+                        <div class="form-group">
+
+                            <label>
+                                Name
+                            </label>
+
+                            <input
+                                type="text"
+                                id="studentParent"
+                                placeholder="Parent / Guardian name"
+                            >
+
+                        </div>
+
+
+                        <div class="form-group">
+
+                            <label>
+                                Phone
+                            </label>
+
+                            <input
+                                type="text"
+                                id="studentPhone"
+                                placeholder="Phone number"
+                            >
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- SECOND PARENT -->
+
+                <div class="pickup-person-card">
+
+                    <div class="pickup-person-title">
+
+                        <strong>
+                            Parent / Guardian 2
+                        </strong>
+
+                        <span class="authorized-label">
+                            Authorized
+                        </span>
+
+                    </div>
+
+
+                    <div class="form-grid">
+
+                        <div class="form-group">
+
+                            <label>
+                                Name
+                            </label>
+
+                            <input
+                                type="text"
+                                id="studentParent2"
+                                placeholder="Parent / Guardian name"
+                            >
+
+                        </div>
+
+
+                        <div class="form-group">
+
+                            <label>
+                                Phone
+                            </label>
+
+                            <input
+                                type="text"
+                                id="studentPhone2"
+                                placeholder="Phone number"
+                            >
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- THIRD PARENT -->
+
+                <div class="pickup-person-card">
+
+                    <div class="pickup-person-title">
+
+                        <strong>
+                            Parent / Guardian 3
+                        </strong>
+
+                        <span class="authorized-label">
+                            Authorized
+                        </span>
+
+                    </div>
+
+
+                    <div class="form-grid">
+
+                        <div class="form-group">
+
+                            <label>
+                                Name
+                            </label>
+
+                            <input
+                                type="text"
+                                id="studentParent3"
+                                placeholder="Parent / Guardian name"
+                            >
+
+                        </div>
+
+
+                        <div class="form-group">
+
+                            <label>
+                                Phone
+                            </label>
+
+                            <input
+                                type="text"
+                                id="studentPhone3"
+                                placeholder="Phone number"
+                            >
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- AUTHORIZATION -->
+
+                <div class="authorization-box">
+
+                    <label class="checkbox-label">
+
+                        <input
+                            type="checkbox"
+                            id="studentAuthorized"
+                            checked
+                        >
+
+                        <span>
+                            Student is authorized
+                            for normal pickup.
+                        </span>
+
+                    </label>
+
+
+                    <p>
+                        If this is unchecked, staff should
+                        verify and approve any pickup before
+                        releasing the student.
+                    </p>
+
+                </div>
+
+            </div>
+
+
+            <!-- SECURITY INFORMATION -->
+
+            <div class="form-section">
+
+                <h3>
+                    🔐 Pickup Security
+                </h3>
+
+                <div class="security-box">
+
+                    <strong>
+                        Important
+                    </strong>
+
+                    <p>
+                        The registered parent/guardian
+                        information is used by staff to
+                        identify who is authorized to collect
+                        the student.
+                    </p>
+
+                    <p>
+                        If the person collecting the student
+                        is not listed, staff should not release
+                        the student until the pickup has been
+                        verified and approved.
+                    </p>
+
+                </div>
+
+            </div>
+
+
+            <!-- FORM BUTTONS -->
+
+            <div class="modal-actions">
+
+                <button
+                    type="button"
+                    id="cancelStudent"
+                    class="secondary-button"
+                >
+                    Cancel
+                </button>
+
+                <button
+                    type="submit"
+                    class="primary-button"
+                >
+                    Save Student
+                </button>
+
+            </div>
+
+        </form>
+
+    </div>
 
 </div>
 
 
-<!-- =====================================================
+<!-- =========================================================
      STUDENT RESULT / PROFILE / PICKUP MODAL
-     ===================================================== -->
+     ========================================================= -->
 
 <div
-  id="studentResultModal"
-  class="modal">
+    id="studentResultModal"
+    class="modal"
+>
 
-  <div class="modal-content large">
+    <div class="modal-content result-modal">
 
-    <div class="modal-header">
+        <div class="modal-header">
 
-      <h2>
-        Student Information
-      </h2>
+            <div>
 
-      <button
-        id="closeResultModal"
-        class="close-modal">
-        ×
-      </button>
+                <h2>
+                    Student Information
+                </h2>
+
+                <p>
+                    Attendance and pickup verification
+                </p>
+
+            </div>
+
+            <button
+                type="button"
+                id="closeResultModal"
+                class="modal-close"
+            >
+                ×
+            </button>
+
+        </div>
+
+
+        <div id="studentResult">
+
+            <div class="loading-state">
+                Loading...
+            </div>
+
+        </div>
 
     </div>
-
-
-    <div
-      id="studentResult"
-      class="modal-body">
-    </div>
-
-  </div>
 
 </div>
 
 
-<!-- =====================================================
+<!-- =========================================================
      TOAST
-     ===================================================== -->
+     ========================================================= -->
 
 <div
-  id="toast"
-  class="toast">
+    id="toast"
+    class="toast"
+    role="status"
+    aria-live="polite"
+>
 </div>
 
 
-<!-- =====================================================
-     SUPABASE
-     ===================================================== -->
+<!-- =========================================================
+     APP JAVASCRIPT
+     ========================================================= -->
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-
-<!-- =====================================================
-     HTML5 QR CODE
-     ===================================================== -->
-
-<script src="https://unpkg.com/html5-qrcode"></script>
+<script
+    src="app.js"
+    defer
+></script>
 
 
-<!-- =====================================================
-     APPLICATION
-     ===================================================== -->
+<!-- =========================================================
+     SMALL FALLBACK STYLE FOR LOGO
+     ========================================================= -->
 
-<script src="app.js"></script>
+<style>
 
+    .brand-logo {
+        width: 52px;
+        height: 52px;
+        min-width: 52px;
+        border-radius: 12px;
+        background: #ffffff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        box-shadow: 0 3px 10px rgba(0,0,0,.12);
+    }
+
+    .brand-logo img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        padding: 5px;
+    }
+
+    .logo-fallback-text {
+        display: none;
+        font-weight: 800;
+        font-size: 18px;
+        color: #1d4ed8;
+    }
+
+    .brand-logo.logo-fallback .logo-fallback-text {
+        display: block;
+    }
+
+    .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .brand-text h1 {
+        margin: 0;
+    }
+
+    .brand-text span {
+        font-size: 11px;
+        opacity: .75;
+    }
+
+    .pickup-person-card {
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 16px;
+        margin-top: 12px;
+        background: #fafafa;
+    }
+
+    .pickup-person-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 12px;
+    }
+
+    .authorized-label {
+        font-size: 11px;
+        font-weight: 700;
+        padding: 4px 8px;
+        border-radius: 999px;
+        background: #dcfce7;
+        color: #166534;
+    }
+
+    .authorization-box {
+        margin-top: 16px;
+        padding: 15px;
+        border-radius: 10px;
+        background: #eff6ff;
+        border: 1px solid #bfdbfe;
+    }
+
+    .checkbox-label {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 700;
+    }
+
+    .checkbox-label input {
+        width: 18px;
+        height: 18px;
+    }
+
+    .authorization-box p {
+        margin: 8px 0 0 28px;
+        font-size: 13px;
+        opacity: .8;
+    }
+
+    .security-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+        margin-top: 16px;
+    }
+
+    .security-info {
+        display: flex;
+        gap: 14px;
+        padding: 18px;
+        border-radius: 12px;
+        border: 1px solid #e5e7eb;
+    }
+
+    .security-info-icon {
+        width: 38px;
+        height: 38px;
+        min-width: 38px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 800;
+    }
+
+    .authorized-info .security-info-icon {
+        background: #dcfce7;
+        color: #166534;
+    }
+
+    .unauthorized-info .security-info-icon {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+
+    .security-info h4 {
+        margin: 0 0 5px;
+    }
+
+    .security-info p {
+        margin: 0;
+        font-size: 13px;
+        line-height: 1.5;
+    }
+
+    .security-box {
+        margin-top: 18px;
+        padding: 16px;
+        border-radius: 12px;
+        background: #fff7ed;
+        border: 1px solid #fed7aa;
+    }
+
+    .security-box p {
+        margin: 7px 0 0;
+        font-size: 13px;
+        line-height: 1.5;
+    }
+
+    .sidebar-security {
+        margin: 20px 14px;
+        padding: 14px;
+        border-radius: 12px;
+        background: rgba(255,255,255,.08);
+    }
+
+    .security-title {
+        font-size: 13px;
+        font-weight: 700;
+        margin-bottom: 7px;
+    }
+
+    .sidebar-security p {
+        font-size: 11px;
+        line-height: 1.5;
+        opacity: .75;
+        margin: 0 0 10px;
+    }
+
+    .security-status {
+        font-size: 10px;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .security-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #22c55e;
+    }
+
+    @media (max-width: 700px) {
+
+        .security-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .pickup-person-title {
+            align-items: flex-start;
+            gap: 8px;
+        }
+
+    }
+
+</style>
 
 </body>
 </html>
-```
