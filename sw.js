@@ -1,104 +1,137 @@
-/* =========================================================
-   VISION SCHOOL ATTENDANCE SYSTEM
-   SERVICE WORKER
-   Version: 2026.08.14.1
+const CACHE_NAME = "vision-school-v2026-08-14-2";
 
-   Purpose:
-   - Prevent the phone/PWA from showing an old version
-   - Keep the latest app files available
-   - Automatically remove old caches
-   - Allow the app to work when temporarily offline
-   ========================================================= */
-
-const CACHE_VERSION = "vision-school-v2026-08-14-1";
-const APP_CACHE = CACHE_VERSION;
-
-/*
-   IMPORTANT:
-   Keep these files in the same GitHub repository/root
-   as index.html, app.js, style.css and sw.js.
-*/
 const APP_FILES = [
     "./",
     "./index.html",
     "./style.css",
     "./app.js",
     "./manifest.json",
-
-    // School logo
-    "./logo.png"
+    "./logo.png",
+    "./school-background.png"
 ];
 
+console.log(
+    "[Vision School SW] Loaded:",
+    CACHE_NAME
+);
 
-/* =========================================================
-   INSTALL
-   ========================================================= */
 
-self.addEventListener("install", (event) => {
+// =========================================================
+// INSTALL
+// =========================================================
+
+self.addEventListener("install", event => {
 
     console.log(
         "[Vision School SW] Installing:",
-        CACHE_VERSION
+        CACHE_NAME
     );
-
-    /*
-       Activate the new service worker immediately.
-       This is important when a new version is published.
-    */
-    self.skipWaiting();
 
     event.waitUntil(
 
-        caches.open(APP_CACHE)
-            .then((cache) => {
+        caches.open(CACHE_NAME)
+            .then(async cache => {
 
                 console.log(
                     "[Vision School SW] Caching latest app files..."
                 );
 
-                /*
-                   Cache each file individually.
+                for (const file of APP_FILES) {
 
-                   If one optional file fails, the entire
-                   service worker installation will not fail.
-                */
+                    try {
+
+                        const response = await fetch(
+                            file,
+                            {
+                                cache: "no-cache"
+                            }
+                        );
+
+                        if (!response.ok) {
+
+                            throw new Error(
+                                `HTTP ${response.status} for ${file}`
+                            );
+
+                        }
+
+                        await cache.put(
+                            file,
+                            response
+                        );
+
+                        console.log(
+                            "[Vision School SW] Cached:",
+                            file
+                        );
+
+                    } catch (error) {
+
+                        console.warn(
+                            "[Vision School SW] Could not cache:",
+                            file,
+                            error
+                        );
+
+                    }
+
+                }
+
+            })
+
+    );
+
+    // Activate the new worker immediately
+    self.skipWaiting();
+
+});
+
+
+// =========================================================
+// ACTIVATE
+// =========================================================
+
+self.addEventListener("activate", event => {
+
+    console.log(
+        "[Vision School SW] Activating:",
+        CACHE_NAME
+    );
+
+    event.waitUntil(
+
+        caches.keys()
+            .then(cacheNames => {
 
                 return Promise.all(
 
-                    APP_FILES.map((file) => {
+                    cacheNames.map(cacheName => {
 
-                        return fetch(
-                            new Request(file, {
-                                cache: "no-cache"
-                            })
-                        )
-                        .then((response) => {
+                        if (
+                            cacheName !== CACHE_NAME &&
+                            cacheName.startsWith("vision-school-")
+                        ) {
 
-                            if (!response.ok) {
-                                throw new Error(
-                                    `HTTP ${response.status} for ${file}`
-                                );
-                            }
-
-                            return cache.put(
-                                file,
-                                response
+                            console.log(
+                                "[Vision School SW] Removing old cache:",
+                                cacheName
                             );
 
-                        })
-                        .catch((error) => {
-
-                            console.warn(
-                                "[Vision School SW] Could not cache:",
-                                file,
-                                error
+                            return caches.delete(
+                                cacheName
                             );
 
-                        });
+                        }
 
                     })
 
                 );
+
+            })
+            .then(() => {
+
+                // Take control of all open pages
+                return self.clients.claim();
 
             })
 
@@ -107,102 +140,28 @@ self.addEventListener("install", (event) => {
 });
 
 
-/* =========================================================
-   ACTIVATE
-   ========================================================= */
+// =========================================================
+// FETCH
+// =========================================================
 
-self.addEventListener("activate", (event) => {
-
-    console.log(
-        "[Vision School SW] Activating:",
-        CACHE_VERSION
-    );
-
-    event.waitUntil(
-
-        Promise.all([
-
-            /*
-               Delete every old Vision School cache.
-            */
-
-            caches.keys()
-                .then((cacheNames) => {
-
-                    return Promise.all(
-
-                        cacheNames
-                            .filter((cacheName) => {
-
-                                return (
-                                    cacheName.startsWith(
-                                        "vision-school-v"
-                                    ) &&
-                                    cacheName !== APP_CACHE
-                                );
-
-                            })
-                            .map((oldCache) => {
-
-                                console.log(
-                                    "[Vision School SW] Removing old cache:",
-                                    oldCache
-                                );
-
-                                return caches.delete(
-                                    oldCache
-                                );
-
-                            })
-
-                    );
-
-                }),
-
-            /*
-               Take control of already-open pages.
-               This helps the phone immediately switch
-               to the newest application version.
-            */
-
-            self.clients.claim()
-
-        ])
-
-    );
-
-});
-
-
-/* =========================================================
-   FETCH
-   ========================================================= */
-
-self.addEventListener("fetch", (event) => {
+self.addEventListener("fetch", event => {
 
     const request = event.request;
 
-    /*
-       Only handle GET requests.
-       Supabase POST/PATCH/DELETE requests must go
-       directly to Supabase.
-    */
-
+    // Only handle GET requests
     if (request.method !== "GET") {
         return;
     }
 
+    const url = new URL(
+        request.url
+    );
 
-    const url = new URL(request.url);
-
-
-    /* =====================================================
-       NEVER CACHE SUPABASE
-       ===================================================== */
-
+    // Do not interfere with Supabase/API requests
     if (
         url.hostname.includes("supabase.co") ||
-        url.hostname.includes("supabase.com")
+        url.pathname.includes("/rest/") ||
+        url.pathname.includes("/auth/")
     ) {
 
         return;
@@ -210,100 +169,115 @@ self.addEventListener("fetch", (event) => {
     }
 
 
-    /* =====================================================
-       NEVER CACHE CDN FILES
-       ===================================================== */
+    // -----------------------------------------------------
+    // HTML DOCUMENTS
+    // Always check the network first.
+    // This prevents an old index.html from returning.
+    // -----------------------------------------------------
 
     if (
-        url.hostname.includes("cdn.jsdelivr.net") ||
-        url.hostname.includes("unpkg.com")
+        request.mode === "navigate" ||
+        request.destination === "document"
     ) {
 
-        return;
+        event.respondWith(
 
-    }
+            fetch(
+                request,
+                {
+                    cache: "no-store"
+                }
+            )
+            .then(response => {
 
+                if (
+                    response &&
+                    response.ok
+                ) {
 
-    /* =====================================================
-       APP FILES
-       ===================================================== */
+                    const copy = response.clone();
 
-    event.respondWith(
-
-        fetch(request, {
-            cache: "no-cache"
-        })
-
-        .then((networkResponse) => {
-
-            /*
-               If the server returns a valid response,
-               save the newest version into the cache.
-            */
-
-            if (
-                networkResponse &&
-                networkResponse.status === 200 &&
-                networkResponse.type !== "opaque"
-            ) {
-
-                const responseToCache =
-                    networkResponse.clone();
-
-                caches.open(APP_CACHE)
-                    .then((cache) => {
+                    caches.open(
+                        CACHE_NAME
+                    ).then(cache => {
 
                         cache.put(
                             request,
-                            responseToCache
+                            copy
                         );
 
                     });
 
-            }
+                }
 
-            return networkResponse;
+                return response;
 
-        })
+            })
+            .catch(() => {
 
-        .catch(() => {
+                return caches.match(
+                    request
+                ).then(cached => {
 
-            /*
-               If there is no internet connection,
-               use the cached version.
-            */
-
-            return caches.match(request)
-                .then((cachedResponse) => {
-
-                    if (cachedResponse) {
-                        return cachedResponse;
-                    }
-
-                    /*
-                       If navigation fails completely,
-                       fall back to index.html.
-                    */
-
-                    if (
-                        request.mode === "navigate"
-                    ) {
-
-                        return caches.match(
+                    return cached ||
+                        caches.match(
                             "./index.html"
                         );
 
-                    }
+                });
 
-                    return new Response(
-                        "Offline",
-                        {
-                            status: 503,
-                            statusText: "Offline"
-                        }
+            })
+
+        );
+
+        return;
+    }
+
+
+    // -----------------------------------------------------
+    // CSS / JS / IMAGES / MANIFEST
+    // Network first, cache fallback.
+    // -----------------------------------------------------
+
+    event.respondWith(
+
+        fetch(
+            request,
+            {
+                cache: "no-cache"
+            }
+        )
+        .then(response => {
+
+            if (
+                response &&
+                response.ok
+            ) {
+
+                const copy =
+                    response.clone();
+
+                caches.open(
+                    CACHE_NAME
+                ).then(cache => {
+
+                    cache.put(
+                        request,
+                        copy
                     );
 
                 });
+
+            }
+
+            return response;
+
+        })
+        .catch(() => {
+
+            return caches.match(
+                request
+            );
 
         })
 
@@ -312,107 +286,23 @@ self.addEventListener("fetch", (event) => {
 });
 
 
-/* =========================================================
-   MESSAGE HANDLER
-   ========================================================= */
+// =========================================================
+// MESSAGE
+// =========================================================
 
-self.addEventListener("message", (event) => {
+self.addEventListener(
+    "message",
+    event => {
 
-    if (!event.data) {
-        return;
-    }
+        if (
+            event.data &&
+            event.data.type ===
+            "SKIP_WAITING"
+        ) {
 
-
-    /* -----------------------------------------------------
-       FORCE UPDATE
-       ----------------------------------------------------- */
-
-    if (
-        event.data.type ===
-        "SKIP_WAITING"
-    ) {
-
-        console.log(
-            "[Vision School SW] Force update requested."
-        );
-
-        self.skipWaiting();
-
-    }
-
-
-    /* -----------------------------------------------------
-       CLEAR CACHE
-       ----------------------------------------------------- */
-
-    if (
-        event.data.type ===
-        "CLEAR_CACHE"
-    ) {
-
-        event.waitUntil(
-
-            caches.keys()
-                .then((cacheNames) => {
-
-                    return Promise.all(
-
-                        cacheNames
-                            .filter((cacheName) => {
-
-                                return cacheName.startsWith(
-                                    "vision-school-v"
-                                );
-
-                            })
-                            .map((cacheName) => {
-
-                                return caches.delete(
-                                    cacheName
-                                );
-
-                            })
-
-                    );
-
-                })
-
-        );
-
-    }
-
-
-    /* -----------------------------------------------------
-       GET VERSION
-       ----------------------------------------------------- */
-
-    if (
-        event.data.type ===
-        "GET_VERSION"
-    ) {
-
-        if (event.source) {
-
-            event.source.postMessage({
-
-                type: "VISION_SCHOOL_VERSION",
-
-                version: CACHE_VERSION
-
-            });
+            self.skipWaiting();
 
         }
 
     }
-
-});
-
-
-/* =========================================================
-   LOG
-   ========================================================= */
-
-console.log(
-    "Vision School Service Worker loaded:",
-    CACHE_VERSION
 );
