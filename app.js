@@ -2840,119 +2840,177 @@ function showAttendanceAction(
    TIME IN
    ========================================================= */
 
-async function recordTimeIn(
-  student
-) {
+async function recordTimeIn(student) {
+
+  console.log("TIME IN clicked:", student);
 
   try {
 
-    await loadTodayAttendance();
+    const today = getVientianeDate();
 
+    console.log("Today's date:", today);
+
+    /* Get today's existing record */
+
+    const {
+      data: existingRecords,
+      error: searchError
+    } = await supabaseClient
+      .from("attendance")
+      .select("*")
+      .eq("student_id", student.id)
+      .eq("date", today)
+      .limit(1);
+
+    if (searchError) {
+      throw searchError;
+    }
 
     const existing =
-      attendanceRecords.find(
-        record =>
-          String(
-            record.student_id
-          ) ===
-          String(
-            student.id
-          )
-      );
+      existingRecords &&
+      existingRecords.length
+        ? existingRecords[0]
+        : null;
 
+
+    /* Already timed in */
 
     if (existing?.time_in) {
 
       showToast(
-        "This student already has a Time In.",
+        "This student already has a Time In today.",
         "error"
       );
 
       return;
-
     }
 
+
+    /* Current time */
 
     const now =
       new Date().toISOString();
 
 
-    const payload = {
-
-      student_id:
-        student.id,
-
-      student_name:
-        student.name,
-
-      date:
-        getVientianeDate(),
-
-      time_in:
-        now
-
-    };
-
-
-    let result;
-
+    /* =====================================================
+       UPDATE EXISTING RECORD
+       ===================================================== */
 
     if (existing) {
 
-      result =
-        await supabaseClient
-          .from("attendance")
-          .update({
+      console.log(
+        "Updating existing attendance:",
+        existing.id
+      );
 
-            time_in:
-              now
 
-          })
-          .eq(
-            "id",
-            existing.id
-          );
+      const {
+        data,
+        error
+      } = await supabaseClient
+        .from("attendance")
+        .update({
+          time_in: now
+        })
+        .eq("id", existing.id)
+        .select()
+        .single();
 
-    } else {
 
-      result =
-        await supabaseClient
-          .from("attendance")
-          .insert(
-            payload
-          );
+      if (error) {
+        throw error;
+      }
+
+
+      console.log(
+        "TIME IN UPDATED:",
+        data
+      );
 
     }
 
 
-    if (result.error) {
-      throw result.error;
+    /* =====================================================
+       CREATE NEW RECORD
+       ===================================================== */
+
+    else {
+
+      const payload = {
+
+        student_id:
+          student.id,
+
+        student_name:
+          student.name,
+
+        date:
+          today,
+
+        time_in:
+          now
+
+      };
+
+
+      console.log(
+        "Creating attendance:",
+        payload
+      );
+
+
+      const {
+        data,
+        error
+      } = await supabaseClient
+        .from("attendance")
+        .insert(payload)
+        .select()
+        .single();
+
+
+      if (error) {
+        throw error;
+      }
+
+
+      console.log(
+        "TIME IN CREATED:",
+        data
+      );
+
     }
 
 
     showToast(
-      `${student.name} — Time In recorded.`,
+      `${student.name} — Time In recorded successfully.`,
       "success"
     );
 
 
-    closeResultModal();
-
+    /* Reload today's attendance */
 
     await loadTodayAttendance();
+
+
+    /* Close student modal */
+
+    closeResultModal();
 
 
   } catch (error) {
 
     console.error(
-      "Time In error:",
+      "TIME IN ERROR:",
       error
     );
 
 
     showToast(
-      error?.message ||
-        "Unable to record Time In.",
+      `Time In failed: ${
+        error?.message ||
+        "Unknown error"
+      }`,
       "error"
     );
 
@@ -2965,31 +3023,53 @@ async function recordTimeIn(
    TIME OUT
    ========================================================= */
 
-async function recordTimeOut(
-  student
-) {
+async function recordTimeOut(student) {
+
+  console.log("TIME OUT clicked:", student);
 
   try {
 
-    await loadTodayAttendance();
+    const today =
+      getVientianeDate();
+
+
+    console.log(
+      "Today's date:",
+      today
+    );
+
+
+    /* Find today's attendance */
+
+    const {
+      data: existingRecords,
+      error: searchError
+    } = await supabaseClient
+      .from("attendance")
+      .select("*")
+      .eq("student_id", student.id)
+      .eq("date", today)
+      .limit(1);
+
+
+    if (searchError) {
+      throw searchError;
+    }
 
 
     const existing =
-      attendanceRecords.find(
-        record =>
-          String(
-            record.student_id
-          ) ===
-          String(
-            student.id
-          )
-      );
+      existingRecords &&
+      existingRecords.length
+        ? existingRecords[0]
+        : null;
 
+
+    /* No attendance record */
 
     if (!existing) {
 
       showToast(
-        "This student has no attendance record today.",
+        "This student has not been timed in today.",
         "error"
       );
 
@@ -2997,6 +3077,8 @@ async function recordTimeOut(
 
     }
 
+
+    /* Time In required */
 
     if (!existing.time_in) {
 
@@ -3010,10 +3092,12 @@ async function recordTimeOut(
     }
 
 
+    /* Already timed out */
+
     if (existing.time_out) {
 
       showToast(
-        "This student already has a Time Out.",
+        "This student already has a Time Out today.",
         "error"
       );
 
@@ -3022,25 +3106,31 @@ async function recordTimeOut(
     }
 
 
+    /* Current time */
+
     const now =
       new Date().toISOString();
 
 
+    console.log(
+      "Recording TIME OUT:",
+      now
+    );
+
+
+    /* Update */
+
     const {
+      data,
       error
-    } =
-      await supabaseClient
-        .from("attendance")
-        .update({
-
-          time_out:
-            now
-
-        })
-        .eq(
-          "id",
-          existing.id
-        );
+    } = await supabaseClient
+      .from("attendance")
+      .update({
+        time_out: now
+      })
+      .eq("id", existing.id)
+      .select()
+      .single();
 
 
     if (error) {
@@ -3048,36 +3138,47 @@ async function recordTimeOut(
     }
 
 
+    console.log(
+      "TIME OUT SUCCESS:",
+      data
+    );
+
+
     showToast(
-      `${student.name} — Time Out recorded.`,
+      `${student.name} — Time Out recorded successfully.`,
       "success"
     );
 
 
-    closeResultModal();
-
+    /* Reload attendance */
 
     await loadTodayAttendance();
+
+
+    /* Close modal */
+
+    closeResultModal();
 
 
   } catch (error) {
 
     console.error(
-      "Time Out error:",
+      "TIME OUT ERROR:",
       error
     );
 
 
     showToast(
-      error?.message ||
-        "Unable to record Time Out.",
+      `Time Out failed: ${
+        error?.message ||
+        "Unknown error"
+      }`,
       "error"
     );
 
   }
 
 }
-
 
 /* =========================================================
    PICKUP FORM
@@ -3741,6 +3842,16 @@ async function loadTodayAttendance() {
 
   try {
 
+    const today =
+      getVientianeDate();
+
+
+    console.log(
+      "Loading attendance for:",
+      today
+    );
+
+
     const {
       data,
       error
@@ -3750,7 +3861,7 @@ async function loadTodayAttendance() {
         .select("*")
         .eq(
           "date",
-          getVientianeDate()
+          today
         )
         .order(
           "created_at",
@@ -3769,6 +3880,12 @@ async function loadTodayAttendance() {
       data || [];
 
 
+    console.log(
+      "Today's attendance:",
+      attendanceRecords
+    );
+
+
     updateAttendanceStats();
 
     renderAttendance();
@@ -3785,15 +3902,16 @@ async function loadTodayAttendance() {
 
 
     showToast(
-      "Unable to load attendance records.",
+      `Unable to load attendance: ${
+        error?.message ||
+        "Unknown error"
+      }`,
       "error"
     );
 
   }
 
 }
-
-
 /* =========================================================
    ATTENDANCE STATS
    ========================================================= */
