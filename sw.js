@@ -26,7 +26,7 @@ const APP_FILES = [
     "./manifest.json",
 
     // School logo
-    "./images/vision-school-logo.png"
+    "./logo.png"
 ];
 
 
