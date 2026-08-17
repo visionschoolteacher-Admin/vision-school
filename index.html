@@ -68,7 +68,6 @@
         Vision School | Student Attendance System
     </title>
 
-
     <!-- =====================================================
          MAIN STYLESHEET
          ===================================================== -->
@@ -78,7 +77,6 @@
         href="style.css"
     >
 
-
     <!-- =====================================================
          SUPABASE
          ===================================================== -->
@@ -87,7 +85,6 @@
         src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
         defer
     ></script>
-
 
     <!-- =====================================================
          QR SCANNER
@@ -120,10 +117,7 @@
         class="sidebar"
     >
 
-
-        <!-- =================================================
-             SCHOOL BRAND
-             ================================================= -->
+        <!-- SCHOOL BRAND -->
 
         <div class="brand">
 
@@ -137,7 +131,6 @@
 
             </div>
 
-
             <div class="brand-text">
 
                 <h1>
@@ -145,7 +138,7 @@
                 </h1>
 
                 <span>
-                    Attendance System
+                    Attendance System / ລະບົບການເຂົ້າຮຽນ
                 </span>
 
             </div>
@@ -153,12 +146,9 @@
         </div>
 
 
-        <!-- =================================================
-             NAVIGATION
-             ================================================= -->
+        <!-- NAVIGATION -->
 
         <nav class="sidebar-nav">
-
 
             <button
                 type="button"
@@ -171,7 +161,7 @@
                 </span>
 
                 <span>
-                    Dashboard
+                    Dashboard / ໜ້າຫຼັກ
                 </span>
 
             </button>
@@ -188,7 +178,7 @@
                 </span>
 
                 <span>
-                    Students
+                    Students / ນັກຮຽນ
                 </span>
 
             </button>
@@ -205,7 +195,7 @@
                 </span>
 
                 <span>
-                    QR Scanner
+                    QR Scanner / ເຄື່ອງສະແກນ QR
                 </span>
 
             </button>
@@ -222,7 +212,7 @@
                 </span>
 
                 <span>
-                    Attendance
+                    Attendance / ການເຂົ້າຮຽນ
                 </span>
 
             </button>
@@ -239,45 +229,44 @@
                 </span>
 
                 <span>
-                    Reports
+                    Reports / ລາຍງານ
                 </span>
 
             </button>
 
-
         </nav>
 
 
-        <!-- =================================================
-             SIDEBAR SECURITY
-             ================================================= -->
+        <!-- SIDEBAR SECURITY -->
 
         <div class="sidebar-security">
 
             <div class="security-title">
-                🔐 Pickup Security
+                🔐 Pickup Security / ຄວາມປອດໄພໃນການຮັບນັກຮຽນ
             </div>
 
             <p>
                 Only authorized parents, guardians,
                 or approved persons should pick up
                 students.
+                <br>
+                ສະເພາະພໍ່ແມ່, ຜູ້ປົກຄອງ ຫຼື ຜູ້ທີ່ໄດ້ຮັບອະນຸຍາດ
+                ເທົ່ານັ້ນທີ່ສາມາດຮັບນັກຮຽນໄດ້.
             </p>
 
             <div class="security-status">
 
                 <span class="security-dot"></span>
 
-                Secure Pickup System
+                Secure Pickup System /
+                ລະບົບຮັບນັກຮຽນທີ່ປອດໄພ
 
             </div>
 
         </div>
 
 
-        <!-- =================================================
-             SIDEBAR FOOTER
-             ================================================= -->
+        <!-- SIDEBAR FOOTER -->
 
         <div class="sidebar-footer">
 
@@ -289,7 +278,7 @@
                 ></span>
 
                 <span id="connectionText">
-                    Connecting...
+                    Connecting... / ກຳລັງເຊື່ອມຕໍ່...
                 </span>
 
             </div>
@@ -300,26 +289,21 @@
 
         </div>
 
-
     </aside>
 
 
     <!-- =====================================================
          MAIN CONTENT
-         ================================================= -->
+         ===================================================== -->
 
     <main class="main-content">
 
 
-        <!-- =================================================
-             TOP HEADER
-             ================================================= -->
+        <!-- TOP HEADER -->
 
         <header class="topbar">
 
-
             <div class="topbar-left">
-
 
                 <button
                     type="button"
@@ -330,25 +314,23 @@
                     ☰
                 </button>
 
-
                 <div>
 
                     <h2 id="pageTitle">
-                        Dashboard
+                        Dashboard / ໜ້າຫຼັກ
                     </h2>
 
                     <p id="pageSubtitle">
-                        Student attendance overview
+                        Student attendance overview /
+                        ພາບລວມການເຂົ້າຮຽນຂອງນັກຮຽນ
                     </p>
 
                 </div>
-
 
             </div>
 
 
             <div class="topbar-right">
-
 
                 <div class="live-clock">
 
@@ -357,14 +339,12 @@
                     </strong>
 
                     <span id="liveDate">
-                        Loading date...
+                        Loading date... / ກຳລັງໂຫຼດວັນທີ...
                     </span>
 
                 </div>
 
-
             </div>
-
 
         </header>
 
@@ -378,22 +358,23 @@
             class="page-section active"
         >
 
-
             <div class="dashboard-header">
 
                 <div>
 
                     <h1>
-                        Good day, Vision School
+                        Good day, Vision School /
+                        ສະບາຍດີ, Vision School
                     </h1>
 
                     <p>
                         Monitor student attendance
-                        and pickup activity.
+                        and pickup activity. /
+                        ຕິດຕາມການເຂົ້າຮຽນ ແລະ
+                        ການຮັບນັກຮຽນ.
                     </p>
 
                 </div>
-
 
                 <div
                     id="dashboardDate"
@@ -402,14 +383,12 @@
                     --
                 </div>
 
-
             </div>
 
 
             <!-- STATISTICS -->
 
             <div class="stats-grid">
-
 
                 <div class="stat-card">
 
@@ -420,7 +399,8 @@
                     <div>
 
                         <span>
-                            Total Students
+                            Total Students /
+                            ຈຳນວນນັກຮຽນທັງໝົດ
                         </span>
 
                         <strong id="totalStudents">
@@ -441,7 +421,7 @@
                     <div>
 
                         <span>
-                            Time In
+                            Time In / ເວລາເຂົ້າ
                         </span>
 
                         <strong id="timeInCount">
@@ -462,7 +442,8 @@
                     <div>
 
                         <span>
-                            Currently In
+                            Currently In /
+                            ກຳລັງຢູ່ໃນໂຮງຮຽນ
                         </span>
 
                         <strong id="currentlyInCount">
@@ -483,7 +464,7 @@
                     <div>
 
                         <span>
-                            Time Out
+                            Time Out / ເວລາອອກ
                         </span>
 
                         <strong id="timeOutCount">
@@ -494,7 +475,6 @@
 
                 </div>
 
-
             </div>
 
 
@@ -502,17 +482,17 @@
 
             <div class="section-card">
 
-
                 <div class="section-card-header">
 
                     <div>
 
                         <h3>
-                            Quick Actions
+                            Quick Actions / ການດຳເນີນການດ່ວນ
                         </h3>
 
                         <p>
-                            Common attendance tasks
+                            Common attendance tasks /
+                            ວຽກງານການເຂົ້າຮຽນທີ່ໃຊ້ເປັນປະຈຳ
                         </p>
 
                     </div>
@@ -534,11 +514,12 @@
                         </span>
 
                         <strong>
-                            Scan QR
+                            Scan QR / ສະແກນ QR
                         </strong>
 
                         <small>
-                            Record student attendance
+                            Record student attendance /
+                            ບັນທຶກການເຂົ້າຮຽນຂອງນັກຮຽນ
                         </small>
 
                     </button>
@@ -555,11 +536,12 @@
                         </span>
 
                         <strong>
-                            Students
+                            Students / ນັກຮຽນ
                         </strong>
 
                         <small>
-                            Manage student records
+                            Manage student records /
+                            ຈັດການຂໍ້ມູນນັກຮຽນ
                         </small>
 
                     </button>
@@ -576,11 +558,12 @@
                         </span>
 
                         <strong>
-                            Attendance
+                            Attendance / ການເຂົ້າຮຽນ
                         </strong>
 
                         <small>
-                            View today's records
+                            View today's records /
+                            ເບິ່ງບັນທຶກຂອງມື້ນີ້
                         </small>
 
                     </button>
@@ -597,18 +580,17 @@
                         </span>
 
                         <strong>
-                            Reports
+                            Reports / ລາຍງານ
                         </strong>
 
                         <small>
-                            Export attendance
+                            Export attendance /
+                            ສົ່ງອອກຂໍ້ມູນການເຂົ້າຮຽນ
                         </small>
 
                     </button>
 
-
                 </div>
-
 
             </div>
 
@@ -617,18 +599,18 @@
 
             <div class="section-card">
 
-
                 <div class="section-card-header">
-
 
                     <div>
 
                         <h3>
-                            Recent Attendance
+                            Recent Attendance /
+                            ການເຂົ້າຮຽນຫຼ້າສຸດ
                         </h3>
 
                         <p>
-                            Latest student activity
+                            Latest student activity /
+                            ກິດຈະກຳຫຼ້າສຸດຂອງນັກຮຽນ
                         </p>
 
                     </div>
@@ -639,41 +621,38 @@
                         class="secondary-button"
                         data-section="attendance"
                     >
-                        View All
+                        View All / ເບິ່ງທັງໝົດ
                     </button>
-
 
                 </div>
 
 
                 <div class="table-container">
 
-
                     <table>
-
 
                         <thead>
 
                             <tr>
 
                                 <th>
-                                    Student
+                                    Student / ນັກຮຽນ
                                 </th>
 
                                 <th>
-                                    Level
+                                    Level / ລະດັບ
                                 </th>
 
                                 <th>
-                                    Time In
+                                    Time In / ເວລາເຂົ້າ
                                 </th>
 
                                 <th>
-                                    Time Out
+                                    Time Out / ເວລາອອກ
                                 </th>
 
                                 <th>
-                                    Status
+                                    Status / ສະຖານະ
                                 </th>
 
                             </tr>
@@ -689,22 +668,19 @@
                                     colspan="5"
                                     class="empty-state"
                                 >
-                                    No attendance records yet.
+                                    No attendance records yet. /
+                                    ຍັງບໍ່ມີບັນທຶກການເຂົ້າຮຽນ.
                                 </td>
 
                             </tr>
 
                         </tbody>
 
-
                     </table>
-
 
                 </div>
 
-
             </div>
-
 
         </section>
 
@@ -718,22 +694,22 @@
             class="page-section"
         >
 
-
             <div class="section-card">
 
-
                 <div class="section-card-header">
-
 
                     <div>
 
                         <h3>
-                            Student Management
+                            Student Management /
+                            ການຈັດການນັກຮຽນ
                         </h3>
 
                         <p>
                             Manage student information
-                            and authorized pickup persons.
+                            and authorized pickup persons. /
+                            ຈັດການຂໍ້ມູນນັກຮຽນ ແລະ
+                            ຜູ້ທີ່ໄດ້ຮັບອະນຸຍາດໃຫ້ຮັບນັກຮຽນ.
                         </p>
 
                     </div>
@@ -744,71 +720,68 @@
                         id="addStudentButton"
                         class="primary-button"
                     >
-                        + Add Student
+                        + Add Student / + ເພີ່ມນັກຮຽນ
                     </button>
-
 
                 </div>
 
 
                 <div class="filters">
 
-
                     <input
                         type="search"
                         id="studentSearch"
-                        placeholder="Search student, ID, parent or phone..."
+                        placeholder="Search student, ID, parent or phone... / ຄົ້ນຫານັກຮຽນ, ID, ພໍ່ແມ່ ຫຼື ເບີໂທ..."
                     >
 
 
                     <select id="levelFilter">
 
                         <option value="">
-                            All Levels
+                            All Levels / ທຸກລະດັບ
                         </option>
 
                     </select>
-
 
                 </div>
 
 
                 <div class="table-container">
 
-
                     <table>
-
 
                         <thead>
 
                             <tr>
 
                                 <th>
-                                    Student ID
+                                    Student ID / ລະຫັດນັກຮຽນ
                                 </th>
 
                                 <th>
-                                    Student
+                                    Student / ນັກຮຽນ
                                 </th>
 
                                 <th>
-                                    Level
+                                    Level / ລະດັບ
                                 </th>
 
                                 <th>
-                                    Parent / Guardian
+                                    Parent / Guardian /
+                                    ພໍ່ແມ່ / ຜູ້ປົກຄອງ
                                 </th>
 
                                 <th>
-                                    Phone
+                                    Phone / ເບີໂທ
                                 </th>
 
                                 <th>
-                                    Pickup Authorization
+                                    Pickup Authorization /
+                                    ການອະນຸຍາດຮັບນັກຮຽນ
                                 </th>
 
                                 <th>
-                                    Actions
+                                    Actions / ການດຳເນີນການ
                                 </th>
 
                                 <th>
@@ -828,22 +801,19 @@
                                     colspan="8"
                                     class="empty-state"
                                 >
-                                    Loading students...
+                                    Loading students... /
+                                    ກຳລັງໂຫຼດຂໍ້ມູນນັກຮຽນ...
                                 </td>
 
                             </tr>
 
                         </tbody>
 
-
                     </table>
-
 
                 </div>
 
-
             </div>
-
 
         </section>
 
@@ -857,29 +827,28 @@
             class="page-section"
         >
 
-
             <div class="scanner-layout">
 
 
                 <div class="section-card scanner-card">
 
-
                     <div class="section-card-header">
-
 
                         <div>
 
                             <h3>
-                                QR Attendance Scanner
+                                QR Attendance Scanner /
+                                ເຄື່ອງສະແກນ QR ການເຂົ້າຮຽນ
                             </h3>
 
                             <p>
                                 Scan the student's QR code
-                                to record attendance.
+                                to record attendance. /
+                                ສະແກນ QR ຂອງນັກຮຽນ
+                                ເພື່ອບັນທຶກການເຂົ້າຮຽນ.
                             </p>
 
                         </div>
-
 
                     </div>
 
@@ -892,13 +861,13 @@
 
                     <div class="scanner-controls">
 
-
                         <button
                             type="button"
                             id="startScanner"
                             class="primary-button"
                         >
-                            📷 Start Scanner
+                            📷 Start Scanner /
+                            📷 ເລີ່ມສະແກນ
                         </button>
 
 
@@ -907,28 +876,26 @@
                             id="stopScanner"
                             class="secondary-button"
                         >
-                            Stop Scanner
+                            Stop Scanner / ຢຸດສະແກນ
                         </button>
-
 
                     </div>
 
 
                     <div class="manual-search">
 
-
                         <label for="manualStudentId">
-                            Manual Student ID
+                            Manual Student ID /
+                            ໃສ່ລະຫັດນັກຮຽນດ້ວຍຕົນເອງ
                         </label>
 
 
                         <div class="manual-search-row">
 
-
                             <input
                                 type="text"
                                 id="manualStudentId"
-                                placeholder="Enter Student ID"
+                                placeholder="Enter Student ID / ໃສ່ລະຫັດນັກຮຽນ"
                             >
 
 
@@ -937,24 +904,20 @@
                                 id="manualSearchButton"
                                 class="primary-button"
                             >
-                                Search
+                                Search / ຄົ້ນຫາ
                             </button>
-
 
                         </div>
 
-
                     </div>
-
 
                 </div>
 
 
                 <div class="section-card">
 
-
                     <h3>
-                        How it works
+                        How it works / ວິທີການໃຊ້ງານ
                     </h3>
 
 
@@ -970,12 +933,14 @@
                             <div>
 
                                 <strong>
-                                    Scan QR Code
+                                    Scan QR Code /
+                                    ສະແກນ QR Code
                                 </strong>
 
                                 <p>
                                     Scan the student's
-                                    assigned QR code.
+                                    assigned QR code. /
+                                    ສະແກນ QR Code ທີ່ກຳນົດໃຫ້ນັກຮຽນ.
                                 </p>
 
                             </div>
@@ -992,12 +957,14 @@
                             <div>
 
                                 <strong>
-                                    Verify Student
+                                    Verify Student /
+                                    ກວດສອບນັກຮຽນ
                                 </strong>
 
                                 <p>
                                     Confirm the student's
-                                    name and level.
+                                    name and level. /
+                                    ຢືນຢັນຊື່ ແລະ ລະດັບຂອງນັກຮຽນ.
                                 </p>
 
                             </div>
@@ -1014,12 +981,14 @@
                             <div>
 
                                 <strong>
-                                    Time In / Time Out
+                                    Time In / Time Out /
+                                    ເວລາເຂົ້າ / ເວລາອອກ
                                 </strong>
 
                                 <p>
                                     Select the appropriate
-                                    attendance action.
+                                    attendance action. /
+                                    ເລືອກການດຳເນີນການເຂົ້າຮຽນທີ່ເໝາະສົມ.
                                 </p>
 
                             </div>
@@ -1036,19 +1005,21 @@
                             <div>
 
                                 <strong>
-                                    Verify Pickup
+                                    Verify Pickup /
+                                    ກວດສອບຜູ້ມາຮັບ
                                 </strong>
 
                                 <p>
                                     Select the authorized
                                     parent or guardian
-                                    picking up the student.
+                                    picking up the student. /
+                                    ເລືອກພໍ່ແມ່ ຫຼື ຜູ້ປົກຄອງ
+                                    ທີ່ໄດ້ຮັບອະນຸຍາດມາຮັບນັກຮຽນ.
                                 </p>
 
                             </div>
 
                         </div>
-
 
                     </div>
 
@@ -1056,24 +1027,25 @@
                     <div class="security-box">
 
                         <strong>
-                            🔐 Security Reminder
+                            🔐 Security Reminder /
+                            🔐 ແຈ້ງເຕືອນດ້ານຄວາມປອດໄພ
                         </strong>
 
                         <p>
                             Never release a student to an
                             unauthorized person without
                             proper staff approval and
-                            verification.
+                            verification. /
+                            ຢ່າປ່ອຍນັກຮຽນໃຫ້ບຸກຄົນທີ່ບໍ່ໄດ້ຮັບອະນຸຍາດ
+                            ຈົນກວ່າຈະໄດ້ຮັບການກວດສອບ
+                            ແລະ ອະນຸມັດຈາກພະນັກງານ.
                         </p>
 
                     </div>
 
-
                 </div>
 
-
             </div>
-
 
         </section>
 
@@ -1087,22 +1059,22 @@
             class="page-section"
         >
 
-
             <div class="section-card">
 
-
                 <div class="section-card-header">
-
 
                     <div>
 
                         <h3>
-                            Today's Attendance
+                            Today's Attendance /
+                            ການເຂົ້າຮຽນຂອງມື້ນີ້
                         </h3>
 
                         <p>
                             Student attendance and
-                            pickup information.
+                            pickup information. /
+                            ຂໍ້ມູນການເຂົ້າຮຽນ ແລະ
+                            ການຮັບນັກຮຽນ.
                         </p>
 
                     </div>
@@ -1113,58 +1085,54 @@
                         id="refreshAttendance"
                         class="secondary-button"
                     >
-                        ↻ Refresh
+                        ↻ Refresh / ໂຫຼດໃໝ່
                     </button>
-
 
                 </div>
 
 
                 <div class="filters">
 
-
                     <input
                         type="search"
                         id="attendanceSearch"
-                        placeholder="Search attendance, student or pickup person..."
+                        placeholder="Search attendance, student or pickup person... / ຄົ້ນຫາການເຂົ້າຮຽນ, ນັກຮຽນ ຫຼື ຜູ້ມາຮັບ..."
                     >
-
 
                 </div>
 
 
                 <div class="table-container">
 
-
                     <table>
-
 
                         <thead>
 
                             <tr>
 
                                 <th>
-                                    Student
+                                    Student / ນັກຮຽນ
                                 </th>
 
                                 <th>
-                                    Level
+                                    Level / ລະດັບ
                                 </th>
 
                                 <th>
-                                    Time In
+                                    Time In / ເວລາເຂົ້າ
                                 </th>
 
                                 <th>
-                                    Time Out
+                                    Time Out / ເວລາອອກ
                                 </th>
 
                                 <th>
-                                    Pickup Person
+                                    Pickup Person /
+                                    ຜູ້ມາຮັບ
                                 </th>
 
                                 <th>
-                                    Status
+                                    Status / ສະຖານະ
                                 </th>
 
                             </tr>
@@ -1180,37 +1148,36 @@
                                     colspan="6"
                                     class="empty-state"
                                 >
-                                    Loading attendance...
+                                    Loading attendance... /
+                                    ກຳລັງໂຫຼດການເຂົ້າຮຽນ...
                                 </td>
 
                             </tr>
 
                         </tbody>
 
-
                     </table>
 
-
                 </div>
-
 
             </div>
 
 
             <div class="section-card">
 
-
                 <div class="section-card-header">
 
                     <div>
 
                         <h3>
-                            🔐 Pickup Security Information
+                            🔐 Pickup Security Information /
+                            🔐 ຂໍ້ມູນຄວາມປອດໄພໃນການຮັບນັກຮຽນ
                         </h3>
 
                         <p>
                             Verify the person collecting
-                            the student before release.
+                            the student before release. /
+                            ກວດສອບຜູ້ມາຮັບນັກຮຽນກ່ອນທີ່ຈະປ່ອຍນັກຮຽນ.
                         </p>
 
                     </div>
@@ -1223,7 +1190,6 @@
 
                     <div class="security-info authorized-info">
 
-
                         <div class="security-info-icon">
                             ✓
                         </div>
@@ -1232,7 +1198,8 @@
                         <div>
 
                             <h4>
-                                Authorized Pickup
+                                Authorized Pickup /
+                                ຜູ້ມາຮັບທີ່ໄດ້ຮັບອະນຸຍາດ
                             </h4>
 
                             <p>
@@ -1240,17 +1207,18 @@
                                 select the exact parent,
                                 guardian, or authorized
                                 person who is collecting
-                                the student.
+                                the student. /
+                                ພະນັກງານຄວນເລືອກພໍ່ແມ່,
+                                ຜູ້ປົກຄອງ ຫຼື ບຸກຄົນທີ່ໄດ້ຮັບອະນຸຍາດ
+                                ທີ່ມາຮັບນັກຮຽນໂດຍກົງ.
                             </p>
 
                         </div>
-
 
                     </div>
 
 
                     <div class="security-info unauthorized-info">
-
 
                         <div class="security-info-icon">
                             !
@@ -1260,7 +1228,8 @@
                         <div>
 
                             <h4>
-                                Unauthorized Person
+                                Unauthorized Person /
+                                ບຸກຄົນທີ່ບໍ່ໄດ້ຮັບອະນຸຍາດ
                             </h4>
 
                             <p>
@@ -1268,20 +1237,19 @@
                                 as authorized, do not release
                                 the student until the staff
                                 member verifies and approves
-                                the pickup.
+                                the pickup. /
+                                ຖ້າບຸກຄົນນັ້ນບໍ່ຢູ່ໃນລາຍຊື່ຜູ້ທີ່ໄດ້ຮັບອະນຸຍາດ,
+                                ຢ່າປ່ອຍນັກຮຽນຈົນກວ່າພະນັກງານ
+                                ຈະກວດສອບ ແລະ ອະນຸມັດ.
                             </p>
 
                         </div>
 
-
                     </div>
-
 
                 </div>
 
-
             </div>
-
 
         </section>
 
@@ -1295,22 +1263,21 @@
             class="page-section"
         >
 
-
             <div class="section-card">
 
-
                 <div class="section-card-header">
-
 
                     <div>
 
                         <h3>
-                            Attendance Reports
+                            Attendance Reports /
+                            ລາຍງານການເຂົ້າຮຽນ
                         </h3>
 
                         <p>
                             Export today's attendance
-                            records for Excel.
+                            records for Excel. /
+                            ສົ່ງອອກບັນທຶກການເຂົ້າຮຽນຂອງມື້ນີ້ເປັນ Excel.
                         </p>
 
                     </div>
@@ -1321,15 +1288,14 @@
                         id="exportCsv"
                         class="primary-button"
                     >
-                        📥 Export Excel / CSV
+                        📥 Export Excel / CSV /
+                        📥 ສົ່ງອອກ Excel / CSV
                     </button>
-
 
                 </div>
 
 
                 <div class="report-info">
-
 
                     <div class="report-icon">
                         📊
@@ -1338,56 +1304,93 @@
 
                     <div>
 
-
                         <h3>
-                            Excel-Compatible Attendance File
+                            Excel-Compatible Attendance File /
+                            ໄຟລ໌ການເຂົ້າຮຽນທີ່ໃຊ້ກັບ Excel ໄດ້
                         </h3>
 
 
                         <p>
-                            The exported file contains:
+                            The exported file contains: /
+                            ໄຟລ໌ທີ່ສົ່ງອອກປະກອບມີ:
                         </p>
 
 
                         <ul>
 
-                            <li>Date</li>
-                            <li>Student ID</li>
-                            <li>Student Name</li>
-                            <li>Level</li>
-                            <li>Time In</li>
-                            <li>Time Out</li>
-                            <li>Pickup Person</li>
-                            <li>Pickup Relationship</li>
-                            <li>Pickup Phone</li>
-                            <li>Pickup Option</li>
-                            <li>Approver</li>
-                            <li>Notes</li>
+                            <li>
+                                Date / ວັນທີ
+                            </li>
+
+                            <li>
+                                Student ID / ລະຫັດນັກຮຽນ
+                            </li>
+
+                            <li>
+                                Student Name / ຊື່ນັກຮຽນ
+                            </li>
+
+                            <li>
+                                Level / ລະດັບ
+                            </li>
+
+                            <li>
+                                Time In / ເວລາເຂົ້າ
+                            </li>
+
+                            <li>
+                                Time Out / ເວລາອອກ
+                            </li>
+
+                            <li>
+                                Pickup Person / ຜູ້ມາຮັບ
+                            </li>
+
+                            <li>
+                                Pickup Relationship /
+                                ຄວາມສຳພັນກັບນັກຮຽນ
+                            </li>
+
+                            <li>
+                                Pickup Phone / ເບີໂທຜູ້ມາຮັບ
+                            </li>
+
+                            <li>
+                                Pickup Option / ຕົວເລືອກການຮັບ
+                            </li>
+
+                            <li>
+                                Approver / ຜູ້ອະນຸມັດ
+                            </li>
+
+                            <li>
+                                Notes / ໝາຍເຫດ
+                            </li>
 
                         </ul>
 
-
                     </div>
 
-
                 </div>
-
 
             </div>
 
 
             <div class="section-card">
 
-
                 <h3>
-                    Pickup Verification Records
+                    Pickup Verification Records /
+                    ບັນທຶກການກວດສອບການຮັບນັກຮຽນ
                 </h3>
 
 
                 <p>
                     Pickup details are recorded together
                     with attendance so the school can
-                    identify who collected each student.
+                    identify who collected each student. /
+                    ລາຍລະອຽດການຮັບນັກຮຽນຈະຖືກບັນທຶກຮ່ວມກັບ
+                    ຂໍ້ມູນການເຂົ້າຮຽນ ເພື່ອໃຫ້ໂຮງຮຽນສາມາດ
+                    ກວດສອບວ່າໃຜເປັນຜູ້ມາຮັບນັກຮຽນ.
                 </p>
 
 
@@ -1395,7 +1398,6 @@
 
 
                     <div class="security-info authorized-info">
-
 
                         <div class="security-info-icon">
                             ✓
@@ -1405,22 +1407,23 @@
                         <div>
 
                             <h4>
-                                Authorized
+                                Authorized /
+                                ໄດ້ຮັບອະນຸຍາດ
                             </h4>
 
                             <p>
                                 Parent, guardian, or approved
-                                pickup person.
+                                pickup person. /
+                                ພໍ່ແມ່, ຜູ້ປົກຄອງ ຫຼື
+                                ບຸກຄົນທີ່ອະນຸມັດໃຫ້ມາຮັບ.
                             </p>
 
                         </div>
-
 
                     </div>
 
 
                     <div class="security-info unauthorized-info">
-
 
                         <div class="security-info-icon">
                             !
@@ -1430,32 +1433,30 @@
                         <div>
 
                             <h4>
-                                Unauthorized
+                                Unauthorized /
+                                ບໍ່ໄດ້ຮັບອະນຸຍາດ
                             </h4>
 
                             <p>
                                 Requires staff verification
                                 and approval before the
-                                student is released.
+                                student is released. /
+                                ຕ້ອງການການກວດສອບ ແລະ
+                                ອະນຸມັດຈາກພະນັກງານກ່ອນປ່ອຍນັກຮຽນ.
                             </p>
 
                         </div>
 
-
                     </div>
-
 
                 </div>
 
-
             </div>
-
 
         </section>
 
 
     </main>
-
 
 </div>
 
@@ -1469,21 +1470,19 @@
     class="modal"
 >
 
-
     <div class="modal-content">
 
-
         <div class="modal-header">
-
 
             <div>
 
                 <h2>
-                    Add Student
+                    Add Student / ເພີ່ມນັກຮຽນ
                 </h2>
 
                 <p>
-                    Enter student and pickup information.
+                    Enter student and pickup information. /
+                    ໃສ່ຂໍ້ມູນນັກຮຽນ ແລະ ຂໍ້ມູນຜູ້ມາຮັບ.
                 </p>
 
             </div>
@@ -1497,7 +1496,6 @@
                 ×
             </button>
 
-
         </div>
 
 
@@ -1506,9 +1504,9 @@
 
             <div class="form-section">
 
-
                 <h3>
-                    Student Information
+                    Student Information /
+                    ຂໍ້ມູນນັກຮຽນ
                 </h3>
 
 
@@ -1518,14 +1516,15 @@
                     <div class="form-group">
 
                         <label for="studentId">
-                            Student ID *
+                            Student ID * /
+                            ລະຫັດນັກຮຽນ *
                         </label>
 
                         <input
                             type="text"
                             id="studentId"
                             required
-                            placeholder="Example: VS001"
+                            placeholder="Example: VS001 / ຕົວຢ່າງ: VS001"
                         >
 
                     </div>
@@ -1534,14 +1533,15 @@
                     <div class="form-group">
 
                         <label for="studentName">
-                            Student Name *
+                            Student Name * /
+                            ຊື່ນັກຮຽນ *
                         </label>
 
                         <input
                             type="text"
                             id="studentName"
                             required
-                            placeholder="Full name"
+                            placeholder="Full name / ຊື່ເຕັມ"
                         >
 
                     </div>
@@ -1550,36 +1550,37 @@
                     <div class="form-group">
 
                         <label for="studentLevel">
-                            Level / Grade *
+                            Level / Grade * /
+                            ລະດັບ / ຊັ້ນຮຽນ *
                         </label>
 
                         <input
                             type="text"
                             id="studentLevel"
                             required
-                            placeholder="Example: Primary 2"
+                            placeholder="Example: Primary 2 / ຕົວຢ່າງ: Primary 2"
                         >
 
                     </div>
 
-
                 </div>
-
 
             </div>
 
 
             <div class="form-section">
 
-
                 <h3>
-                    Parent / Guardian Information
+                    Parent / Guardian Information /
+                    ຂໍ້ມູນພໍ່ແມ່ / ຜູ້ປົກຄອງ
                 </h3>
 
 
                 <p class="form-help">
                     You may register up to three people
-                    who are authorized to pick up this student.
+                    who are authorized to pick up this student. /
+                    ທ່ານສາມາດລົງທະບຽນໄດ້ເຖິງ 3 ຄົນ
+                    ທີ່ໄດ້ຮັບອະນຸຍາດໃຫ້ມາຮັບນັກຮຽນ.
                 </p>
 
 
@@ -1587,15 +1588,15 @@
 
                 <div class="pickup-person-card">
 
-
                     <div class="pickup-person-title">
 
                         <strong>
-                            Parent / Guardian 1
+                            Parent / Guardian 1 /
+                            ພໍ່ແມ່ / ຜູ້ປົກຄອງ 1
                         </strong>
 
                         <span class="authorized-label">
-                            Authorized
+                            Authorized / ອະນຸຍາດ
                         </span>
 
                     </div>
@@ -1603,17 +1604,16 @@
 
                     <div class="form-grid">
 
-
                         <div class="form-group">
 
                             <label>
-                                Name
+                                Name / ຊື່
                             </label>
 
                             <input
                                 type="text"
                                 id="studentParent"
-                                placeholder="Parent / Guardian name"
+                                placeholder="Parent / Guardian name / ຊື່ພໍ່ແມ່ / ຜູ້ປົກຄອງ"
                             >
 
                         </div>
@@ -1622,20 +1622,18 @@
                         <div class="form-group">
 
                             <label>
-                                Phone
+                                Phone / ເບີໂທ
                             </label>
 
                             <input
                                 type="text"
                                 id="studentPhone"
-                                placeholder="Phone number"
+                                placeholder="Phone number / ເບີໂທ"
                             >
 
                         </div>
 
-
                     </div>
-
 
                 </div>
 
@@ -1644,15 +1642,15 @@
 
                 <div class="pickup-person-card">
 
-
                     <div class="pickup-person-title">
 
                         <strong>
-                            Parent / Guardian 2
+                            Parent / Guardian 2 /
+                            ພໍ່ແມ່ / ຜູ້ປົກຄອງ 2
                         </strong>
 
                         <span class="authorized-label">
-                            Authorized
+                            Authorized / ອະນຸຍາດ
                         </span>
 
                     </div>
@@ -1660,17 +1658,16 @@
 
                     <div class="form-grid">
 
-
                         <div class="form-group">
 
                             <label>
-                                Name
+                                Name / ຊື່
                             </label>
 
                             <input
                                 type="text"
                                 id="studentParent2"
-                                placeholder="Parent / Guardian name"
+                                placeholder="Parent / Guardian name / ຊື່ພໍ່ແມ່ / ຜູ້ປົກຄອງ"
                             >
 
                         </div>
@@ -1679,20 +1676,18 @@
                         <div class="form-group">
 
                             <label>
-                                Phone
+                                Phone / ເບີໂທ
                             </label>
 
                             <input
                                 type="text"
                                 id="studentPhone2"
-                                placeholder="Phone number"
+                                placeholder="Phone number / ເບີໂທ"
                             >
 
                         </div>
 
-
                     </div>
-
 
                 </div>
 
@@ -1701,15 +1696,15 @@
 
                 <div class="pickup-person-card">
 
-
                     <div class="pickup-person-title">
 
                         <strong>
-                            Parent / Guardian 3
+                            Parent / Guardian 3 /
+                            ພໍ່ແມ່ / ຜູ້ປົກຄອງ 3
                         </strong>
 
                         <span class="authorized-label">
-                            Authorized
+                            Authorized / ອະນຸຍາດ
                         </span>
 
                     </div>
@@ -1717,17 +1712,16 @@
 
                     <div class="form-grid">
 
-
                         <div class="form-group">
 
                             <label>
-                                Name
+                                Name / ຊື່
                             </label>
 
                             <input
                                 type="text"
                                 id="studentParent3"
-                                placeholder="Parent / Guardian name"
+                                placeholder="Parent / Guardian name / ຊື່ພໍ່ແມ່ / ຜູ້ປົກຄອງ"
                             >
 
                         </div>
@@ -1736,29 +1730,25 @@
                         <div class="form-group">
 
                             <label>
-                                Phone
+                                Phone / ເບີໂທ
                             </label>
 
                             <input
                                 type="text"
                                 id="studentPhone3"
-                                placeholder="Phone number"
+                                placeholder="Phone number / ເບີໂທ"
                             >
 
                         </div>
 
-
                     </div>
-
 
                 </div>
 
 
                 <div class="authorization-box">
 
-
                     <label class="checkbox-label">
-
 
                         <input
                             type="checkbox"
@@ -1766,12 +1756,12 @@
                             checked
                         >
 
-
                         <span>
                             Student is authorized
-                            for normal pickup.
+                            for normal pickup. /
+                            ນັກຮຽນໄດ້ຮັບອະນຸຍາດ
+                            ສຳລັບການຮັບຕາມປົກກະຕິ.
                         </span>
-
 
                     </label>
 
@@ -1779,29 +1769,28 @@
                     <p>
                         If this is unchecked, staff should
                         verify and approve any pickup before
-                        releasing the student.
+                        releasing the student. /
+                        ຖ້າບໍ່ເລືອກ, ພະນັກງານຕ້ອງກວດສອບ
+                        ແລະ ອະນຸມັດການຮັບກ່ອນປ່ອຍນັກຮຽນ.
                     </p>
 
-
                 </div>
-
 
             </div>
 
 
             <div class="form-section">
 
-
                 <h3>
-                    🔐 Pickup Security
+                    🔐 Pickup Security /
+                    🔐 ຄວາມປອດໄພໃນການຮັບນັກຮຽນ
                 </h3>
 
 
                 <div class="security-box">
 
-
                     <strong>
-                        Important
+                        Important / ສຳຄັນ
                     </strong>
 
 
@@ -1809,7 +1798,10 @@
                         The registered parent/guardian
                         information is used by staff to
                         identify who is authorized to collect
-                        the student.
+                        the student. /
+                        ຂໍ້ມູນພໍ່ແມ່ / ຜູ້ປົກຄອງທີ່ລົງທະບຽນ
+                        ຈະຖືກໃຊ້ໂດຍພະນັກງານເພື່ອລະບຸ
+                        ຜູ້ທີ່ມີສິດຮັບນັກຮຽນ.
                     </p>
 
 
@@ -1817,25 +1809,25 @@
                         If the person collecting the student
                         is not listed, staff should not release
                         the student until the pickup has been
-                        verified and approved.
+                        verified and approved. /
+                        ຖ້າຜູ້ມາຮັບບໍ່ຢູ່ໃນລາຍຊື່,
+                        ພະນັກງານບໍ່ຄວນປ່ອຍນັກຮຽນ
+                        ຈົນກວ່າຈະກວດສອບ ແລະ ອະນຸມັດ.
                     </p>
 
-
                 </div>
-
 
             </div>
 
 
             <div class="modal-actions">
 
-
                 <button
                     type="button"
                     id="cancelStudent"
                     class="secondary-button"
                 >
-                    Cancel
+                    Cancel / ຍົກເລີກ
                 </button>
 
 
@@ -1843,18 +1835,15 @@
                     type="submit"
                     class="primary-button"
                 >
-                    Save Student
+                    Save Student / ບັນທຶກນັກຮຽນ
                 </button>
-
 
             </div>
 
 
         </form>
 
-
     </div>
-
 
 </div>
 
@@ -1868,21 +1857,20 @@
     class="modal"
 >
 
-
     <div class="modal-content result-modal">
 
-
         <div class="modal-header">
-
 
             <div>
 
                 <h2>
-                    Student Information
+                    Student Information /
+                    ຂໍ້ມູນນັກຮຽນ
                 </h2>
 
                 <p>
-                    Attendance and pickup verification
+                    Attendance and pickup verification /
+                    ການກວດສອບການເຂົ້າຮຽນ ແລະ ຜູ້ມາຮັບ
                 </p>
 
             </div>
@@ -1896,23 +1884,18 @@
                 ×
             </button>
 
-
         </div>
 
 
         <div id="studentResult">
 
-
             <div class="loading-state">
-                Loading...
+                Loading... / ກຳລັງໂຫຼດ...
             </div>
-
 
         </div>
 
-
     </div>
-
 
 </div>
 
