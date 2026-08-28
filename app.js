@@ -3748,6 +3748,14 @@ async function savePickup(student, record) {
 
 
     /* =====================================================
+       PICKUP TIME
+       ===================================================== */
+
+    const pickupTime =
+      new Date().toISOString();
+
+
+    /* =====================================================
        SUPABASE PAYLOAD
 
        IMPORTANT:
@@ -3774,7 +3782,10 @@ async function savePickup(student, record) {
         approver,
 
       notes:
-        notes
+        notes,
+
+      time_out:
+        pickupTime
 
     };
 
