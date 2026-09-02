@@ -60,6 +60,156 @@ let supabaseClient = null;
 let students = [];
 let attendanceRecords = [];
 
+
+/* =========================================================
+   LOCAL DATA CACHE
+   ---------------------------------------------------------
+   Supabase remains the primary database.
+
+   localStorage is ONLY used as a temporary fallback so
+   refreshing the page does not make Student Information
+   and Dashboard appear empty when Supabase is temporarily
+   unavailable.
+========================================================= */
+
+const VISION_SCHOOL_STUDENTS_CACHE =
+    "vision-school-students-cache";
+
+const VISION_SCHOOL_ATTENDANCE_CACHE_PREFIX =
+    "vision-school-attendance-cache-";
+
+
+function saveStudentsCache() {
+
+    try {
+
+        localStorage.setItem(
+            VISION_SCHOOL_STUDENTS_CACHE,
+            JSON.stringify(students || [])
+        );
+
+    } catch (error) {
+
+        console.warn(
+            "Unable to save students cache:",
+            error
+        );
+
+    }
+
+}
+
+
+function loadStudentsCache() {
+
+    try {
+
+        const cached =
+            localStorage.getItem(
+                VISION_SCHOOL_STUDENTS_CACHE
+            );
+
+        if (!cached) {
+            return false;
+        }
+
+        const parsed =
+            JSON.parse(cached);
+
+        if (!Array.isArray(parsed)) {
+            return false;
+        }
+
+        students =
+            parsed;
+
+        return true;
+
+    } catch (error) {
+
+        console.warn(
+            "Unable to load students cache:",
+            error
+        );
+
+        return false;
+
+    }
+
+}
+
+
+function getAttendanceCacheKey() {
+
+    return (
+        VISION_SCHOOL_ATTENDANCE_CACHE_PREFIX +
+        getVientianeDate()
+    );
+
+}
+
+
+function saveAttendanceCache() {
+
+    try {
+
+        localStorage.setItem(
+            getAttendanceCacheKey(),
+            JSON.stringify(
+                attendanceRecords || []
+            )
+        );
+
+    } catch (error) {
+
+        console.warn(
+            "Unable to save attendance cache:",
+            error
+        );
+
+    }
+
+}
+
+
+function loadAttendanceCache() {
+
+    try {
+
+        const cached =
+            localStorage.getItem(
+                getAttendanceCacheKey()
+            );
+
+        if (!cached) {
+            return false;
+        }
+
+        const parsed =
+            JSON.parse(cached);
+
+        if (!Array.isArray(parsed)) {
+            return false;
+        }
+
+        attendanceRecords =
+            parsed;
+
+        return true;
+
+    } catch (error) {
+
+        console.warn(
+            "Unable to load attendance cache:",
+            error
+        );
+
+        return false;
+
+    }
+
+}
+
 let currentStudent = null;
 
 let html5QrCode = null;
@@ -129,13 +279,61 @@ document.addEventListener("DOMContentLoaded", async () => {
         initializeModalClosing();
 
 
-        // These requests are independent. Running them together makes startup
-        // noticeably faster without changing the data or UI flow.
-        await Promise.all([
+        /*
+         * Restore the last known data immediately as a fallback.
+         * This does NOT replace Supabase data.
+         */
+
+        loadStudentsCache();
+        loadAttendanceCache();
+
+
+        /*
+         * Render cached data immediately if available.
+         * This prevents a blank/reset screen while Supabase
+         * is connecting.
+         */
+
+        if (students.length) {
+
+            const total =
+                document.getElementById(
+                    "totalStudents"
+                );
+
+            if (total) {
+                total.textContent =
+                    students.length;
+            }
+
+            populateLevelFilter();
+            renderStudents();
+            renderDashboard();
+
+        }
+
+
+        if (attendanceRecords.length) {
+
+            updateAttendanceStatistics();
+            renderAttendance();
+            renderDashboard();
+
+        }
+
+
+        /*
+         * Refresh from Supabase. If Supabase is temporarily
+         * unavailable, the load functions preserve the
+         * cached/in-memory data.
+         */
+
+        await Promise.allSettled([
             testSupabaseConnection(),
             loadStudents(),
             loadTodayAttendance()
         ]);
+
 
         initializeRealtime();
 
@@ -568,8 +766,19 @@ async function loadStudents() {
         }
 
 
+        /*
+         * Supabase is the source of truth.
+         * Only after a successful request do we update
+         * the local cache.
+         */
+
         students =
-            data || [];
+            Array.isArray(data)
+                ? data
+                : [];
+
+
+        saveStudentsCache();
 
 
         const total =
@@ -579,8 +788,10 @@ async function loadStudents() {
 
 
         if (total) {
+
             total.textContent =
                 students.length;
+
         }
 
 
@@ -591,22 +802,78 @@ async function loadStudents() {
         renderDashboard();
 
 
+        console.log(
+            "Students loaded from Supabase:",
+            students.length
+        );
+
+
     } catch (error) {
 
         console.error(
-            "Unable to load students:",
+            "Unable to load students from Supabase:",
             error
         );
 
 
+        /*
+         * Do NOT replace the current data with [].
+         * If the application already has students in memory,
+         * keep them. Otherwise restore the last successful cache.
+         */
+
+        if (!students.length) {
+
+            const restored =
+                loadStudentsCache();
+
+
+            if (restored) {
+
+                console.log(
+                    "Students restored from local cache:",
+                    students.length
+                );
+
+            }
+
+        }
+
+
+        if (students.length) {
+
+            const total =
+                document.getElementById(
+                    "totalStudents"
+                );
+
+
+            if (total) {
+
+                total.textContent =
+                    students.length;
+
+            }
+
+
+            populateLevelFilter();
+
+            renderStudents();
+
+            renderDashboard();
+
+        }
+
+
         showToast(
             error?.message ||
-            "Unable to load students.",
+            "Unable to load students. Showing the last saved data.",
             "error"
         );
-    }
-}
 
+    }
+
+}
 
 /* =========================================================
    LEVEL FILTER
@@ -2362,7 +2629,7 @@ async function saveParentPickup(matches) {
 
             const payload = {
                 pickup_person: match.parent.name,
-                Pickup_relationship: match.parent.label || "Parent / Guardian",
+                pickup_relationship: match.parent.label || "Parent / Guardian",
                 pickup_phone: match.parent.phone || "",
                 pickup_option: "Parent / Guardian",
                 approver: "",
@@ -4107,7 +4374,7 @@ async function savePickup(student, record) {
       pickup_person:
         pickup_person,
 
-      Pickup_relationship:
+      pickup_relationship:
         relationship,
 
       pickup_phone:
@@ -4412,8 +4679,7 @@ async function loadTodayAttendance() {
                 .order(
                     "created_at",
                     {
-                        ascending:
-                            false
+                        ascending: false
                     }
                 );
 
@@ -4423,8 +4689,17 @@ async function loadTodayAttendance() {
         }
 
 
+        /* Supabase is the source of truth. */
+
         attendanceRecords =
-            data || [];
+            Array.isArray(data)
+                ? data
+                : [];
+
+
+        /* Save the successful result as today's refresh fallback. */
+
+        saveAttendanceCache();
 
 
         updateAttendanceStatistics();
@@ -4434,22 +4709,64 @@ async function loadTodayAttendance() {
         renderDashboard();
 
 
+        console.log(
+            "Today's attendance loaded from Supabase:",
+            attendanceRecords.length
+        );
+
+
     } catch (error) {
 
         console.error(
-            "Unable to load attendance:",
+            "Unable to load attendance from Supabase:",
             error
         );
 
 
+        /*
+         * NEVER reset attendanceRecords to [].
+         * If data already exists in memory, preserve it.
+         * Otherwise restore today's last successful cache.
+         */
+
+        if (!attendanceRecords.length) {
+
+            const restored =
+                loadAttendanceCache();
+
+
+            if (restored) {
+
+                console.log(
+                    "Today's attendance restored from local cache:",
+                    attendanceRecords.length
+                );
+
+            }
+
+        }
+
+
+        if (attendanceRecords.length) {
+
+            updateAttendanceStatistics();
+
+            renderAttendance();
+
+            renderDashboard();
+
+        }
+
+
         showToast(
             error?.message ||
-            "Unable to load today's attendance.",
+            "Unable to load today's attendance. Showing the last saved data.",
             "error"
         );
-    }
-}
 
+    }
+
+}
 
 /* =========================================================
    ATTENDANCE STATISTICS
@@ -4565,7 +4882,7 @@ function renderAttendance() {
 
                     record.pickup_person,
 
-                    getPickupRelationship(record),
+                    record.Pickup_relationship,
 
                     record.pickup_phone,
 
@@ -4707,7 +5024,7 @@ function renderAttendance() {
                                                 "
                                             >
                                                 ${escapeHtml(
-                                                    getPickupRelationship(record) ||
+                                                    record.Pickup_relationship ||
                                                     record.pickup_option ||
                                                     ""
                                                 )}
