@@ -69,29 +69,12 @@ let realtimeChannel = null;
 
 let toastTimer = null;
 
-// Small in-memory caches/flags to avoid repeated work during realtime updates.
-const parentQrTokenCache = new Map();
-let realtimeRefreshTimer = null;
-let realtimeNeedsStudents = false;
-let realtimeNeedsAttendance = false;
-
 
 /* =========================================================
    START APPLICATION
 ========================================================= */
 
 document.addEventListener("DOMContentLoaded", async () => {
-
-    // Register the PWA service worker without blocking application startup.
-    if ("serviceWorker" in navigator) {
-        navigator.serviceWorker.register("./sw.js")
-            .then(registration => {
-                console.log("Vision School service worker registered:", registration.scope);
-            })
-            .catch(error => {
-                console.warn("Service worker registration failed:", error);
-            });
-    }
 
     console.log("Vision School Attendance System starting...");
 
@@ -129,10 +112,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         initializeModalClosing();
 
 
-        // These requests are independent. Running them together makes startup
-        // noticeably faster without changing the data or UI flow.
+        await testSupabaseConnection();
+
+        // Load the two main data sets in parallel after the connection check.
         await Promise.all([
-            testSupabaseConnection(),
             loadStudents(),
             loadTodayAttendance()
         ]);
@@ -2124,17 +2107,14 @@ function normalizeParentValue(value) {
         .replace(/\s+/g, " ");
 }
 
+// Cache deterministic Parent QR tokens so repeated scans do not re-hash
+// the same parent records. This changes no UI or database behavior.
+const parentQrTokenCache = new Map();
+
 async function getParentQrToken(name, phone) {
-    const normalizedName = normalizeParentValue(name);
-    const normalizedPhone = normalizeParentValue(phone);
-    const cacheKey = `${normalizedName}|${normalizedPhone}`;
-
-    const cached = parentQrTokenCache.get(cacheKey);
-    if (cached) {
-        return cached;
-    }
-
-    const raw = cacheKey;
+    const raw = `${normalizeParentValue(name)}|${normalizeParentValue(phone)}`;
+    const cached = parentQrTokenCache.get(raw);
+    if (cached) return cached;
 
     if (window.crypto?.subtle) {
         const bytes = new TextEncoder().encode(raw);
@@ -2142,7 +2122,7 @@ async function getParentQrToken(name, phone) {
         const token = Array.from(new Uint8Array(digest))
             .map(byte => byte.toString(16).padStart(2, "0"))
             .join("");
-        parentQrTokenCache.set(cacheKey, token);
+        parentQrTokenCache.set(raw, token);
         return token;
     }
 
@@ -2157,7 +2137,7 @@ async function getParentQrToken(name, phone) {
         hash2 = Math.imul(hash2, 2166136261);
     }
     const token = `${(hash1 >>> 0).toString(16).padStart(8, "0")}${(hash2 >>> 0).toString(16).padStart(8, "0")}`;
-    parentQrTokenCache.set(cacheKey, token);
+    parentQrTokenCache.set(raw, token);
     return token;
 }
 
@@ -2237,8 +2217,6 @@ async function handleParentQrScan(decodedText) {
         return;
     }
 
-    // Hash each unique parent identity once and in parallel. This matters
-    // when the school has many students linked to the same parent.
     const parentEntries = [];
     const uniqueParents = new Map();
 
@@ -2246,24 +2224,24 @@ async function handleParentQrScan(decodedText) {
         const parents = getParentOptions(student.parent);
         for (const parent of parents) {
             if (!parent.name) continue;
-            const key = `${normalizeParentValue(parent.name)}|${normalizeParentValue(parent.phone)}`;
-            if (!uniqueParents.has(key)) {
-                uniqueParents.set(key, parent);
+            const raw = `${normalizeParentValue(parent.name)}|${normalizeParentValue(parent.phone)}`;
+            if (!uniqueParents.has(raw)) {
+                uniqueParents.set(raw, parent);
             }
-            parentEntries.push({ student, parent, key });
+            parentEntries.push({ student, parent, raw });
         }
     }
 
-    const tokenPairs = await Promise.all(
-        Array.from(uniqueParents.entries()).map(async ([key, parent]) => [
-            key,
-            await getParentQrToken(parent.name, parent.phone)
-        ])
+    const tokenEntries = await Promise.all(
+        Array.from(uniqueParents.entries()).map(async ([raw, parent]) => ({
+            raw,
+            token: await getParentQrToken(parent.name, parent.phone)
+        }))
     );
 
-    const tokenMap = new Map(tokenPairs);
+    const tokenMap = new Map(tokenEntries.map(entry => [entry.raw, entry.token]));
     const matches = parentEntries
-        .filter(entry => tokenMap.get(entry.key) === token)
+        .filter(entry => tokenMap.get(entry.raw) === token)
         .map(entry => ({ student: entry.student, parent: entry.parent }));
 
     if (!matches.length) {
@@ -5301,93 +5279,117 @@ function closeResultModal() {
    REALTIME
 ========================================================= */
 
+// Coalesce bursts of Supabase realtime events into one refresh per data set.
+// This prevents repeated full-table reloads when several changes arrive together.
+let realtimeRefreshTimer = null;
+let realtimeStudentsPending = false;
+let realtimeAttendancePending = false;
+
 function scheduleRealtimeRefresh(type) {
+    if (type === "students") realtimeStudentsPending = true;
+    if (type === "attendance") realtimeAttendancePending = true;
 
-    if (type === "students") {
-        realtimeNeedsStudents = true;
-    }
+    if (realtimeRefreshTimer) return;
 
-    if (type === "attendance") {
-        realtimeNeedsAttendance = true;
-    }
-
-    if (realtimeRefreshTimer) {
-        return;
-    }
-
-    // Supabase can emit several changes for one real-world action.
-    // Coalesce them so the UI does not repeatedly download/render the same data.
     realtimeRefreshTimer = setTimeout(async () => {
-
-        const refreshStudents = realtimeNeedsStudents;
-        const refreshAttendance = realtimeNeedsAttendance;
-
-        realtimeNeedsStudents = false;
-        realtimeNeedsAttendance = false;
         realtimeRefreshTimer = null;
 
+        const refreshStudents = realtimeStudentsPending;
+        const refreshAttendance = realtimeAttendancePending;
+        realtimeStudentsPending = false;
+        realtimeAttendancePending = false;
+
         try {
-            const tasks = [];
-
-            if (refreshStudents) {
-                tasks.push(loadStudents());
-            }
-
-            if (refreshAttendance) {
-                tasks.push(loadTodayAttendance());
-            }
-
-            await Promise.all(tasks);
+            const jobs = [];
+            if (refreshStudents) jobs.push(loadStudents());
+            if (refreshAttendance) jobs.push(loadTodayAttendance());
+            await Promise.all(jobs);
         } catch (error) {
             console.error("Realtime refresh error:", error);
         }
-
-    }, 350);
+    }, 150);
 }
-
 
 function initializeRealtime() {
 
-    if (!supabaseClient) {
+    if (
+        !supabaseClient
+    ) {
         return;
     }
 
+
     try {
 
-        if (realtimeChannel) {
-            supabaseClient.removeChannel(realtimeChannel);
+        if (
+            realtimeChannel
+        ) {
+
+            supabaseClient
+                .removeChannel(
+                    realtimeChannel
+                );
+
         }
+
 
         realtimeChannel =
             supabaseClient
-                .channel("vision-school-live")
+                .channel(
+                    "vision-school-live"
+                )
+
+
                 .on(
+
                     "postgres_changes",
+
                     {
                         event: "*",
                         schema: "public",
                         table: "students"
                     },
-                    () => scheduleRealtimeRefresh("students")
+
+                    () => {
+
+                        scheduleRealtimeRefresh("students");
+
+                    }
+
                 )
+
+
                 .on(
+
                     "postgres_changes",
+
                     {
                         event: "*",
                         schema: "public",
                         table: "attendance"
                     },
-                    () => scheduleRealtimeRefresh("attendance")
+
+                    () => {
+
+                        scheduleRealtimeRefresh("attendance");
+
+                    }
+
                 )
+
+
                 .subscribe();
 
+
     } catch (error) {
+
         console.error(
             "Realtime initialization error:",
             error
         );
     }
 }
+
 
 /* =========================================================
    FIND STUDENT
