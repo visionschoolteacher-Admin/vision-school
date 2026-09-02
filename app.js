@@ -59,31 +59,17 @@ let supabaseClient = null;
 
 let students = [];
 let attendanceRecords = [];
-
-// Fast lookup maps: avoids repeated O(n) scans during QR/manual operations.
-let studentById = new Map();
-let parentStudentMap = new Map();
-let attendanceByStudentId = new Map();
-let studentSearchIndex = [];
-let attendanceLoadPromise = null;
-let studentsLoadPromise = null;
-let lastRealtimeRenderAt = 0;
-let pendingRealtimeRender = false;
-
-// Vision School school-year export window.
-// The school year starts August 17, 2026; the end date is kept at July 31,
-// 2027 so the full 12-month historical window can be exported in one file.
-const SCHOOL_YEAR_START = "2026-08-17";
-const SCHOOL_YEAR_END = "2027-07-31";
-const STUDENTS_CACHE_KEY = "vision-school:students:v2";
-const ATTENDANCE_CACHE_PREFIX = "vision-school:attendance:";
-const CACHE_TTL_MS = 10 * 60 * 1000;
+let studentMap = new Map();
+let parentCache = new Map();
+let reportLoading = false;
+let attendanceReloadTimer = null;
+let studentReloadTimer = null;
+let lastRealtimeAttendanceAt = 0;
 
 let currentStudent = null;
 
 let html5QrCode = null;
 let scannerRunning = false;
-let scanLocked = false;
 
 let realtimeChannel = null;
 
@@ -132,23 +118,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         initializeModalClosing();
 
 
-        // Paint cached data immediately, then reconcile with Supabase in parallel.
-        restoreCachedStudents();
-        restoreCachedAttendance();
-        updateConnectionStatus(true);
-        populateLevelFilter();
-        renderStudents();
-        updateAttendanceStatistics();
-        renderDashboard();
+        await testSupabaseConnection();
 
-        await Promise.all([
-            loadStudents({ render: false }),
-            loadTodayAttendance({ render: false })
-        ]);
+        await loadStudents();
 
-        renderStudents();
-        updateAttendanceStatistics();
-        renderDashboard();
+        await loadTodayAttendance();
+
         initializeRealtime();
 
 
@@ -552,92 +527,73 @@ async function testSupabaseConnection() {
 }
 
 
-function restoreCachedStudents() {
-    try {
-        const cached = JSON.parse(localStorage.getItem(STUDENTS_CACHE_KEY) || "null");
-        if (!cached || !Array.isArray(cached.data)) return;
-        if (Date.now() - Number(cached.savedAt || 0) > CACHE_TTL_MS) return;
-        students = cached.data;
-        studentById = new Map(students.map(student => [String(student.id), student]));
-        parentStudentMap = buildParentStudentMap(students);
-        studentSearchIndex = students.map(student => ({
-            student,
-            text: [student.id, student.name, student.level, student.parent, student.phone].filter(Boolean).join(" ").toLowerCase()
-        }));
-        const total = document.getElementById("totalStudents");
-        if (total) total.textContent = students.length;
-    } catch (_) {}
-}
-
-function cacheStudents() {
-    try {
-        localStorage.setItem(STUDENTS_CACHE_KEY, JSON.stringify({ savedAt: Date.now(), data: students }));
-    } catch (_) {}
-}
-
-function restoreCachedAttendance() {
-    try {
-        const key = ATTENDANCE_CACHE_PREFIX + getVientianeDate();
-        const cached = JSON.parse(sessionStorage.getItem(key) || "null");
-        if (!Array.isArray(cached)) return;
-        attendanceRecords = cached;
-        attendanceByStudentId = new Map();
-        for (const record of attendanceRecords) {
-            const studentKey = String(record.student_id);
-            if (!attendanceByStudentId.has(studentKey)) attendanceByStudentId.set(studentKey, record);
-        }
-    } catch (_) {}
-}
-
-function cacheAttendance() {
-    try {
-        sessionStorage.setItem(ATTENDANCE_CACHE_PREFIX + getVientianeDate(), JSON.stringify(attendanceRecords));
-    } catch (_) {}
-}
-
 /* =========================================================
    LOAD STUDENTS
 ========================================================= */
 
-async function loadStudents(options = {}) {
-    const { render = true } = options;
-    if (studentsLoadPromise) return studentsLoadPromise;
+async function loadStudents() {
 
-    studentsLoadPromise = (async () => {
-        try {
-            const { data, error } = await supabaseClient
+    try {
+
+        const {
+            data,
+            error
+        } =
+            await supabaseClient
                 .from("students")
-                .select("*")
-                .order("name", { ascending: true });
-            if (error) throw error;
+                .select("id,name,level,parent,phone,authorized,created_at")
+                .order(
+                    "name",
+                    {
+                        ascending: true
+                    }
+                );
 
-            students = data || [];
-            cacheStudents();
-            studentById = new Map(students.map(student => [String(student.id), student]));
-            parentStudentMap = buildParentStudentMap(students);
-            studentSearchIndex = students.map(student => ({
-                student,
-                text: [student.id, student.name, student.level, student.parent, student.phone]
-                    .filter(Boolean).join(" ").toLowerCase()
-            }));
 
-            const total = document.getElementById("totalStudents");
-            if (total) total.textContent = students.length;
-            populateLevelFilter();
-            if (render) {
-                renderStudents();
-                renderDashboard();
-            }
-        } catch (error) {
-            console.error("Unable to load students:", error);
-            showToast(error?.message || "Unable to load students.", "error");
+        if (error) {
             throw error;
-        } finally {
-            studentsLoadPromise = null;
         }
-    })();
-    return studentsLoadPromise;
+
+
+        students =
+            data || [];
+
+
+        const total =
+            document.getElementById(
+                "totalStudents"
+            );
+
+
+        if (total) {
+            total.textContent =
+                students.length;
+        }
+
+
+        populateLevelFilter();
+
+        renderStudents();
+
+        renderDashboard();
+
+
+    } catch (error) {
+
+        console.error(
+            "Unable to load students:",
+            error
+        );
+
+
+        showToast(
+            error?.message ||
+            "Unable to load students.",
+            "error"
+        );
+    }
 }
+
 
 /* =========================================================
    LEVEL FILTER
@@ -1012,62 +968,6 @@ function buildParentData() {
 
 
 /* =========================================================
-   FAST PARENT / STUDENT LOOKUPS
-========================================================= */
-
-function normalizeLookupValue(value) {
-    return String(value ?? "")
-        .trim()
-        .toLowerCase()
-        .replace(/\s+/g, " ");
-}
-
-function buildParentStudentMap(list) {
-    const map = new Map();
-
-    (list || []).forEach(student => {
-        const parents = getParentOptions(student.parent);
-
-        parents.forEach(parent => {
-            const keys = [parent.name, parent.phone]
-                .map(normalizeLookupValue)
-                .filter(Boolean);
-
-            keys.forEach(key => {
-                if (!map.has(key)) map.set(key, []);
-                const bucket = map.get(key);
-                if (!bucket.some(item => String(item.id) === String(student.id))) {
-                    bucket.push(student);
-                }
-            });
-        });
-    });
-
-    return map;
-}
-
-function findStudentsByParentKey(value) {
-    const key = normalizeLookupValue(value);
-    if (!key) return [];
-
-    const direct = parentStudentMap.get(key);
-    if (direct?.length) return direct;
-
-    // Fallback for parent QR formats that contain extra text.
-    const matches = [];
-    parentStudentMap.forEach((list, mapKey) => {
-        if (mapKey.includes(key) || key.includes(mapKey)) {
-            list.forEach(student => {
-                if (!matches.some(item => String(item.id) === String(student.id))) {
-                    matches.push(student);
-                }
-            });
-        }
-    });
-    return matches;
-}
-
-/* =========================================================
    STUDENT TABLE
 ========================================================= */
 
@@ -1098,12 +998,34 @@ function renderStudents() {
         )?.value || "";
 
 
-    const source = studentSearchIndex.length
-        ? studentSearchIndex
-        : students.map(student => ({ student, text: [student.id, student.name, student.level, student.parent, student.phone].filter(Boolean).join(" ").toLowerCase() }));
-    const filtered = source
-        .filter(item => (!search || item.text.includes(search)) && (!level || item.student.level === level))
-        .map(item => item.student);
+    const filtered =
+        students.filter(
+            student => {
+
+                const searchable = student._searchText || "";
+
+
+                return (
+
+                    (
+                        !search ||
+                        searchable.includes(
+                            search
+                        )
+                    )
+
+                    &&
+
+                    (
+                        !level ||
+                        student.level ===
+                        level
+                    )
+
+                );
+
+            }
+        );
 
 
     if (!filtered.length) {
@@ -1137,10 +1059,7 @@ function renderStudents() {
                         false;
 
 
-                    const parents =
-                        getParentOptions(
-                            student.parent
-                        );
+                    const parents = getParentOptionsCached(student);
 
 
                     const parentDisplay =
@@ -1557,10 +1476,7 @@ function editStudent(student) {
         student.level || "";
 
 
-    const parents =
-        getParentOptions(
-            student.parent
-        );
+    const parents = getParentOptionsCached(student);
 
 
     document.getElementById(
@@ -2067,8 +1983,18 @@ function showStudentProfile(student) {
                     class="time-out-button"
                     id="profileQrButton"
                 >
-                    ▣ QR Code
+                    ▣ Student QR
                 </button>
+
+                ${parents.map((parent, index) => `
+                    <button
+                        type="button"
+                        class="time-out-button profile-parent-qr"
+                        data-parent-index="${index}"
+                    >
+                        👪 ${escapeHtml(parent.label || `Parent / Guardian ${index + 1}`)} QR
+                    </button>
+                `).join("")}
 
             </div>
 
@@ -2108,14 +2034,15 @@ function showStudentProfile(student) {
         )
         ?.addEventListener(
             "click",
-            () => {
-
-                showStudentQr(
-                    student
-                );
-
-            }
+            () => showStudentQr(student)
         );
+
+    result.querySelectorAll(".profile-parent-qr").forEach(button => {
+        button.addEventListener("click", () => {
+            const parent = parents[Number(button.dataset.parentIndex)];
+            if (parent) showParentQr(parent);
+        });
+    });
 }
 
 
@@ -2255,6 +2182,111 @@ function showStudentQr(student) {
     );
 }
 
+
+/* =========================================================
+   PARENT QR V2
+
+   Parent QR contains only a parent identity payload.
+   Linked children are resolved from the existing students table,
+   so no Supabase schema change is required.
+========================================================= */
+function showParentQr(parent) {
+    const modal = document.getElementById("studentResultModal");
+    const result = document.getElementById("studentResult");
+    if (!modal || !result || !parent?.name) return;
+
+    const children = getLinkedChildren(parent);
+    const payload = JSON.stringify({
+        type: "VISION_PARENT_V2",
+        name: parent.name,
+        phone: parent.phone || ""
+    });
+
+    result.innerHTML = `
+        <div class="student-result">
+            <div class="result-avatar">👪</div>
+            <h2>Parent / Guardian QR</h2>
+            <p><strong>${escapeHtml(parent.label || "Parent / Guardian")}</strong></p>
+            <p>${escapeHtml(parent.name)}</p>
+            ${parent.phone ? `<p>📞 ${escapeHtml(parent.phone)}</p>` : ""}
+            <div id="generatedParentQr" style="display:flex;justify-content:center;margin:20px 0;"></div>
+            <p style="text-align:left"><strong>Linked Children (${children.length})</strong></p>
+            <div style="text-align:left">
+                ${children.length ? children.map(child => `
+                    <div style="padding:9px;margin:5px 0;background:#f8fafc;border-radius:8px;">
+                        <strong>${escapeHtml(child.name)}</strong><br>
+                        <small>${escapeHtml(child.id)} • ${escapeHtml(child.level || "")}</small>
+                    </div>`).join("") : `<p>No linked children found.</p>`}
+            </div>
+            <p class="muted">Scan this QR at pickup. Staff will select the child being picked up.</p>
+            <button type="button" class="primary-button" id="downloadParentQr">Download Parent QR</button>
+        </div>`;
+
+    modal.classList.add("show");
+    loadQrGenerator(() => {
+        const qr = document.getElementById("generatedParentQr");
+        if (!qr) return;
+        qr.innerHTML = "";
+        new QRCode(qr, { text: payload, width: 220, height: 220 });
+        document.getElementById("downloadParentQr")?.addEventListener("click", () => {
+            const canvas = qr.querySelector("canvas");
+            const image = qr.querySelector("img");
+            const url = canvas ? canvas.toDataURL("image/png") : image?.src;
+            if (!url) return showToast("QR image is not ready.", "error");
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `${parent.name.replace(/[^a-z0-9_-]+/gi, "_")}-Parent-QR.png`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        });
+    });
+}
+
+function parseVisionQr(decodedText) {
+    const raw = String(decodedText ?? "").trim();
+    if (!raw) return null;
+    try {
+        const parsed = JSON.parse(raw);
+        if (parsed?.type === "VISION_PARENT_V2" && parsed.name) {
+            return { type: "parent", name: parsed.name, phone: parsed.phone || "" };
+        }
+    } catch (_) {}
+    return { type: "student", id: raw };
+}
+
+function handleParentQr(parent) {
+    const children = getLinkedChildren(parent);
+    if (!children.length) {
+        showToast(`No students are linked to ${parent.name}.`, "error");
+        return;
+    }
+
+    const modal = document.getElementById("studentResultModal");
+    const result = document.getElementById("studentResult");
+    if (!modal || !result) return;
+
+    result.innerHTML = `
+        <div class="student-result">
+            <div class="result-avatar">👪</div>
+            <h2>${escapeHtml(parent.name)}</h2>
+            <p>Select the child being picked up:</p>
+            <div style="text-align:left;margin-top:15px">
+                ${children.map(child => `
+                    <button type="button" class="primary-button parent-child-select" data-child-id="${escapeAttribute(child.id)}" style="width:100%;margin:6px 0;text-align:left">
+                        👨‍🎓 ${escapeHtml(child.name)}<br><small>${escapeHtml(child.id)} • ${escapeHtml(child.level || "")}</small>
+                    </button>`).join("")}
+            </div>
+        </div>`;
+    modal.classList.add("show");
+
+    result.querySelectorAll(".parent-child-select").forEach(button => {
+        button.addEventListener("click", () => {
+            const child = findStudent(button.dataset.childId);
+            if (child) showAttendanceAction(child);
+        });
+    });
+}
 
 /* =========================================================
    LOAD QR GENERATOR
@@ -2447,9 +2479,10 @@ async function startScanner() {
     }
 
 
-    if (scannerRunning || scanLocked) {
+    if (scannerRunning) {
         return;
     }
+
 
     try {
 
@@ -2467,22 +2500,17 @@ async function startScanner() {
             },
 
             {
-                // 5 FPS is enough for attendance QR scanning and reduces CPU/battery use.
                 fps:
                     5,
 
                 qrbox:
                     {
                         width:
-                            220,
+                            250,
 
                         height:
-                            220
-                    },
-
-                // Prefer native formats where supported; html5-qrcode handles fallback.
-                rememberLastUsedCamera:
-                    true
+                            250
+                    }
             },
 
             decodedText => {
@@ -2551,7 +2579,6 @@ async function stopScanner() {
 
         scannerRunning =
             false;
-        scanLocked = false;
 
 
     } catch (error) {
@@ -2572,146 +2599,29 @@ async function stopScanner() {
 ========================================================= */
 
 async function handleQrScan(decodedText) {
+    await stopScanner();
+    const qr = parseVisionQr(decodedText);
 
-    if (scanLocked) return;
-    scanLocked = true;
-
-    try {
-        const raw = String(decodedText ?? "").trim();
-        if (!raw) {
-            showToast("QR code is empty.", "error");
-            return;
-        }
-
-        // Parent QR support:
-        // 1) JSON: { type: "parent", name, phone, students: ["S001", "S002"] }
-        // 2) Text: PARENT|Parent Name|Phone|S001,S002
-        // 3) Plain parent name/phone matching the registered parent data.
-        const parentResult = parseParentQr(raw);
-
-        if (parentResult) {
-            const children = resolveParentChildren(parentResult);
-
-            if (!children.length) {
-                showToast("No students were found for this parent QR code.", "error");
-                return;
-            }
-
-            showParentChildren(children, parentResult.name || parentResult.phone || "Parent");
-            return;
-        }
-
-        const student = findStudent(raw);
-
-        if (!student) {
-            showToast(`Student ID "${raw}" was not found.`, "error");
-            return;
-        }
-
-        // Do not reload today's attendance on every scan. The live channel keeps
-        // the current-day cache updated, and manual searches already use it too.
-        showAttendanceAction(student);
-    } finally {
-        scanLocked = false;
-    }
-}
-
-function parseParentQr(raw) {
-    const value = String(raw || "").trim();
-    if (!value) return null;
-
-    if (value.startsWith("{") && value.endsWith("}")) {
-        try {
-            const parsed = JSON.parse(value);
-            const type = normalizeLookupValue(parsed.type || parsed.kind || parsed.role);
-            const ids = parsed.students || parsed.studentIds || parsed.children || [];
-            if (type === "parent" || type === "guardian" || Array.isArray(ids)) {
-                return {
-                    name: parsed.name || parsed.parent || parsed.guardian || "",
-                    phone: parsed.phone || parsed.contact || "",
-                    studentIds: Array.isArray(ids) ? ids.map(String) : []
-                };
-            }
-        } catch (_) {
-            // Not JSON; continue with text formats.
-        }
+    if (!qr) {
+        showToast("Invalid QR code.", "error");
+        return;
     }
 
-    const parts = value.split("|").map(item => item.trim());
-    if (normalizeLookupValue(parts[0]) === "parent" || normalizeLookupValue(parts[0]) === "guardian") {
-        return {
-            name: parts[1] || "",
-            phone: parts[2] || "",
-            studentIds: (parts[3] || "").split(",").map(item => item.trim()).filter(Boolean)
-        };
+    if (qr.type === "parent") {
+        handleParentQr(qr);
+        return;
     }
 
-    const parentMatches = findStudentsByParentKey(value);
-    if (parentMatches.length) {
-        return { name: value, phone: "", studentIds: [] };
+    const student = findStudent(qr.id);
+    if (!student) {
+        showToast(`Student ID "${qr.id}" was not found.`, "error");
+        return;
     }
 
-    return null;
+    // The scan already uses the in-memory TODAY cache. Avoid a duplicate query.
+    showAttendanceAction(student);
 }
 
-function resolveParentChildren(parentResult) {
-    const byId = (parentResult.studentIds || [])
-        .map(id => findStudent(id))
-        .filter(Boolean);
-
-    if (byId.length) return byId;
-
-    const keys = [parentResult.name, parentResult.phone]
-        .map(normalizeLookupValue)
-        .filter(Boolean);
-
-    const children = [];
-    keys.forEach(key => {
-        (parentStudentMap.get(key) || []).forEach(student => {
-            if (!children.some(item => String(item.id) === String(student.id))) {
-                children.push(student);
-            }
-        });
-    });
-
-    return children;
-}
-
-function showParentChildren(children, parentName) {
-    const modal = document.getElementById("studentResultModal");
-    const result = document.getElementById("studentResult");
-    if (!modal || !result) return;
-
-    result.innerHTML = `
-        <div class="student-result">
-            <div class="result-avatar">👨‍👩‍👧‍👦</div>
-            <h2>Parent / Guardian QR</h2>
-            <p>${escapeHtml(parentName)}</p>
-            <p>Select a student:</p>
-            <div style="display:grid;gap:10px;margin-top:15px;">
-                ${children.map(student => `
-                    <button type="button" class="primary-button parent-child-select" data-student-id="${escapeAttribute(student.id)}">
-                        ${escapeHtml(student.name)} — ${escapeHtml(student.level || "")}
-                    </button>
-                `).join("")}
-            </div>
-            <div class="result-actions" style="margin-top:20px;">
-                <button type="button" class="secondary-button" id="closeParentChildren">Cancel</button>
-            </div>
-        </div>
-    `;
-
-    modal.classList.add("show");
-
-    result.querySelectorAll(".parent-child-select").forEach(button => {
-        button.addEventListener("click", () => {
-            const student = findStudent(button.dataset.studentId);
-            if (student) showAttendanceAction(student);
-        });
-    });
-
-    document.getElementById("closeParentChildren")?.addEventListener("click", closeResultModal);
-}
 
 
 /* =========================================================
@@ -2823,6 +2733,10 @@ function getVientianeDate() {
    FORMAT TIME
 ========================================================= */
 
+const vientianeTimeFormatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Vientiane", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true
+});
+
 function formatTime(value) {
 
     if (!value) {
@@ -2832,27 +2746,7 @@ function formatTime(value) {
 
     try {
 
-        return new Date(
-            value
-        ).toLocaleTimeString(
-            "en-US",
-            {
-                timeZone:
-                    "Asia/Vientiane",
-
-                hour:
-                    "2-digit",
-
-                minute:
-                    "2-digit",
-
-                second:
-                    "2-digit",
-
-                hour12:
-                    true
-            }
-        );
+        return vientianeTimeFormatter.format(new Date(value));
 
     } catch (_) {
 
@@ -2886,7 +2780,16 @@ function showAttendanceAction(
     }
 
 
-    const record = attendanceByStudentId.get(String(student.id));
+    const record =
+        attendanceRecords.find(
+            item =>
+                String(
+                    item.student_id
+                ) ===
+                String(
+                    student.id
+                )
+        );
 
 
     const hasTimeIn =
@@ -3163,11 +3066,32 @@ async function recordTimeIn(
             getVientianeDate();
 
 
-        let existing = attendanceByStudentId.get(String(student.id)) || null;
-        // Cache is authoritative for today's loaded dataset. If the app started
-        // before attendance finished loading, wait for that single shared request.
-        if (!attendanceLoadPromise && !attendanceRecords.length) await loadTodayAttendance({ render: false });
-        existing = attendanceByStudentId.get(String(student.id)) || existing;
+        const {
+            data: existingRecords,
+            error: searchError
+        } =
+            await supabaseClient
+                .from("attendance")
+                .select("id,student_id,student_name,date,time_in,time_out,pickup_person,pickup_relationship,pickup_phone,pickup_option,approver,notes,created_at")
+                .eq(
+                    "student_id",
+                    student.id
+                )
+                .eq(
+                    "date",
+                    today
+                )
+                .limit(1);
+
+
+        if (searchError) {
+            throw searchError;
+        }
+
+
+        const existing =
+            existingRecords?.[0] ||
+            null;
 
 
         if (
@@ -3239,25 +3163,13 @@ async function recordTimeIn(
         }
 
 
-        const updatedRecord = existing
-            ? { ...existing, time_in: now }
-            : { id: crypto.randomUUID ? crypto.randomUUID() : `local-${Date.now()}`, student_id: student.id, student_name: student.name, date: today, time_in: now };
-        if (existing) {
-            const index = attendanceRecords.findIndex(r => String(r.id) === String(existing.id));
-            if (index >= 0) attendanceRecords[index] = updatedRecord;
-        } else {
-            attendanceRecords.unshift(updatedRecord);
-        }
-        attendanceByStudentId.set(String(student.id), updatedRecord);
-        cacheAttendance();
-        updateAttendanceStatistics();
-        renderAttendance();
-        renderDashboard();
-
         showToast(
             `${student.name} — Time In recorded successfully.`,
             "success"
         );
+
+
+        await loadTodayAttendance();
 
 
         closeResultModal();
@@ -3306,7 +3218,16 @@ function openPickupForm(
     closeAfterSave = false
 ) {
 
-    const record = attendanceByStudentId.get(String(student.id));
+    const record =
+        attendanceRecords.find(
+            item =>
+                String(
+                    item.student_id
+                ) ===
+                String(
+                    student.id
+                )
+        );
 
 
     if (!record) {
@@ -4015,18 +3936,9 @@ async function savePickup(student, record) {
     closeResultModal();
 
 
-    // Apply the returned row to the local cache instead of downloading today's
-    // entire attendance table again. Realtime will reconcile other clients.
-    if (data) {
-      const key = String(data.student_id);
-      attendanceByStudentId.set(key, data);
-      cacheAttendance();
-      const index = attendanceRecords.findIndex(r => String(r.id) === String(data.id));
-      if (index >= 0) attendanceRecords[index] = data;
-    }
-    updateAttendanceStatistics();
-    renderAttendance();
-    renderDashboard();
+    /* Reload attendance */
+
+    await loadTodayAttendance();
 
 
   } catch (error) {
@@ -4082,8 +3994,32 @@ async function recordTimeOut(
             getVientianeDate();
 
 
-        if (!attendanceLoadPromise && !attendanceRecords.length) await loadTodayAttendance({ render: false });
-        const existing = attendanceByStudentId.get(String(student.id)) || null;
+        const {
+            data,
+            error: searchError
+        } =
+            await supabaseClient
+                .from("attendance")
+                .select("id,student_id,student_name,date,time_in,time_out,pickup_person,pickup_relationship,pickup_phone,pickup_option,approver,notes,created_at")
+                .eq(
+                    "student_id",
+                    student.id
+                )
+                .eq(
+                    "date",
+                    today
+                )
+                .limit(1);
+
+
+        if (searchError) {
+            throw searchError;
+        }
+
+
+        const existing =
+            data?.[0] ||
+            null;
 
 
         if (!existing) {
@@ -4145,19 +4081,13 @@ async function recordTimeOut(
         }
 
 
-        existing.time_out = now;
-        attendanceByStudentId.set(String(student.id), existing);
-        cacheAttendance();
-        const recordIndex = attendanceRecords.findIndex(r => String(r.id) === String(existing.id));
-        if (recordIndex >= 0) attendanceRecords[recordIndex] = existing;
-        updateAttendanceStatistics();
-        renderAttendance();
-        renderDashboard();
-
         showToast(
             `${student.name} — Time Out recorded successfully.`,
             "success"
         );
+
+
+        await loadTodayAttendance();
 
 
         closeResultModal();
@@ -4186,61 +4116,114 @@ async function recordTimeOut(
    LOAD TODAY ATTENDANCE
 ========================================================= */
 
-async function loadTodayAttendance(options = {}) {
-    const { render = true } = options;
-    if (attendanceLoadPromise) return attendanceLoadPromise;
+async function loadTodayAttendance({ silent = false } = {}) {
+    if (!supabaseClient) return;
+    try {
+        const today = getVientianeDate();
+        const { data, error } = await supabaseClient
+            .from("attendance")
+            .select("id,student_id,student_name,date,time_in,time_out,pickup_person,pickup_relationship,pickup_phone,pickup_option,approver,notes,created_at")
+            .eq("date", today)
+            .order("created_at", { ascending: false });
 
-    attendanceLoadPromise = (async () => {
-        try {
-            const today = getVientianeDate();
-            const { data, error } = await supabaseClient
-                .from("attendance")
-                .select("*")
-                .eq("date", today)
-                .order("created_at", { ascending: false });
-            if (error) throw error;
-
-            attendanceRecords = data || [];
-            cacheAttendance();
-            attendanceByStudentId = new Map();
-            for (const record of attendanceRecords) {
-                const key = String(record.student_id);
-                if (!attendanceByStudentId.has(key)) attendanceByStudentId.set(key, record);
-            }
-            if (render) {
-                updateAttendanceStatistics();
-                renderAttendance();
-                renderDashboard();
-            }
-        } catch (error) {
-            console.error("Unable to load attendance:", error);
-            showToast(error?.message || "Unable to load today's attendance.", "error");
-            throw error;
-        } finally {
-            attendanceLoadPromise = null;
-        }
-    })();
-    return attendanceLoadPromise;
+        if (error) throw error;
+        attendanceRecords = data || [];
+        updateAttendanceStatistics();
+        const active = document.querySelector(".page-section.active")?.id;
+        if (active === "attendance") renderAttendance();
+        if (active === "dashboard") renderDashboard();
+    } catch (error) {
+        console.error("Unable to load attendance:", error);
+        if (!silent) showToast(error?.message || "Unable to load today's attendance.", "error");
+    }
 }
+
+function scheduleAttendanceReload() {
+    clearTimeout(attendanceReloadTimer);
+    attendanceReloadTimer = setTimeout(() => loadTodayAttendance({ silent: true }), 350);
+}
+
+function scheduleStudentReload() {
+    clearTimeout(studentReloadTimer);
+    studentReloadTimer = setTimeout(() => loadStudents(), 350);
+}
+
+
 
 /* =========================================================
    ATTENDANCE STATISTICS
 ========================================================= */
 
 function updateAttendanceStatistics() {
-    let timeInCount = 0, timeOutCount = 0, currentlyIn = 0;
-    for (const record of attendanceRecords) {
-        if (record.time_in) timeInCount++;
-        if (record.time_out) timeOutCount++;
-        if (record.time_in && !record.time_out) currentlyIn++;
+
+    const timeInCount =
+        attendanceRecords.filter(
+            record =>
+                Boolean(
+                    record.time_in
+                )
+        ).length;
+
+
+    const timeOutCount =
+        attendanceRecords.filter(
+            record =>
+                Boolean(
+                    record.time_out
+                )
+        ).length;
+
+
+    const currentlyIn =
+        attendanceRecords.filter(
+            record =>
+                record.time_in &&
+                !record.time_out
+        ).length;
+
+
+    const timeInElement =
+        document.getElementById(
+            "timeInCount"
+        );
+
+
+    const timeOutElement =
+        document.getElementById(
+            "timeOutCount"
+        );
+
+
+    const currentlyInElement =
+        document.getElementById(
+            "currentlyInCount"
+        );
+
+
+    if (timeInElement) {
+
+        timeInElement.textContent =
+            timeInCount;
+
     }
-    const timeInElement = document.getElementById("timeInCount");
-    const timeOutElement = document.getElementById("timeOutCount");
-    const currentlyInElement = document.getElementById("currentlyInCount");
-    if (timeInElement) timeInElement.textContent = timeInCount;
-    if (timeOutElement) timeOutElement.textContent = timeOutCount;
-    if (currentlyInElement) currentlyInElement.textContent = currentlyIn;
+
+
+    if (timeOutElement) {
+
+        timeOutElement.textContent =
+            timeOutCount;
+
+    }
+
+
+    if (currentlyInElement) {
+
+        currentlyInElement.textContent =
+            currentlyIn;
+
+    }
 }
+
 
 /* =========================================================
    ATTENDANCE TABLE
@@ -4423,7 +4406,7 @@ function renderAttendance() {
                                                 "
                                             >
                                                 ${escapeHtml(
-                                                    record.Pickup_relationship ||
+                                                    record.Pickup_relationship || record.pickup_relationship ||
                                                     record.pickup_option ||
                                                     ""
                                                 )}
@@ -4616,7 +4599,7 @@ function initializeSearch() {
         )
         ?.addEventListener(
             "input",
-            debounce(renderStudents, 80)
+            renderStudents
         );
 
 
@@ -4636,7 +4619,7 @@ function initializeSearch() {
         )
         ?.addEventListener(
             "input",
-            debounce(renderAttendance, 80)
+            renderAttendance
         );
 
 
@@ -4665,178 +4648,112 @@ function initializeSearch() {
 ========================================================= */
 
 function initializeReports() {
-    document
-        .getElementById("exportCsv")
-        ?.addEventListener("click", exportCsv);
+    document.getElementById("exportCsv")?.addEventListener("click", () => exportReport("today"));
+    setupReportControls();
 }
 
-async function exportCsv() {
-    const choice = prompt(
-        "Attendance Export\n\n1 = Today\n2 = Month (YYYY-MM)\n3 = Custom date range (YYYY-MM-DD,YYYY-MM-DD)\n4 = Full school year (Aug 17, 2026 - Jul 31, 2027)\n\nEnter 1, 2, 3, or 4:",
-        "1"
-    );
+function setupReportControls() {
+    const button = document.getElementById("exportCsv");
+    if (!button || document.getElementById("reportRangeControls")) return;
+    const wrap = document.createElement("div");
+    wrap.id = "reportRangeControls";
+    wrap.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px;";
+    wrap.innerHTML = `
+        <select id="reportRangeSelect" class="input">
+            <option value="today">Today</option>
+            <option value="month">Monthly</option>
+            <option value="semester1">First Semester (August - December)</option>
+            <option value="semester2">Second Semester (January - May)</option>
+            <option value="custom">Custom Date Range</option>
+        </select>
+        <input id="reportStartDate" class="input" type="date" style="display:none">
+        <input id="reportEndDate" class="input" type="date" style="display:none">
+        <button id="exportSelectedReport" type="button" class="secondary-button">Export Selected</button>`;
+    button.parentElement?.appendChild(wrap);
 
-    if (choice === null) return;
-
-    let startDate = "";
-    let endDate = "";
-    let fileLabel = "";
-
-    try {
-        switch (String(choice).trim()) {
-            case "1":
-                startDate = getVientianeDate();
-                endDate = startDate;
-                fileLabel = startDate;
-                break;
-
-            case "2": {
-                const month = prompt("Enter month as YYYY-MM:", getVientianeDate().slice(0, 7));
-                if (!month || !/^\d{4}-\d{2}$/.test(month.trim())) {
-                    showToast("Invalid month. Use YYYY-MM.", "error");
-                    return;
-                }
-                const normalized = month.trim();
-                const [year, monthNumber] = normalized.split("-").map(Number);
-                if (monthNumber < 1 || monthNumber > 12) {
-                    showToast("Invalid month. Use YYYY-MM.", "error");
-                    return;
-                }
-                startDate = `${year}-${String(monthNumber).padStart(2, "0")}-01`;
-                endDate = new Date(Date.UTC(year, monthNumber, 0)).toISOString().slice(0, 10);
-                fileLabel = normalized;
-                break;
-            }
-
-            case "3": {
-                const range = prompt("Enter date range as YYYY-MM-DD,YYYY-MM-DD:", `${getVientianeDate()},${getVientianeDate()}`);
-                if (!range) return;
-                const parts = range.split(",").map(item => item.trim());
-                if (parts.length !== 2 || !isValidDateString(parts[0]) || !isValidDateString(parts[1])) {
-                    showToast("Invalid date range.", "error");
-                    return;
-                }
-                [startDate, endDate] = parts;
-                if (startDate > endDate) [startDate, endDate] = [endDate, startDate];
-                fileLabel = `${startDate}-to-${endDate}`;
-                break;
-            }
-
-            case "4":
-                startDate = SCHOOL_YEAR_START;
-                endDate = SCHOOL_YEAR_END;
-                fileLabel = `${startDate}-to-${endDate}`;
-                break;
-
-            default:
-                showToast("Please select 1, 2, 3, or 4.", "error");
-                return;
+    const select = document.getElementById("reportRangeSelect");
+    const start = document.getElementById("reportStartDate");
+    const end = document.getElementById("reportEndDate");
+    select?.addEventListener("change", () => {
+        const custom = select.value === "custom";
+        if (start) start.style.display = custom ? "inline-block" : "none";
+        if (end) end.style.display = custom ? "inline-block" : "none";
+        if (select.value === "month") {
+            const today = getVientianeDate();
+            if (start) start.value = today.slice(0,7) + "-01";
+            if (end) end.value = today;
         }
+    });
+    document.getElementById("exportSelectedReport")?.addEventListener("click", () => {
+        exportReport(select?.value || "today", start?.value, end?.value);
+    });
+}
 
-        const records = await fetchAttendanceRange(startDate, endDate);
+function getReportDateRange(range, startDate, endDate) {
+    const today = getVientianeDate();
+    if (range === "today") return [today, today];
+    if (range === "month") return [today.slice(0,7) + "-01", today];
+    if (range === "custom") return [startDate, endDate];
+    const year = Number(today.slice(0,4));
+    if (range === "semester1") return [`${year}-08-01`, `${year}-12-31`];
+    if (range === "semester2") return [`${year}-01-01`, `${year}-05-31`];
+    return [today, today];
+}
 
+async function fetchAttendanceForRange(startDate, endDate) {
+    if (!startDate || !endDate || startDate > endDate) throw new Error("Please select a valid date range.");
+    if (startDate === getVientianeDate() && endDate === startDate) return attendanceRecords.slice();
+    const { data, error } = await supabaseClient
+        .from("attendance")
+        .select("id,student_id,student_name,date,time_in,time_out,pickup_person,pickup_relationship,pickup_phone,pickup_option,approver,notes,created_at")
+        .gte("date", startDate)
+        .lte("date", endDate)
+        .order("date", { ascending: true })
+        .order("created_at", { ascending: true });
+    if (error) throw error;
+    return data || [];
+}
+
+async function exportReport(range = "today", startDate, endDate) {
+    if (reportLoading) return;
+    reportLoading = true;
+    try {
+        const [start, end] = getReportDateRange(range, startDate, endDate);
+        if (!start || !end) throw new Error("Please choose both start and end dates.");
+        const records = await fetchAttendanceForRange(start, end);
         if (!records.length) {
-            showToast(`No attendance records found from ${startDate} to ${endDate}.`, "error");
+            showToast("There are no attendance records in this date range.", "error");
             return;
         }
-
-        downloadAttendanceCsv(records, fileLabel);
-        showToast(`Attendance CSV exported: ${records.length} record(s).`, "success");
+        const headers = ["Date","Student ID","Student Name","Level","Time In","Time Out","Pickup Person","Pickup Relationship","Pickup Phone","Pickup Option","Approver","Notes"];
+        const rows = records.map(record => {
+            const student = findStudent(record.student_id);
+            return [record.date || "", record.student_id || "", record.student_name || "", student?.level || "",
+                record.time_in ? formatTime(record.time_in) : "", record.time_out ? formatTime(record.time_out) : "",
+                record.pickup_person || "", record.Pickup_relationship || record.pickup_relationship || "", record.pickup_phone || "",
+                record.pickup_option || "", record.approver || "", record.notes || ""];
+        });
+        const csv = [headers, ...rows].map(row => row.map(csvEscape).join(",")).join("\r\n");
+        const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `Vision-School-Attendance-${start}-to-${end}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+        showToast(`Attendance CSV exported: ${start} to ${end}.`, "success");
     } catch (error) {
-        console.error("Attendance export error:", error);
-        showToast(error?.message || "Unable to export attendance records.", "error");
+        console.error("Report export error:", error);
+        showToast(error?.message || "Unable to export attendance report.", "error");
+    } finally {
+        reportLoading = false;
     }
 }
 
-function isValidDateString(value) {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-    const date = new Date(`${value}T00:00:00Z`);
-    return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
-}
+function exportCsv() { return exportReport("today"); }
 
-async function fetchAttendanceRange(startDate, endDate) {
-    // Use the already-loaded today cache for a single-day export.
-    if (startDate === endDate && startDate === getVientianeDate()) {
-        return [...attendanceRecords];
-    }
-
-    const pageSize = 1000;
-    let from = 0;
-    const allRecords = [];
-
-    while (true) {
-        const { data, error } = await supabaseClient
-            .from("attendance")
-            .select("*")
-            .gte("date", startDate)
-            .lte("date", endDate)
-            .order("date", { ascending: true })
-            .order("created_at", { ascending: true })
-            .range(from, from + pageSize - 1);
-
-        if (error) throw error;
-
-        const page = data || [];
-        allRecords.push(...page);
-
-        if (page.length < pageSize) break;
-        from += pageSize;
-    }
-
-    return allRecords;
-}
-
-function downloadAttendanceCsv(records, fileLabel) {
-    const headers = [
-        "Date",
-        "Student ID",
-        "Student Name",
-        "Level",
-        "Time In",
-        "Time Out",
-        "Pickup Person",
-        "Pickup Relationship",
-        "Pickup Phone",
-        "Pickup Option",
-        "Approver",
-        "Notes"
-    ];
-
-    const rows = records.map(record => {
-        const student = findStudent(record.student_id);
-        return [
-            record.date || "",
-            record.student_id || "",
-            record.student_name || student?.name || "",
-            student?.level || "",
-            record.time_in ? formatTime(record.time_in) : "",
-            record.time_out ? formatTime(record.time_out) : "",
-            record.pickup_person || "",
-            record.pickup_relationship || record.Pickup_relationship || "",
-            record.pickup_phone || "",
-            record.pickup_option || "",
-            record.approver || "",
-            record.notes || ""
-        ];
-    });
-
-    const csv = [headers, ...rows]
-        .map(row => row.map(csvEscape).join(","))
-        .join("\r\n");
-
-    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-
-    link.href = url;
-    link.download = `Vision-School-Attendance-${fileLabel}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-
-    // Revoke after the click has been queued by the browser.
-    setTimeout(() => URL.revokeObjectURL(url), 0);
-}
 
 
 function csvEscape(value) {
@@ -4959,101 +4876,95 @@ function initializeRealtime() {
         if (realtimeChannel) supabaseClient.removeChannel(realtimeChannel);
 
         realtimeChannel = supabaseClient
-            .channel("vision-school-live")
+            .channel("vision-school-live-v2")
             .on("postgres_changes", { event: "*", schema: "public", table: "students" }, payload => {
-                applyStudentRealtime(payload);
+                // Update the local cache directly; do not reload the entire student list for every event.
+                const row = payload.new || payload.old;
+                if (!row?.id) return scheduleStudentReload();
+                if (payload.eventType === "DELETE") {
+                    studentMap.delete(String(row.id));
+                    students = students.filter(s => String(s.id) !== String(row.id));
+                } else {
+                    row._searchText = [row.id, row.name, row.level, row.parent, row.phone]
+                        .filter(Boolean).join(" ").toLowerCase();
+                    studentMap.set(String(row.id), row);
+                    const index = students.findIndex(s => String(s.id) === String(row.id));
+                    if (index >= 0) students[index] = row;
+                    else students.push(row);
+                    students.sort((a,b) => String(a.name || "").localeCompare(String(b.name || "")));
+                }
+                parentCache.clear();
+                populateLevelFilter();
+                const active = document.querySelector(".page-section.active")?.id;
+                if (active === "students") renderStudents();
+                updateStudentTotal();
             })
             .on("postgres_changes", { event: "*", schema: "public", table: "attendance" }, payload => {
-                applyAttendanceRealtime(payload);
+                const row = payload.new || payload.old;
+                // Only mutate the in-memory cache when the event belongs to today.
+                if (!row?.id) return scheduleAttendanceReload();
+                const today = getVientianeDate();
+                if (row.date !== today) return;
+                const index = attendanceRecords.findIndex(r => String(r.id) === String(row.id));
+                if (payload.eventType === "DELETE") {
+                    if (index >= 0) attendanceRecords.splice(index, 1);
+                } else if (index >= 0) {
+                    attendanceRecords[index] = row;
+                } else {
+                    attendanceRecords.push(row);
+                }
+                attendanceRecords.sort((a,b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
+                updateAttendanceStatistics();
+                const active = document.querySelector(".page-section.active")?.id;
+                if (active === "attendance") renderAttendance();
+                if (active === "dashboard") renderDashboard();
+                lastRealtimeAttendanceAt = Date.now();
             })
-            .subscribe();
+            .subscribe(status => console.log("Realtime V2:", status));
     } catch (error) {
         console.error("Realtime initialization error:", error);
     }
 }
 
-function scheduleRealtimeRender(kind) {
-    pendingRealtimeRender = true;
-    const now = performance.now();
-    const wait = Math.max(0, 120 - (now - lastRealtimeRenderAt));
-    setTimeout(() => {
-        if (!pendingRealtimeRender) return;
-        pendingRealtimeRender = false;
-        lastRealtimeRenderAt = performance.now();
-        updateAttendanceStatistics();
-        const active = document.querySelector(".page-section.active")?.id;
-        if (kind === "students" || active === "students") renderStudents();
-        if (kind === "attendance" || active === "attendance") renderAttendance();
-        if (kind === "students" || kind === "attendance" || active === "dashboard") renderDashboard();
-    }, wait);
-}
-
-function applyStudentRealtime(payload) {
-    const row = payload?.new || payload?.old;
-    if (!row || row.id == null) return;
-    const key = String(row.id);
-    const index = students.findIndex(s => String(s.id) === key);
-    if (payload.eventType === "DELETE") {
-        if (index >= 0) students.splice(index, 1);
-        studentById.delete(key);
-    } else {
-        if (index >= 0) students[index] = payload.new;
-        else students.push(payload.new);
-        studentById.set(key, payload.new);
-    }
-    students.sort((a,b) => String(a.name || "").localeCompare(String(b.name || "")));
-    studentSearchIndex = students.map(student => ({ student, text: [student.id, student.name, student.level, student.parent, student.phone].filter(Boolean).join(" ").toLowerCase() }));
-    parentStudentMap = buildParentStudentMap(students);
-    cacheStudents();
+function updateStudentTotal() {
     const total = document.getElementById("totalStudents");
     if (total) total.textContent = students.length;
-    populateLevelFilter();
-    scheduleRealtimeRender("students");
 }
 
-function applyAttendanceRealtime(payload) {
-    const row = payload?.new || payload?.old;
-    if (!row || row.date !== getVientianeDate()) return;
-    const key = String(row.id);
-    const index = attendanceRecords.findIndex(r => String(r.id) === key);
-    if (payload.eventType === "DELETE") {
-        if (index >= 0) attendanceRecords.splice(index, 1);
-        attendanceByStudentId.delete(String(row.student_id));
-    } else {
-        if (index >= 0) attendanceRecords[index] = payload.new;
-        else attendanceRecords.unshift(payload.new);
-        attendanceByStudentId.set(String(payload.new.student_id), payload.new);
-    }
-    cacheAttendance();
-    scheduleRealtimeRender("attendance");
-}
 
-function updateConnectionStatus(connected) {
-    const dot = document.getElementById("connectionDot");
-    const text = document.getElementById("connectionText");
-    dot?.classList.toggle("connected", connected);
-    dot?.classList.toggle("offline", !connected);
-    if (text) text.textContent = connected ? "Connected" : "Connection Error";
-}
-
-function debounce(fn, delay = 80) {
-    let timer = null;
-    return function (...args) {
-        clearTimeout(timer);
-        timer = setTimeout(() => fn.apply(this, args), delay);
-    };
-}
 
 /* =========================================================
    FIND STUDENT
 ========================================================= */
 
-function findStudent(
-    studentId
-) {
-
-    return studentById.get(String(studentId)) || null;
+function findStudent(studentId) {
+    return studentMap.get(String(studentId)) || null;
 }
+
+function normalizeParentPart(value) {
+    return String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function getParentOptionsCached(student) {
+    const key = String(student?.id ?? "") + "|" + String(student?.parent ?? "");
+    if (parentCache.has(key)) return parentCache.get(key);
+    const parsed = getParentOptions(student?.parent);
+    parentCache.set(key, parsed);
+    return parsed;
+}
+
+function getParentKey(parent) {
+    return `${normalizeParentPart(parent?.name)}|${normalizeParentPart(parent?.phone)}`;
+}
+
+function getLinkedChildren(parent) {
+    if (!parent?.name) return [];
+    const target = getParentKey(parent);
+    return students.filter(student =>
+        getParentOptionsCached(student).some(p => getParentKey(p) === target)
+    );
+}
+
 
 
 /* =========================================================
@@ -5172,7 +5083,11 @@ window.VisionSchool = {
         () => students,
 
     getAttendance:
-        () => attendanceRecords
+        () => attendanceRecords,
+
+    showParentQr,
+    handleParentQr,
+    exportReport
 
 };
 
