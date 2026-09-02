@@ -63,12 +63,21 @@ let attendanceRecords = [];
 // Fast lookup maps: avoids repeated O(n) scans during QR/manual operations.
 let studentById = new Map();
 let parentStudentMap = new Map();
+let attendanceByStudentId = new Map();
+let studentSearchIndex = [];
+let attendanceLoadPromise = null;
+let studentsLoadPromise = null;
+let lastRealtimeRenderAt = 0;
+let pendingRealtimeRender = false;
 
 // Vision School school-year export window.
 // The school year starts August 17, 2026; the end date is kept at July 31,
 // 2027 so the full 12-month historical window can be exported in one file.
 const SCHOOL_YEAR_START = "2026-08-17";
 const SCHOOL_YEAR_END = "2027-07-31";
+const STUDENTS_CACHE_KEY = "vision-school:students:v2";
+const ATTENDANCE_CACHE_PREFIX = "vision-school:attendance:";
+const CACHE_TTL_MS = 10 * 60 * 1000;
 
 let currentStudent = null;
 
@@ -123,12 +132,23 @@ document.addEventListener("DOMContentLoaded", async () => {
         initializeModalClosing();
 
 
-        await testSupabaseConnection();
+        // Paint cached data immediately, then reconcile with Supabase in parallel.
+        restoreCachedStudents();
+        restoreCachedAttendance();
+        updateConnectionStatus(true);
+        populateLevelFilter();
+        renderStudents();
+        updateAttendanceStatistics();
+        renderDashboard();
 
-        await loadStudents();
+        await Promise.all([
+            loadStudents({ render: false }),
+            loadTodayAttendance({ render: false })
+        ]);
 
-        await loadTodayAttendance();
-
+        renderStudents();
+        updateAttendanceStatistics();
+        renderDashboard();
         initializeRealtime();
 
 
@@ -532,78 +552,92 @@ async function testSupabaseConnection() {
 }
 
 
+function restoreCachedStudents() {
+    try {
+        const cached = JSON.parse(localStorage.getItem(STUDENTS_CACHE_KEY) || "null");
+        if (!cached || !Array.isArray(cached.data)) return;
+        if (Date.now() - Number(cached.savedAt || 0) > CACHE_TTL_MS) return;
+        students = cached.data;
+        studentById = new Map(students.map(student => [String(student.id), student]));
+        parentStudentMap = buildParentStudentMap(students);
+        studentSearchIndex = students.map(student => ({
+            student,
+            text: [student.id, student.name, student.level, student.parent, student.phone].filter(Boolean).join(" ").toLowerCase()
+        }));
+        const total = document.getElementById("totalStudents");
+        if (total) total.textContent = students.length;
+    } catch (_) {}
+}
+
+function cacheStudents() {
+    try {
+        localStorage.setItem(STUDENTS_CACHE_KEY, JSON.stringify({ savedAt: Date.now(), data: students }));
+    } catch (_) {}
+}
+
+function restoreCachedAttendance() {
+    try {
+        const key = ATTENDANCE_CACHE_PREFIX + getVientianeDate();
+        const cached = JSON.parse(sessionStorage.getItem(key) || "null");
+        if (!Array.isArray(cached)) return;
+        attendanceRecords = cached;
+        attendanceByStudentId = new Map();
+        for (const record of attendanceRecords) {
+            const studentKey = String(record.student_id);
+            if (!attendanceByStudentId.has(studentKey)) attendanceByStudentId.set(studentKey, record);
+        }
+    } catch (_) {}
+}
+
+function cacheAttendance() {
+    try {
+        sessionStorage.setItem(ATTENDANCE_CACHE_PREFIX + getVientianeDate(), JSON.stringify(attendanceRecords));
+    } catch (_) {}
+}
+
 /* =========================================================
    LOAD STUDENTS
 ========================================================= */
 
-async function loadStudents() {
+async function loadStudents(options = {}) {
+    const { render = true } = options;
+    if (studentsLoadPromise) return studentsLoadPromise;
 
-    try {
-
-        const {
-            data,
-            error
-        } =
-            await supabaseClient
+    studentsLoadPromise = (async () => {
+        try {
+            const { data, error } = await supabaseClient
                 .from("students")
                 .select("*")
-                .order(
-                    "name",
-                    {
-                        ascending: true
-                    }
-                );
+                .order("name", { ascending: true });
+            if (error) throw error;
 
+            students = data || [];
+            cacheStudents();
+            studentById = new Map(students.map(student => [String(student.id), student]));
+            parentStudentMap = buildParentStudentMap(students);
+            studentSearchIndex = students.map(student => ({
+                student,
+                text: [student.id, student.name, student.level, student.parent, student.phone]
+                    .filter(Boolean).join(" ").toLowerCase()
+            }));
 
-        if (error) {
+            const total = document.getElementById("totalStudents");
+            if (total) total.textContent = students.length;
+            populateLevelFilter();
+            if (render) {
+                renderStudents();
+                renderDashboard();
+            }
+        } catch (error) {
+            console.error("Unable to load students:", error);
+            showToast(error?.message || "Unable to load students.", "error");
             throw error;
+        } finally {
+            studentsLoadPromise = null;
         }
-
-
-        students = data || [];
-
-        // Build lookup indexes once after loading students.
-        studentById = new Map(
-            students.map(student => [String(student.id), student])
-        );
-
-        parentStudentMap = buildParentStudentMap(students);
-
-        const total =
-            document.getElementById(
-                "totalStudents"
-            );
-
-
-        if (total) {
-            total.textContent =
-                students.length;
-        }
-
-
-        populateLevelFilter();
-
-        renderStudents();
-
-        renderDashboard();
-
-
-    } catch (error) {
-
-        console.error(
-            "Unable to load students:",
-            error
-        );
-
-
-        showToast(
-            error?.message ||
-            "Unable to load students.",
-            "error"
-        );
-    }
+    })();
+    return studentsLoadPromise;
 }
-
 
 /* =========================================================
    LEVEL FILTER
@@ -1064,49 +1098,12 @@ function renderStudents() {
         )?.value || "";
 
 
-    const filtered =
-        students.filter(
-            student => {
-
-                const searchable = [
-
-                    student.id,
-
-                    student.name,
-
-                    student.level,
-
-                    student.parent,
-
-                    student.phone
-
-                ]
-                    .filter(Boolean)
-                    .join(" ")
-                    .toLowerCase();
-
-
-                return (
-
-                    (
-                        !search ||
-                        searchable.includes(
-                            search
-                        )
-                    )
-
-                    &&
-
-                    (
-                        !level ||
-                        student.level ===
-                        level
-                    )
-
-                );
-
-            }
-        );
+    const source = studentSearchIndex.length
+        ? studentSearchIndex
+        : students.map(student => ({ student, text: [student.id, student.name, student.level, student.parent, student.phone].filter(Boolean).join(" ").toLowerCase() }));
+    const filtered = source
+        .filter(item => (!search || item.text.includes(search)) && (!level || item.student.level === level))
+        .map(item => item.student);
 
 
     if (!filtered.length) {
@@ -2889,16 +2886,7 @@ function showAttendanceAction(
     }
 
 
-    const record =
-        attendanceRecords.find(
-            item =>
-                String(
-                    item.student_id
-                ) ===
-                String(
-                    student.id
-                )
-        );
+    const record = attendanceByStudentId.get(String(student.id));
 
 
     const hasTimeIn =
@@ -3175,32 +3163,11 @@ async function recordTimeIn(
             getVientianeDate();
 
 
-        const {
-            data: existingRecords,
-            error: searchError
-        } =
-            await supabaseClient
-                .from("attendance")
-                .select("*")
-                .eq(
-                    "student_id",
-                    student.id
-                )
-                .eq(
-                    "date",
-                    today
-                )
-                .limit(1);
-
-
-        if (searchError) {
-            throw searchError;
-        }
-
-
-        const existing =
-            existingRecords?.[0] ||
-            null;
+        let existing = attendanceByStudentId.get(String(student.id)) || null;
+        // Cache is authoritative for today's loaded dataset. If the app started
+        // before attendance finished loading, wait for that single shared request.
+        if (!attendanceLoadPromise && !attendanceRecords.length) await loadTodayAttendance({ render: false });
+        existing = attendanceByStudentId.get(String(student.id)) || existing;
 
 
         if (
@@ -3272,13 +3239,25 @@ async function recordTimeIn(
         }
 
 
+        const updatedRecord = existing
+            ? { ...existing, time_in: now }
+            : { id: crypto.randomUUID ? crypto.randomUUID() : `local-${Date.now()}`, student_id: student.id, student_name: student.name, date: today, time_in: now };
+        if (existing) {
+            const index = attendanceRecords.findIndex(r => String(r.id) === String(existing.id));
+            if (index >= 0) attendanceRecords[index] = updatedRecord;
+        } else {
+            attendanceRecords.unshift(updatedRecord);
+        }
+        attendanceByStudentId.set(String(student.id), updatedRecord);
+        cacheAttendance();
+        updateAttendanceStatistics();
+        renderAttendance();
+        renderDashboard();
+
         showToast(
             `${student.name} — Time In recorded successfully.`,
             "success"
         );
-
-
-        await loadTodayAttendance();
 
 
         closeResultModal();
@@ -3327,16 +3306,7 @@ function openPickupForm(
     closeAfterSave = false
 ) {
 
-    const record =
-        attendanceRecords.find(
-            item =>
-                String(
-                    item.student_id
-                ) ===
-                String(
-                    student.id
-                )
-        );
+    const record = attendanceByStudentId.get(String(student.id));
 
 
     if (!record) {
@@ -4045,9 +4015,18 @@ async function savePickup(student, record) {
     closeResultModal();
 
 
-    /* Reload attendance */
-
-    await loadTodayAttendance();
+    // Apply the returned row to the local cache instead of downloading today's
+    // entire attendance table again. Realtime will reconcile other clients.
+    if (data) {
+      const key = String(data.student_id);
+      attendanceByStudentId.set(key, data);
+      cacheAttendance();
+      const index = attendanceRecords.findIndex(r => String(r.id) === String(data.id));
+      if (index >= 0) attendanceRecords[index] = data;
+    }
+    updateAttendanceStatistics();
+    renderAttendance();
+    renderDashboard();
 
 
   } catch (error) {
@@ -4103,32 +4082,8 @@ async function recordTimeOut(
             getVientianeDate();
 
 
-        const {
-            data,
-            error: searchError
-        } =
-            await supabaseClient
-                .from("attendance")
-                .select("*")
-                .eq(
-                    "student_id",
-                    student.id
-                )
-                .eq(
-                    "date",
-                    today
-                )
-                .limit(1);
-
-
-        if (searchError) {
-            throw searchError;
-        }
-
-
-        const existing =
-            data?.[0] ||
-            null;
+        if (!attendanceLoadPromise && !attendanceRecords.length) await loadTodayAttendance({ render: false });
+        const existing = attendanceByStudentId.get(String(student.id)) || null;
 
 
         if (!existing) {
@@ -4190,13 +4145,19 @@ async function recordTimeOut(
         }
 
 
+        existing.time_out = now;
+        attendanceByStudentId.set(String(student.id), existing);
+        cacheAttendance();
+        const recordIndex = attendanceRecords.findIndex(r => String(r.id) === String(existing.id));
+        if (recordIndex >= 0) attendanceRecords[recordIndex] = existing;
+        updateAttendanceStatistics();
+        renderAttendance();
+        renderDashboard();
+
         showToast(
             `${student.name} — Time Out recorded successfully.`,
             "success"
         );
-
-
-        await loadTodayAttendance();
 
 
         closeResultModal();
@@ -4225,141 +4186,61 @@ async function recordTimeOut(
    LOAD TODAY ATTENDANCE
 ========================================================= */
 
-async function loadTodayAttendance() {
+async function loadTodayAttendance(options = {}) {
+    const { render = true } = options;
+    if (attendanceLoadPromise) return attendanceLoadPromise;
 
-    try {
-
-        const today =
-            getVientianeDate();
-
-
-        const {
-            data,
-            error
-        } =
-            await supabaseClient
+    attendanceLoadPromise = (async () => {
+        try {
+            const today = getVientianeDate();
+            const { data, error } = await supabaseClient
                 .from("attendance")
                 .select("*")
-                .eq(
-                    "date",
-                    today
-                )
-                .order(
-                    "created_at",
-                    {
-                        ascending:
-                            false
-                    }
-                );
+                .eq("date", today)
+                .order("created_at", { ascending: false });
+            if (error) throw error;
 
-
-        if (error) {
+            attendanceRecords = data || [];
+            cacheAttendance();
+            attendanceByStudentId = new Map();
+            for (const record of attendanceRecords) {
+                const key = String(record.student_id);
+                if (!attendanceByStudentId.has(key)) attendanceByStudentId.set(key, record);
+            }
+            if (render) {
+                updateAttendanceStatistics();
+                renderAttendance();
+                renderDashboard();
+            }
+        } catch (error) {
+            console.error("Unable to load attendance:", error);
+            showToast(error?.message || "Unable to load today's attendance.", "error");
             throw error;
+        } finally {
+            attendanceLoadPromise = null;
         }
-
-
-        attendanceRecords =
-            data || [];
-
-
-        updateAttendanceStatistics();
-
-        renderAttendance();
-
-        renderDashboard();
-
-
-    } catch (error) {
-
-        console.error(
-            "Unable to load attendance:",
-            error
-        );
-
-
-        showToast(
-            error?.message ||
-            "Unable to load today's attendance.",
-            "error"
-        );
-    }
+    })();
+    return attendanceLoadPromise;
 }
-
 
 /* =========================================================
    ATTENDANCE STATISTICS
 ========================================================= */
 
 function updateAttendanceStatistics() {
-
-    const timeInCount =
-        attendanceRecords.filter(
-            record =>
-                Boolean(
-                    record.time_in
-                )
-        ).length;
-
-
-    const timeOutCount =
-        attendanceRecords.filter(
-            record =>
-                Boolean(
-                    record.time_out
-                )
-        ).length;
-
-
-    const currentlyIn =
-        attendanceRecords.filter(
-            record =>
-                record.time_in &&
-                !record.time_out
-        ).length;
-
-
-    const timeInElement =
-        document.getElementById(
-            "timeInCount"
-        );
-
-
-    const timeOutElement =
-        document.getElementById(
-            "timeOutCount"
-        );
-
-
-    const currentlyInElement =
-        document.getElementById(
-            "currentlyInCount"
-        );
-
-
-    if (timeInElement) {
-
-        timeInElement.textContent =
-            timeInCount;
-
+    let timeInCount = 0, timeOutCount = 0, currentlyIn = 0;
+    for (const record of attendanceRecords) {
+        if (record.time_in) timeInCount++;
+        if (record.time_out) timeOutCount++;
+        if (record.time_in && !record.time_out) currentlyIn++;
     }
-
-
-    if (timeOutElement) {
-
-        timeOutElement.textContent =
-            timeOutCount;
-
-    }
-
-
-    if (currentlyInElement) {
-
-        currentlyInElement.textContent =
-            currentlyIn;
-
-    }
+    const timeInElement = document.getElementById("timeInCount");
+    const timeOutElement = document.getElementById("timeOutCount");
+    const currentlyInElement = document.getElementById("currentlyInCount");
+    if (timeInElement) timeInElement.textContent = timeInCount;
+    if (timeOutElement) timeOutElement.textContent = timeOutCount;
+    if (currentlyInElement) currentlyInElement.textContent = currentlyIn;
 }
-
 
 /* =========================================================
    ATTENDANCE TABLE
@@ -4735,7 +4616,7 @@ function initializeSearch() {
         )
         ?.addEventListener(
             "input",
-            renderStudents
+            debounce(renderStudents, 80)
         );
 
 
@@ -4755,7 +4636,7 @@ function initializeSearch() {
         )
         ?.addEventListener(
             "input",
-            renderAttendance
+            debounce(renderAttendance, 80)
         );
 
 
@@ -5073,85 +4954,95 @@ function closeResultModal() {
 ========================================================= */
 
 function initializeRealtime() {
-
-    if (
-        !supabaseClient
-    ) {
-        return;
-    }
-
-
+    if (!supabaseClient) return;
     try {
+        if (realtimeChannel) supabaseClient.removeChannel(realtimeChannel);
 
-        if (
-            realtimeChannel
-        ) {
-
-            supabaseClient
-                .removeChannel(
-                    realtimeChannel
-                );
-
-        }
-
-
-        realtimeChannel =
-            supabaseClient
-                .channel(
-                    "vision-school-live"
-                )
-
-
-                .on(
-
-                    "postgres_changes",
-
-                    {
-                        event: "*",
-                        schema: "public",
-                        table: "students"
-                    },
-
-                    async () => {
-
-                        await loadStudents();
-
-                    }
-
-                )
-
-
-                .on(
-
-                    "postgres_changes",
-
-                    {
-                        event: "*",
-                        schema: "public",
-                        table: "attendance"
-                    },
-
-                    async () => {
-
-                        await loadTodayAttendance();
-
-                    }
-
-                )
-
-
-                .subscribe();
-
-
+        realtimeChannel = supabaseClient
+            .channel("vision-school-live")
+            .on("postgres_changes", { event: "*", schema: "public", table: "students" }, payload => {
+                applyStudentRealtime(payload);
+            })
+            .on("postgres_changes", { event: "*", schema: "public", table: "attendance" }, payload => {
+                applyAttendanceRealtime(payload);
+            })
+            .subscribe();
     } catch (error) {
-
-        console.error(
-            "Realtime initialization error:",
-            error
-        );
+        console.error("Realtime initialization error:", error);
     }
 }
 
+function scheduleRealtimeRender(kind) {
+    pendingRealtimeRender = true;
+    const now = performance.now();
+    const wait = Math.max(0, 120 - (now - lastRealtimeRenderAt));
+    setTimeout(() => {
+        if (!pendingRealtimeRender) return;
+        pendingRealtimeRender = false;
+        lastRealtimeRenderAt = performance.now();
+        updateAttendanceStatistics();
+        const active = document.querySelector(".page-section.active")?.id;
+        if (kind === "students" || active === "students") renderStudents();
+        if (kind === "attendance" || active === "attendance") renderAttendance();
+        if (kind === "students" || kind === "attendance" || active === "dashboard") renderDashboard();
+    }, wait);
+}
+
+function applyStudentRealtime(payload) {
+    const row = payload?.new || payload?.old;
+    if (!row || row.id == null) return;
+    const key = String(row.id);
+    const index = students.findIndex(s => String(s.id) === key);
+    if (payload.eventType === "DELETE") {
+        if (index >= 0) students.splice(index, 1);
+        studentById.delete(key);
+    } else {
+        if (index >= 0) students[index] = payload.new;
+        else students.push(payload.new);
+        studentById.set(key, payload.new);
+    }
+    students.sort((a,b) => String(a.name || "").localeCompare(String(b.name || "")));
+    studentSearchIndex = students.map(student => ({ student, text: [student.id, student.name, student.level, student.parent, student.phone].filter(Boolean).join(" ").toLowerCase() }));
+    parentStudentMap = buildParentStudentMap(students);
+    cacheStudents();
+    const total = document.getElementById("totalStudents");
+    if (total) total.textContent = students.length;
+    populateLevelFilter();
+    scheduleRealtimeRender("students");
+}
+
+function applyAttendanceRealtime(payload) {
+    const row = payload?.new || payload?.old;
+    if (!row || row.date !== getVientianeDate()) return;
+    const key = String(row.id);
+    const index = attendanceRecords.findIndex(r => String(r.id) === key);
+    if (payload.eventType === "DELETE") {
+        if (index >= 0) attendanceRecords.splice(index, 1);
+        attendanceByStudentId.delete(String(row.student_id));
+    } else {
+        if (index >= 0) attendanceRecords[index] = payload.new;
+        else attendanceRecords.unshift(payload.new);
+        attendanceByStudentId.set(String(payload.new.student_id), payload.new);
+    }
+    cacheAttendance();
+    scheduleRealtimeRender("attendance");
+}
+
+function updateConnectionStatus(connected) {
+    const dot = document.getElementById("connectionDot");
+    const text = document.getElementById("connectionText");
+    dot?.classList.toggle("connected", connected);
+    dot?.classList.toggle("offline", !connected);
+    if (text) text.textContent = connected ? "Connected" : "Connection Error";
+}
+
+function debounce(fn, delay = 80) {
+    let timer = null;
+    return function (...args) {
+        clearTimeout(timer);
+        timer = setTimeout(() => fn.apply(this, args), delay);
+    };
+}
 
 /* =========================================================
    FIND STUDENT
@@ -5161,15 +5052,7 @@ function findStudent(
     studentId
 ) {
 
-    return students.find(
-        student =>
-            String(
-                student.id
-            ) ===
-            String(
-                studentId
-            )
-    );
+    return studentById.get(String(studentId)) || null;
 }
 
 
