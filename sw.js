@@ -7,8 +7,7 @@ const APP_FILES = [
     "./app.js",
     "./manifest.json",
     "./logo.png",
-    "./school-background.png",
-    "./images/vision-school-logo.png"
+    "./school-background.png"
 ];
 
 console.log(
@@ -31,7 +30,6 @@ self.addEventListener("install", event => {
     event.waitUntil(
 
         caches.open(CACHE_NAME)
-
             .then(async cache => {
 
                 console.log(
@@ -44,19 +42,18 @@ self.addEventListener("install", event => {
 
                         const response = await fetch(
                             file,
-                            { cache: "no-cache" }
+                            {
+                                cache: "no-cache"
+                            }
                         );
 
-                        if (!response || !response.ok) {
+                        if (!response.ok) {
                             throw new Error(
-                                `HTTP ${response?.status || "unknown"} for ${file}`
+                                `HTTP ${response.status} for ${file}`
                             );
                         }
 
-                        await cache.put(
-                            file,
-                            response.clone()
-                        );
+                        await cache.put(file, response);
 
                         console.log(
                             "[Vision School SW] Cached:",
@@ -72,6 +69,7 @@ self.addEventListener("install", event => {
                         );
 
                     }
+
                 }
 
             })
@@ -79,6 +77,7 @@ self.addEventListener("install", event => {
     );
 
     self.skipWaiting();
+
 });
 
 
@@ -96,7 +95,6 @@ self.addEventListener("activate", event => {
     event.waitUntil(
 
         caches.keys()
-
             .then(cacheNames => {
 
                 return Promise.all(
@@ -114,26 +112,20 @@ self.addEventListener("activate", event => {
                             );
 
                             return caches.delete(cacheName);
+
                         }
 
-                        return Promise.resolve();
+                        return null;
+
                     })
 
                 );
 
             })
-
-            .then(() => {
-
-                console.log(
-                    "[Vision School SW] Claiming clients..."
-                );
-
-                return self.clients.claim();
-
-            })
+            .then(() => self.clients.claim())
 
     );
+
 });
 
 
@@ -145,7 +137,6 @@ self.addEventListener("fetch", event => {
 
     const request = event.request;
 
-    // Only handle GET requests.
     if (request.method !== "GET") {
         return;
     }
@@ -154,16 +145,8 @@ self.addEventListener("fetch", event => {
 
 
     // =====================================================
-    // IMPORTANT:
-    // DO NOT INTERCEPT SUPABASE OR EXTERNAL CDN REQUESTS
+    // NEVER INTERCEPT SUPABASE
     // =====================================================
-
-    if (
-        url.origin !== self.location.origin
-    ) {
-        return;
-    }
-
 
     if (
         url.hostname.includes("supabase.co") ||
@@ -175,8 +158,7 @@ self.addEventListener("fetch", event => {
 
 
     // =====================================================
-    // NAVIGATION / HTML
-    // Network first, cache fallback
+    // NAVIGATION
     // =====================================================
 
     if (
@@ -186,108 +168,80 @@ self.addEventListener("fetch", event => {
 
         event.respondWith(
 
-            fetch(request, {
-                cache: "no-store"
-            })
+            fetch(
+                request,
+                {
+                    cache: "no-store"
+                }
+            )
 
-            .then(response => {
+                .then(response => {
 
-                if (
-                    response &&
-                    response.ok
-                ) {
+                    if (
+                        response &&
+                        response.ok
+                    ) {
 
-                    const copy = response.clone();
+                        const copy =
+                            response.clone();
 
-                    caches.open(CACHE_NAME)
-                        .then(cache => {
+                        caches
+                            .open(CACHE_NAME)
+                            .then(cache => {
 
-                            cache.put(
-                                request,
-                                copy
-                            ).catch(error => {
-
-                                console.warn(
-                                    "[Vision School SW] Navigation cache failed:",
-                                    error
+                                cache.put(
+                                    request,
+                                    copy
                                 );
 
-                            });
+                            })
+                            .catch(() => {});
 
-                        })
-                        .catch(error => {
+                    }
 
-                            console.warn(
-                                "[Vision School SW] Cache open failed:",
-                                error
+                    return response;
+
+                })
+
+                .catch(() => {
+
+                    return caches.match(request)
+                        .then(cached => {
+
+                            return (
+                                cached ||
+                                caches.match(
+                                    "./index.html"
+                                )
                             );
 
                         });
 
-                }
-
-                return response;
-
-            })
-
-            .catch(async error => {
-
-                console.warn(
-                    "[Vision School SW] Navigation network failed:",
-                    error
-                );
-
-                const cachedRequest =
-                    await caches.match(request);
-
-                if (cachedRequest) {
-                    return cachedRequest;
-                }
-
-                const cachedIndex =
-                    await caches.match("./index.html");
-
-                if (cachedIndex) {
-                    return cachedIndex;
-                }
-
-                // Always return a valid Response.
-                return new Response(
-                    "Vision School is currently offline.",
-                    {
-                        status: 503,
-                        statusText: "Offline",
-                        headers: {
-                            "Content-Type": "text/plain; charset=utf-8"
-                        }
-                    }
-                );
-
-            })
+                })
 
         );
 
         return;
+
     }
 
 
     // =====================================================
-    // SAME-ORIGIN ASSETS
-    // Cache first, network fallback
+    // SAME-ORIGIN FILES
     // =====================================================
 
     if (
-        url.origin === self.location.origin
+        url.origin ===
+        self.location.origin
     ) {
 
         event.respondWith(
 
-            caches.match(request)
-
+            caches
+                .match(request)
                 .then(cached => {
 
                     if (cached) {
-
                         return cached;
                     }
 
@@ -298,79 +252,81 @@ self.addEventListener("fetch", event => {
                         }
                     )
 
-                    .then(response => {
+                        .then(response => {
 
-                        if (
-                            response &&
-                            response.ok
-                        ) {
+                            if (
+                                response &&
+                                response.ok
+                            ) {
 
-                            const copy =
-                                response.clone();
+                                const copy =
+                                    response.clone();
 
-                            caches.open(CACHE_NAME)
-                                .then(cache => {
+                                caches
+                                    .open(
+                                        CACHE_NAME
+                                    )
+                                    .then(
+                                        cache => {
 
-                                    cache.put(
-                                        request,
-                                        copy
-                                    ).catch(error => {
+                                            cache.put(
+                                                request,
+                                                copy
+                                            );
 
-                                        console.warn(
-                                            "[Vision School SW] Asset cache failed:",
-                                            error
-                                        );
-
-                                    });
-
-                                })
-                                .catch(error => {
-
-                                    console.warn(
-                                        "[Vision School SW] Cache open failed:",
-                                        error
+                                        }
+                                    )
+                                    .catch(
+                                        () => {}
                                     );
 
-                                });
-                        }
-
-                        return response;
-
-                    })
-
-                    .catch(async error => {
-
-                        console.warn(
-                            "[Vision School SW] Asset request failed:",
-                            request.url,
-                            error
-                        );
-
-                        const fallback =
-                            await caches.match(request);
-
-                        if (fallback) {
-                            return fallback;
-                        }
-
-                        // IMPORTANT:
-                        // Never return undefined from respondWith().
-                        return new Response(
-                            "",
-                            {
-                                status: 503,
-                                statusText: "Asset unavailable"
                             }
-                        );
 
-                    });
+                            return response;
+
+                        });
+
+                })
+
+                .catch(() => {
+
+                    return caches.match(
+                        request
+                    );
 
                 })
 
         );
 
         return;
+
     }
+
+
+    // =====================================================
+    // EXTERNAL RESOURCES
+    // =====================================================
+
+    // Do NOT let the service worker turn an external
+    // network failure into an unhandled FetchEvent error.
+
+    event.respondWith(
+
+        fetch(request)
+            .catch(() => {
+
+                return new Response(
+                    "",
+                    {
+                        status: 503,
+                        statusText:
+                            "External resource unavailable"
+                    }
+                );
+
+            })
+
+    );
 
 });
 
@@ -383,14 +339,12 @@ self.addEventListener("message", event => {
 
     if (
         event.data &&
-        event.data.type === "SKIP_WAITING"
+        event.data.type ===
+            "SKIP_WAITING"
     ) {
 
-        console.log(
-            "[Vision School SW] SKIP_WAITING received."
-        );
-
         self.skipWaiting();
+
     }
 
 });
