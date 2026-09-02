@@ -8,19 +8,8 @@
   "background_color": "#ffffff",
   "theme_color": "#1d4ed8",
   "orientation": "portrait-primary",
-
   "icons": [
-    {
-      "src": "logo.png",
-      "type": "image/png",
-      "sizes": "192x192",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "logo.png",
-      "type": "image/png",
-      "sizes": "512x512",
-      "purpose": "any maskable"
-    }
+    {"src":"logo.png","type":"image/png","sizes":"192x192","purpose":"any maskable"},
+    {"src":"logo.png","type":"image/png","sizes":"512x512","purpose":"any maskable"}
   ]
 }
