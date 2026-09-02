@@ -1188,8 +1188,22 @@ function renderStudents() {
                                     class="small-button generate-qr"
                                     data-id="${escapeAttribute(student.id)}"
                                 >
-                                    QR
+                                    Student QR
                                 </button>
+
+                                ${
+                                    getParentOptions(student.parent).length
+                                        ? `
+                                            <button
+                                                type="button"
+                                                class="small-button generate-parent-qr"
+                                                data-id="${escapeAttribute(student.id)}"
+                                            >
+                                                Parent QR
+                                            </button>
+                                        `
+                                        : ""
+                                }
 
                             </td>
 
@@ -1336,6 +1350,36 @@ function renderStudents() {
 
                     }
 
+                }
+            );
+
+        });
+
+
+
+    /* PARENT QR */
+
+    body
+        .querySelectorAll(
+            ".generate-parent-qr"
+        )
+        .forEach(button => {
+
+            button.addEventListener(
+                "click",
+                async () => {
+
+                    const student =
+                        findStudent(
+                            button.dataset.id
+                        );
+
+                    if (student) {
+                        await showParentQr(
+                            student,
+                            0
+                        );
+                    }
                 }
             );
 
@@ -1852,6 +1896,17 @@ function showStudentProfile(student) {
                                     : ""
                             }
 
+                            <br>
+
+                            <button
+                                type="button"
+                                class="small-button profile-parent-qr"
+                                data-parent-index="${parent.index - 1}"
+                                style="margin-top:8px"
+                            >
+                                Parent QR
+                            </button>
+
                         </div>
 
                     `
@@ -2016,6 +2071,29 @@ function showStudentProfile(student) {
 
 
     document
+        .querySelectorAll(
+            ".profile-parent-qr"
+        )
+        .forEach(button => {
+
+            button.addEventListener(
+                "click",
+                async () => {
+
+                    await showParentQr(
+                        student,
+                        Number(
+                            button.dataset.parentIndex
+                        )
+                    );
+
+                }
+            );
+
+        });
+
+
+    document
         .getElementById(
             "profileEditButton"
         )
@@ -2049,6 +2127,640 @@ function showStudentProfile(student) {
 
             }
         );
+}
+
+
+/* =========================================================
+   PARENT QR SYSTEM
+
+   Parent QR codes use a deterministic SHA-256 token based on
+   the registered parent name + phone. No parent name/phone is
+   stored inside the QR itself, and no new database table is
+   required.
+========================================================= */
+
+function normalizeParentValue(value) {
+
+    return String(value || "")
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, " ");
+}
+
+
+async function getParentQrToken(name, phone) {
+
+    const identity =
+        `${normalizeParentValue(name)}|${normalizeParentValue(phone)}`;
+
+    if (
+        window.crypto?.subtle
+    ) {
+
+        const bytes =
+            new TextEncoder().encode(identity);
+
+        const hash =
+            await crypto.subtle.digest(
+                "SHA-256",
+                bytes
+            );
+
+        return Array.from(
+            new Uint8Array(hash)
+        )
+            .map(
+                byte =>
+                    byte.toString(16).padStart(2, "0")
+            )
+            .join("");
+    }
+
+    /* Fallback for older browsers. */
+    let hash = 2166136261;
+
+    for (
+        let i = 0;
+        i < identity.length;
+        i++
+    ) {
+
+        hash ^= identity.charCodeAt(i);
+        hash = Math.imul(hash, 16777619);
+    }
+
+    return `fallback-${(hash >>> 0).toString(16)}`;
+}
+
+
+async function showParentQr(student, parentIndex = 0) {
+
+    const modal =
+        document.getElementById(
+            "studentResultModal"
+        );
+
+    const result =
+        document.getElementById(
+            "studentResult"
+        );
+
+    if (!modal || !result) {
+        return;
+    }
+
+    const parents =
+        getParentOptions(
+            student.parent
+        );
+
+    const parent =
+        parents[parentIndex];
+
+    if (!parent || !parent.name) {
+
+        showToast(
+            "This student does not have a registered parent/guardian in this position.",
+            "error"
+        );
+
+        return;
+    }
+
+    const token =
+        await getParentQrToken(
+            parent.name,
+            parent.phone
+        );
+
+    const qrPayload =
+        `VISION-PARENT:${token}`;
+
+    result.innerHTML = `
+
+        <div class="student-result">
+
+            <div class="result-avatar">
+                👨‍👩‍👧‍👦
+            </div>
+
+            <h2>
+                Parent / Guardian QR
+            </h2>
+
+            <p>
+                <strong>
+                    ${escapeHtml(parent.name)}
+                </strong>
+            </p>
+
+            <p>
+                ${escapeHtml(parent.label)}
+                ${
+                    parent.phone
+                        ? ` • ${escapeHtml(parent.phone)}`
+                        : ""
+                }
+            </p>
+
+            <div
+                id="generatedParentQr"
+                style="
+                    display:flex;
+                    justify-content:center;
+                    margin:20px 0;
+                "
+            ></div>
+
+            <p style="opacity:.7;font-size:13px">
+                This one Parent QR can be linked to every
+                student who has the same registered parent name
+                and phone number.
+            </p>
+
+            <button
+                type="button"
+                class="primary-button"
+                id="downloadParentQr"
+            >
+                Download Parent QR
+            </button>
+
+        </div>
+
+    `;
+
+    modal.classList.add(
+        "show"
+    );
+
+    loadQrGenerator(
+        () => {
+
+            const qrContainer =
+                document.getElementById(
+                    "generatedParentQr"
+                );
+
+            if (!qrContainer) {
+                return;
+            }
+
+            qrContainer.innerHTML = "";
+
+            new QRCode(
+                qrContainer,
+                {
+                    text: qrPayload,
+                    width: 240,
+                    height: 240
+                }
+            );
+
+            document
+                .getElementById(
+                    "downloadParentQr"
+                )
+                ?.addEventListener(
+                    "click",
+                    () =>
+                        downloadParentQr(
+                            parent,
+                            token
+                        )
+                );
+        }
+    );
+}
+
+
+function downloadParentQr(parent, token) {
+
+    const canvas =
+        document.querySelector(
+            "#generatedParentQr canvas"
+        );
+
+    const image =
+        document.querySelector(
+            "#generatedParentQr img"
+        );
+
+    const url =
+        canvas
+            ? canvas.toDataURL("image/png")
+            : image?.src;
+
+    if (!url) {
+
+        showToast(
+            "Parent QR image is not ready.",
+            "error"
+        );
+
+        return;
+    }
+
+    const link =
+        document.createElement("a");
+
+    link.href = url;
+    link.download =
+        `Parent-QR-${normalizeParentValue(parent.name).replace(/[^a-z0-9]+/g, "-") || "guardian"}.png`;
+
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+}
+
+
+async function handleParentQrScan(decodedText) {
+
+    const token =
+        String(decodedText || "")
+            .trim()
+            .substring("VISION-PARENT:".length);
+
+    if (!token) {
+
+        showToast(
+            "Invalid Parent QR code.",
+            "error"
+        );
+
+        return;
+    }
+
+    await loadTodayAttendance();
+
+    const matches = [];
+
+    for (
+        const student of students
+    ) {
+
+        const parents =
+            getParentOptions(
+                student.parent
+            );
+
+        for (
+            const parent of parents
+        ) {
+
+            if (!parent.name) {
+                continue;
+            }
+
+            const parentToken =
+                await getParentQrToken(
+                    parent.name,
+                    parent.phone
+                );
+
+            if (
+                parentToken === token
+            ) {
+
+                matches.push({
+                    student,
+                    parent
+                });
+
+                break;
+            }
+        }
+    }
+
+    if (!matches.length) {
+
+        showToast(
+            "Parent QR was not found in the registered student records.",
+            "error"
+        );
+
+        return;
+    }
+
+    showParentPickupSelection(
+        matches
+    );
+}
+
+
+function showParentPickupSelection(matches) {
+
+    const modal =
+        document.getElementById(
+            "studentResultModal"
+        );
+
+    const result =
+        document.getElementById(
+            "studentResult"
+        );
+
+    if (!modal || !result) {
+        return;
+    }
+
+    const parent =
+        matches[0].parent;
+
+    result.innerHTML = `
+
+        <div class="student-result">
+
+            <div class="result-avatar">
+                👨‍👩‍👧‍👦
+            </div>
+
+            <h2>
+                Parent QR Recognized
+            </h2>
+
+            <p>
+                <strong>
+                    ${escapeHtml(parent.name)}
+                </strong>
+                ${
+                    parent.phone
+                        ? `<br>📞 ${escapeHtml(parent.phone)}`
+                        : ""
+                }
+            </p>
+
+            <p style="text-align:left;margin-top:20px">
+                <strong>
+                    Select student(s) for pickup:
+                </strong>
+            </p>
+
+            <div
+                style="
+                    text-align:left;
+                    margin:10px 0 20px;
+                "
+            >
+
+                ${
+                    matches
+                        .map(
+                            (item, index) => {
+
+                                const record =
+                                    attendanceRecords.find(
+                                        attendance =>
+                                            String(attendance.student_id) ===
+                                            String(item.student.id)
+                                    );
+
+                                const available =
+                                    Boolean(record?.time_in) &&
+                                    !Boolean(record?.time_out);
+
+                                return `
+
+                                    <label
+                                        style="
+                                            display:flex;
+                                            align-items:center;
+                                            gap:10px;
+                                            padding:12px;
+                                            margin:6px 0;
+                                            border:1px solid #d1d5db;
+                                            border-radius:10px;
+                                            opacity:${available ? "1" : ".55"};
+                                        "
+                                    >
+
+                                        <input
+                                            type="checkbox"
+                                            class="parent-pickup-student"
+                                            value="${escapeAttribute(item.student.id)}"
+                                            data-index="${index}"
+                                            ${available ? "" : "disabled"}
+                                        >
+
+                                        <span>
+                                            <strong>
+                                                ${escapeHtml(item.student.name)}
+                                            </strong>
+                                            <small style="display:block;opacity:.7">
+                                                ${escapeHtml(item.student.level || "")}
+                                                • ID: ${escapeHtml(item.student.id)}
+                                                • ${
+                                                    available
+                                                        ? "Ready for pickup"
+                                                        : record?.time_out
+                                                            ? "Already picked up"
+                                                            : "No Time In today"
+                                                }
+                                            </small>
+                                        </span>
+
+                                    </label>
+
+                                `;
+                            }
+                        )
+                        .join("")
+                }
+
+            </div>
+
+            <div
+                style="
+                    text-align:left;
+                    margin-bottom:15px;
+                "
+            >
+
+                <label>
+                    <strong>
+                        Notes (optional)
+                    </strong>
+                </label>
+
+                <textarea
+                    id="parentPickupNotes"
+                    rows="3"
+                    style="width:100%;padding:10px;margin-top:6px;border:1px solid #d1d5db;border-radius:8px;"
+                    placeholder="Optional pickup notes"
+                ></textarea>
+
+            </div>
+
+            <div class="result-actions">
+
+                <button
+                    type="button"
+                    class="primary-button"
+                    id="saveParentPickup"
+                >
+                    ✓ Confirm Pickup
+                </button>
+
+                <button
+                    type="button"
+                    class="secondary-button"
+                    id="cancelParentPickup"
+                >
+                    Cancel
+                </button>
+
+            </div>
+
+        </div>
+
+    `;
+
+    modal.classList.add("show");
+
+    document
+        .getElementById("cancelParentPickup")
+        ?.addEventListener(
+            "click",
+            closeResultModal
+        );
+
+    document
+        .getElementById("saveParentPickup")
+        ?.addEventListener(
+            "click",
+            async () =>
+                saveParentPickup(
+                    matches
+                )
+        );
+}
+
+
+async function saveParentPickup(matches) {
+
+    const selected =
+        Array.from(
+            document.querySelectorAll(
+                ".parent-pickup-student:checked"
+            )
+        );
+
+    if (!selected.length) {
+
+        showToast(
+            "Please select at least one student.",
+            "error"
+        );
+
+        return;
+    }
+
+    const notes =
+        document
+            .getElementById("parentPickupNotes")
+            ?.value
+            ?.trim() || "";
+
+    const parent =
+        matches[0].parent;
+
+    const pickupTime =
+        new Date().toISOString();
+
+    let saved = 0;
+    let failed = 0;
+
+    try {
+
+        for (
+            const checkbox of selected
+        ) {
+
+            const item =
+                matches[Number(checkbox.dataset.index)];
+
+            if (!item) {
+                failed++;
+                continue;
+            }
+
+            const record =
+                attendanceRecords.find(
+                    attendance =>
+                        String(attendance.student_id) ===
+                        String(item.student.id)
+                );
+
+            if (!record?.id || !record.time_in || record.time_out) {
+                failed++;
+                continue;
+            }
+
+            const { error } =
+                await supabaseClient
+                    .from("attendance")
+                    .update({
+                        pickup_person:
+                            parent.name,
+                        pickup_relationship:
+                            parent.label,
+                        pickup_phone:
+                            parent.phone || "",
+                        pickup_option:
+                            "Parent / Guardian",
+                        approver:
+                            "",
+                        notes:
+                            notes,
+                        time_out:
+                            pickupTime
+                    })
+                    .eq("id", record.id);
+
+            if (error) {
+                console.error(
+                    "Parent QR pickup update error:",
+                    error
+                );
+                failed++;
+                continue;
+            }
+
+            saved++;
+        }
+
+        await loadTodayAttendance();
+
+        if (failed) {
+
+            showToast(
+                `${saved} pickup(s) saved. ${failed} could not be saved.`,
+                saved ? "success" : "error"
+            );
+
+        } else {
+
+            showToast(
+                `${saved} student pickup(s) recorded successfully.`,
+                "success"
+            );
+        }
+
+        closeResultModal();
+
+    } catch (error) {
+
+        console.error(
+            "Parent QR pickup error:",
+            error
+        );
+
+        showToast(
+            error?.message ||
+            "Unable to save parent pickup.",
+            "error"
+        );
+    }
 }
 
 
@@ -2510,6 +3222,18 @@ async function handleQrScan(
         String(
             decodedText
         ).trim();
+
+
+    if (
+        id.startsWith("VISION-PARENT:")
+    ) {
+
+        await handleParentQrScan(
+            id
+        );
+
+        return;
+    }
 
 
     const student =
