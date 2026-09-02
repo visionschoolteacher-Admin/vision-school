@@ -1,6055 +1,756 @@
-/* =========================================================
-   VISION SCHOOL
-   STUDENT QR ATTENDANCE + PICKUP SYSTEM
-
-   OPTIMIZED APP.JS
-   ---------------------------------------------------------
-   PRESERVED:
-   - Dashboard
-   - Students
-   - QR Scanner
-   - Time In
-   - Attendance
-   - Pickup / Time Out
-   - Reports / CSV
-   - Student QR
-   - Parent / Guardian 1-3
-   - Supabase
-   - Pickup time_out fix
-========================================================= */
-
-/* =========================================================
-   SUPABASE CONFIGURATION
-========================================================= */
-
-const SUPABASE_URL =
-    "https://ymonpeujmhaymkxfmmtq.supabase.co";
-
-const SUPABASE_ANON_KEY =
-    "sb_publishable_wrTUwpJaW8NlvBLR914apw_0kAQdnnK";
-
-let supabaseClient = null;
-
-/* =========================================================
-   GLOBAL STATE
-========================================================= */
-
-let students = [];
-let attendanceRecords = [];
-
-let currentStudent = null;
-
-let html5QrCode = null;
-let scannerRunning = false;
-
-let realtimeChannel = null;
-let realtimeRefreshTimer = null;
-
-let toastTimer = null;
-
-/* =========================================================
-   PERFORMANCE CACHE
-========================================================= */
-
-/*
-   These Maps avoid repeatedly searching the full arrays.
-
-   Old:
-   students.find(...)
-
-   New:
-   studentsById.get(...)
-*/
-
-let studentsById = new Map();
-let attendanceByStudentId = new Map();
-
-
-/* Prevent duplicate simultaneous loading requests. */
-
-let studentsLoadPromise = null;
-let attendanceLoadPromise = null;
-
-
-/* =========================================================
-   START APPLICATION
-========================================================= */
-
-document.addEventListener(
-    "DOMContentLoaded",
-    async () => {
-
-        console.log(
-            "Vision School Attendance System starting..."
-        );
-
-        try {
-
-            if (
-                typeof window.supabase ===
-                "undefined"
-            ) {
-
-                throw new Error(
-                    "Supabase library has not loaded."
-                );
-
-            }
-
-
-            supabaseClient =
-                window.supabase.createClient(
-                    SUPABASE_URL,
-                    SUPABASE_ANON_KEY
-                );
-
-
-            /* Initialize UI immediately */
-
-            initializeNavigation();
-            initializeMobileMenu();
-            initializeClock();
-            initializeStudentModal();
-            initializeScanner();
-            initializeSearch();
-            initializeReports();
-            initializeModalClosing();
-
-
-            /*
-               PERFORMANCE IMPROVEMENT:
-               Students and attendance can load
-               at the same time after connection.
-            */
-
-            await testSupabaseConnection();
-
-
-            await Promise.all([
-                loadStudents({
-                    render: false
-                }),
-
-                loadTodayAttendance({
-                    render: false
-                })
-            ]);
-
-
-            /*
-               Render the currently visible areas
-               only once after initial loading.
-            */
-
-            renderCurrentSection();
-
-
-            initializeRealtime();
-
-
-            console.log(
-                "Vision School app.js loaded successfully."
-            );
-
-
-        } catch (error) {
-
-            console.error(
-                "Initialization error:",
-                error
-            );
-
-
-            showToast(
-                error?.message ||
-                "Application initialization failed.",
-                "error"
-            );
-
-        }
-
-    }
-);
-
-
-/* =========================================================
-   RENDER CURRENT SECTION
-========================================================= */
-
-function renderCurrentSection() {
-
-    const activeSection =
-        document.querySelector(
-            ".page-section.active"
-        );
-
-
-    const sectionId =
-        activeSection?.id ||
-        "dashboard";
-
-
-    updateAttendanceStatistics();
-
-
-    /*
-       Dashboard statistics can be updated
-       regardless of active section.
-    */
-
-    updateDashboardStudentCount();
-
-
-    switch (sectionId) {
-
-        case "students":
-
-            renderStudents();
-
-            break;
-
-
-        case "attendance":
-
-            renderAttendance();
-
-            break;
-
-
-        case "dashboard":
-
-            renderDashboard();
-
-            break;
-
-
-        default:
-
-            /*
-               If no active section is found,
-               render dashboard as safe default.
-            */
-
-            renderDashboard();
-
-            break;
-
-    }
-
-}
-
-
-/* =========================================================
-   CLOCK
-========================================================= */
-
-function initializeClock() {
-
-    updateClock();
-
-
-    setInterval(
-        updateClock,
-        1000
-    );
-
-}
-
-
-function updateClock() {
-
-    const now =
-        new Date();
-
-
-    const time =
-        now.toLocaleTimeString(
-            "en-US",
-            {
-                timeZone:
-                    "Asia/Vientiane",
-
-                hour:
-                    "2-digit",
-
-                minute:
-                    "2-digit",
-
-                second:
-                    "2-digit",
-
-                hour12:
-                    true
-            }
-        );
-
-
-    const date =
-        now.toLocaleDateString(
-            "en-US",
-            {
-                timeZone:
-                    "Asia/Vientiane",
-
-                weekday:
-                    "long",
-
-                year:
-                    "numeric",
-
-                month:
-                    "long",
-
-                day:
-                    "numeric"
-            }
-        );
-
-
-    const shortDate =
-        now.toLocaleDateString(
-            "en-US",
-            {
-                timeZone:
-                    "Asia/Vientiane",
-
-                weekday:
-                    "short",
-
-                year:
-                    "numeric",
-
-                month:
-                    "short",
-
-                day:
-                    "numeric"
-            }
-        );
-
-
-    const liveTime =
-        document.getElementById(
-            "liveTime"
-        );
-
-
-    const liveDate =
-        document.getElementById(
-            "liveDate"
-        );
-
-
-    const dashboardDate =
-        document.getElementById(
-            "dashboardDate"
-        );
-
-
-    if (liveTime) {
-
-        liveTime.textContent =
-            time;
-
-    }
-
-
-    if (liveDate) {
-
-        liveDate.textContent =
-            date;
-
-    }
-
-
-    if (dashboardDate) {
-
-        dashboardDate.textContent =
-            shortDate;
-
-    }
-
-}
-
-
-/* =========================================================
-   NAVIGATION
-========================================================= */
-
-function initializeNavigation() {
-
-    document
-        .querySelectorAll(
-            "[data-section]"
-        )
-        .forEach(
-            button => {
-
-                button.addEventListener(
-                    "click",
-                    () => {
-
-                        showSection(
-                            button.dataset.section
-                        );
-
-                    }
-                );
-
-            }
-        );
-
-}
-
-
-function showSection(
-    sectionId
-) {
-
-    document
-        .querySelectorAll(
-            ".page-section"
-        )
-        .forEach(
-            section => {
-
-                section.classList.remove(
-                    "active"
-                );
-
-            }
-        );
-
-
-    const section =
-        document.getElementById(
-            sectionId
-        );
-
-
-    if (section) {
-
-        section.classList.add(
-            "active"
-        );
-
-    }
-
-
-    document
-        .querySelectorAll(
-            ".nav-item"
-        )
-        .forEach(
-            item => {
-
-                item.classList.toggle(
-                    "active",
-                    item.dataset.section ===
-                    sectionId
-                );
-
-            }
-        );
-
-
-    const titles = {
-
-        dashboard: [
-            "Dashboard",
-            "Student attendance overview"
-        ],
-
-        students: [
-            "Students",
-            "Manage Vision School students"
-        ],
-
-        scanner: [
-            "QR Scanner",
-            "Scan student QR codes"
-        ],
-
-        attendance: [
-            "Attendance",
-            "Today's attendance records"
-        ],
-
-        reports: [
-            "Reports",
-            "Attendance reports and exports"
-        ]
-
-    };
-
-
-    const title =
-        titles[sectionId] ||
-        titles.dashboard;
-
-
-    const pageTitle =
-        document.getElementById(
-            "pageTitle"
-        );
-
-
-    const pageSubtitle =
-        document.getElementById(
-            "pageSubtitle"
-        );
-
-
-    if (pageTitle) {
-
-        pageTitle.textContent =
-            title[0];
-
-    }
-
-
-    if (pageSubtitle) {
-
-        pageSubtitle.textContent =
-            title[1];
-
-    }
-
-
-    /*
-       PERFORMANCE:
-       Only render the section that the
-       user actually opened.
-    */
-
-    if (
-        sectionId ===
-        "students"
-    ) {
-
-        renderStudents();
-
-    }
-
-
-    if (
-        sectionId ===
-        "attendance"
-    ) {
-
-        renderAttendance();
-
-    }
-
-
-    if (
-        sectionId ===
-        "dashboard"
-    ) {
-
-        renderDashboard();
-
-    }
-
-
-    const sidebar =
-        document.getElementById(
-            "sidebar"
-        );
-
-
-    if (sidebar) {
-
-        sidebar.classList.remove(
-            "open"
-        );
-
-    }
-
-}
-
-
-/* =========================================================
-   MOBILE MENU
-========================================================= */
-
-function initializeMobileMenu() {
-
-    const menu =
-        document.getElementById(
-            "mobileMenu"
-        );
-
-
-    const sidebar =
-        document.getElementById(
-            "sidebar"
-        );
-
-
-    if (
-        !menu ||
-        !sidebar
-    ) {
-
-        return;
-
-    }
-
-
-    menu.addEventListener(
-        "click",
-        () => {
-
-            sidebar.classList.toggle(
-                "open"
-            );
-
-        }
-    );
-
-}
-
-
-/* =========================================================
-   SUPABASE CONNECTION
-========================================================= */
-
-async function testSupabaseConnection() {
-
-    const dot =
-        document.getElementById(
-            "connectionDot"
-        );
-
-
-    const text =
-        document.getElementById(
-            "connectionText"
-        );
-
-
-    try {
-
-        const {
-            error
-        } =
-            await supabaseClient
-                .from("students")
-                .select("id")
-                .limit(1);
-
-
-        if (error) {
-
-            throw error;
-
-        }
-
-
-        dot?.classList.remove(
-            "offline"
-        );
-
-
-        dot?.classList.add(
-            "connected"
-        );
-
-
-        if (text) {
-
-            text.textContent =
-                "Connected";
-
-        }
-
-
-        console.log(
-            "Supabase connection successful."
-        );
-
-
-    } catch (error) {
-
-        console.error(
-            "Supabase connection error:",
-            error
-        );
-
-
-        dot?.classList.remove(
-            "connected"
-        );
-
-
-        dot?.classList.add(
-            "offline"
-        );
-
-
-        if (text) {
-
-            text.textContent =
-                "Connection Error";
-
-        }
-
-
-        showToast(
-            "Supabase connection failed.",
-            "error"
-        );
-
-
-        throw error;
-
-    }
-
-}
-
-
-/* =========================================================
-   LOAD STUDENTS
-========================================================= */
-
-async function loadStudents(
-    options = {}
-) {
-
-    const {
-        render = true
-    } = options;
-
-
-    /*
-       PERFORMANCE:
-       Prevent multiple identical requests
-       from running at the same time.
-    */
-
-    if (studentsLoadPromise) {
-
-        return studentsLoadPromise;
-
-    }
-
-
-    studentsLoadPromise =
-        (async () => {
-
-            try {
-
-                const {
-                    data,
-                    error
-                } =
-                    await supabaseClient
-                        .from("students")
-                        .select(
-                            "id,name,level,parent,phone,authorized,created_at"
-                        )
-                        .order(
-                            "name",
-                            {
-                                ascending:
-                                    true
-                            }
-                        );
-
-
-                if (error) {
-
-                    throw error;
-
-                }
-
-
-                students =
-                    data || [];
-
-
-                /*
-                   Build fast lookup Map.
-                */
-
-                studentsById =
-                    new Map();
-
-
-                students.forEach(
-                    student => {
-
-                        studentsById.set(
-                            String(
-                                student.id
-                            ),
-                            student
-                        );
-
-                    }
-                );
-
-
-                updateDashboardStudentCount();
-
-
-                populateLevelFilter();
-
-
-                if (render) {
-
-                    renderStudents();
-
-                    /*
-                       Dashboard is rendered only
-                       when currently active.
-                    */
-
-                    if (
-                        isSectionActive(
-                            "dashboard"
-                        )
-                    ) {
-
-                        renderDashboard();
-
-                    }
-
-                }
-
-
-                return students;
-
-
-            } catch (error) {
-
-                console.error(
-                    "Unable to load students:",
-                    error
-                );
-
-
-                showToast(
-                    error?.message ||
-                    "Unable to load students.",
-                    "error"
-                );
-
-
-                throw error;
-
-
-            } finally {
-
-                studentsLoadPromise =
-                    null;
-
-            }
-
-        })();
-
-
-    return studentsLoadPromise;
-
-}
-
-
-/* =========================================================
-   DASHBOARD STUDENT COUNT
-========================================================= */
-
-function updateDashboardStudentCount() {
-
-    const total =
-        document.getElementById(
-            "totalStudents"
-        );
-
-
-    if (total) {
-
-        total.textContent =
-            students.length;
-
-    }
-
-}
-
-
-/* =========================================================
-   LEVEL FILTER
-========================================================= */
-
-function populateLevelFilter() {
-
-    const filter =
-        document.getElementById(
-            "levelFilter"
-        );
-
-
-    if (!filter) {
-
-        return;
-
-    }
-
-
-    const oldValue =
-        filter.value;
-
-
-    const levels =
-        [
-            ...new Set(
-                students
-                    .map(
-                        student =>
-                            student.level
-                    )
-                    .filter(Boolean)
-            )
-        ]
-        .sort();
-
-
-    filter.innerHTML =
-        `<option value="">All Levels</option>`;
-
-
-    levels.forEach(
-        level => {
-
-            const option =
-                document.createElement(
-                    "option"
-                );
-
-
-            option.value =
-                level;
-
-
-            option.textContent =
-                level;
-
-
-            filter.appendChild(
-                option
-            );
-
-        }
-    );
-
-
-    /*
-       Keep previous selection if it still exists.
-    */
-
-    if (
-        levels.includes(
-            oldValue
-        )
-    ) {
-
-        filter.value =
-            oldValue;
-
-    }
-
-}
-
-
-/* =========================================================
-   PARENT / GUARDIAN DATA
-========================================================= */
-
-function getParentOptions(
-    parentValue
-) {
-
-    if (!parentValue) {
-
-        return [];
-
-    }
-
-
-    const value =
-        String(
-            parentValue
-        ).trim();
-
-
-    /*
-       NEW JSON FORMAT
-    */
-
-    if (
-        value.startsWith("[") &&
-        value.endsWith("]")
-    ) {
-
-        try {
-
-            const parsed =
-                JSON.parse(
-                    value
-                );
-
-
-            if (
-                Array.isArray(
-                    parsed
-                )
-            ) {
-
-                return parsed
-                    .slice(
-                        0,
-                        3
-                    )
-                    .map(
-                        (
-                            item,
-                            index
-                        ) => ({
-
-                            index:
-                                index + 1,
-
-                            label:
-                                item.label ||
-                                `Parent / Guardian ${index + 1}`,
-
-                            name:
-                                item.name ||
-                                "",
-
-                            phone:
-                                item.phone ||
-                                ""
-
-                        })
-                    )
-                    .filter(
-                        item =>
-                            item.name
-                    );
-
-            }
-
-        } catch (error) {
-
-            console.warn(
-                "Parent JSON parse failed. Using legacy format."
-            );
-
-        }
-
-    }
-
-
-    /*
-       OLD TEXT FORMAT
-    */
-
-    let parts = [];
-
-
-    if (
-        value.includes("|")
-    ) {
-
-        parts =
-            value
-                .split("|")
-                .map(
-                    item =>
-                        item.trim()
-                )
-                .filter(Boolean);
-
-    } else {
-
-        parts =
-            value
-                .split(",")
-                .map(
-                    item =>
-                        item.trim()
-                )
-                .filter(Boolean);
-
-    }
-
-
-    return parts
-        .slice(
-            0,
-            3
-        )
-        .map(
-            (
-                item,
-                index
-            ) => {
-
-                let label =
-                    `Parent / Guardian ${index + 1}`;
-
-
-                let name =
-                    item;
-
-
-                if (
-                    item.includes(":")
-                ) {
-
-                    const split =
-                        item.split(":");
-
-
-                    label =
-                        split[0]
-                            .trim();
-
-
-                    name =
-                        split
-                            .slice(1)
-                            .join(":")
-                            .trim();
-
-                }
-
-
-                return {
-
-                    index:
-                        index + 1,
-
-                    label:
-                        label,
-
-                    name:
-                        name,
-
-                    phone:
-                        ""
-
-                };
-
-            }
-        );
-
-}
-
-
-/* =========================================================
-   BUILD PARENT JSON
-========================================================= */
-
-function buildParentData() {
-
-    const parents = [];
-
-
-    const parent1 =
-        document.getElementById(
-            "studentParent"
-        )?.value.trim() || "";
-
-
-    const phone1 =
-        document.getElementById(
-            "studentPhone"
-        )?.value.trim() || "";
-
-
-    const parent2 =
-        document.getElementById(
-            "studentParent2"
-        )?.value.trim() || "";
-
-
-    const phone2 =
-        document.getElementById(
-            "studentPhone2"
-        )?.value.trim() || "";
-
-
-    const parent3 =
-        document.getElementById(
-            "studentParent3"
-        )?.value.trim() || "";
-
-
-    const phone3 =
-        document.getElementById(
-            "studentPhone3"
-        )?.value.trim() || "";
-
-
-    if (parent1) {
-
-        parents.push({
-
-            label:
-                "Parent / Guardian 1",
-
-            name:
-                parent1,
-
-            phone:
-                phone1
-
-        });
-
-    }
-
-
-    if (parent2) {
-
-        parents.push({
-
-            label:
-                "Parent / Guardian 2",
-
-            name:
-                parent2,
-
-            phone:
-                phone2
-
-        });
-
-    }
-
-
-    if (parent3) {
-
-        parents.push({
-
-            label:
-                "Parent / Guardian 3",
-
-            name:
-                parent3,
-
-            phone:
-                phone3
-
-        });
-
-    }
-
-
-    return JSON.stringify(
-        parents
-    );
-
-}
-
-
-/* =========================================================
-   STUDENT TABLE
-========================================================= */
-
-function renderStudents() {
-
-    const body =
-        document.getElementById(
-            "studentsBody"
-        );
-
-
-    if (!body) {
-
-        return;
-
-    }
-
-
-    const search =
-        document.getElementById(
-            "studentSearch"
-        )?.value
-        ?.toLowerCase()
-        ?.trim() || "";
-
-
-    const level =
-        document.getElementById(
-            "levelFilter"
-        )?.value || "";
-
-
-    const filtered =
-        students.filter(
-            student => {
-
-                const searchable = [
-
-                    student.id,
-
-                    student.name,
-
-                    student.level,
-
-                    student.parent,
-
-                    student.phone
-
-                ]
-                    .filter(Boolean)
-                    .join(" ")
-                    .toLowerCase();
-
-
-                return (
-
-                    (
-                        !search ||
-                        searchable.includes(
-                            search
-                        )
-                    )
-
-                    &&
-
-                    (
-                        !level ||
-                        student.level ===
-                        level
-                    )
-
-                );
-
-            }
-        );
-
-
-    if (!filtered.length) {
-
-        body.innerHTML = `
-
-            <tr>
-
-                <td
-                    colspan="8"
-                    class="empty-state"
-                >
-                    No students found.
-                </td>
-
-            </tr>
-
-        `;
-
-        return;
-
-    }
-
-
-    body.innerHTML =
-        filtered
-            .map(
-                student => {
-
-                    const authorized =
-                        student.authorized !==
-                        false;
-
-
-                    const parents =
-                        getParentOptions(
-                            student.parent
-                        );
-
-
-                    const parentDisplay =
-                        parents.length
-
-                            ? parents
-                                .map(
-                                    parent =>
-                                        `<strong>${escapeHtml(parent.label)}</strong>: ${escapeHtml(parent.name)}`
-                                )
-                                .join("<br>")
-
-                            : "-";
-
-
-                    return `
-
-                        <tr>
-
-                            <td>
-                                <strong>
-                                    ${escapeHtml(
-                                        student.id
-                                    )}
-                                </strong>
-                            </td>
-
-
-                            <td>
-                                ${escapeHtml(
-                                    student.name
-                                )}
-                            </td>
-
-
-                            <td>
-                                ${escapeHtml(
-                                    student.level ||
-                                    "-"
-                                )}
-                            </td>
-
-
-                            <td>
-                                ${parentDisplay}
-                            </td>
-
-
-                            <td>
-                                ${escapeHtml(
-                                    student.phone ||
-                                    "-"
-                                )}
-                            </td>
-
-
-                            <td>
-
-                                <span
-                                    class="status ${
-                                        authorized
-                                            ? "authorized"
-                                            : "not-authorized"
-                                    }"
-                                >
-
-                                    ${
-                                        authorized
-                                            ? "Authorized"
-                                            : "Not Authorized"
-                                    }
-
-                                </span>
-
-                            </td>
-
-
-                            <td>
-
-                                <button
-                                    type="button"
-                                    class="small-button view-student"
-                                    data-id="${escapeAttribute(student.id)}"
-                                >
-                                    View
-                                </button>
-
-
-                                <button
-                                    type="button"
-                                    class="small-button edit-student"
-                                    data-id="${escapeAttribute(student.id)}"
-                                >
-                                    Edit
-                                </button>
-
-
-                                <button
-                                    type="button"
-                                    class="small-button remove-student"
-                                    data-id="${escapeAttribute(student.id)}"
-                                    style="color:#dc2626"
-                                >
-                                    Remove
-                                </button>
-
-                            </td>
-
-
-                            <td>
-
-                                <button
-                                    type="button"
-                                    class="small-button generate-qr"
-                                    data-id="${escapeAttribute(student.id)}"
-                                >
-                                    QR
-                                </button>
-
-                            </td>
-
-                        </tr>
-
-                    `;
-
-                }
-            )
-            .join("");
-
-
-    /*
-       Keep existing button behavior.
-    */
-
-    body
-        .querySelectorAll(
-            ".view-student"
-        )
-        .forEach(
-            button => {
-
-                button.addEventListener(
-                    "click",
-                    () => {
-
-                        const student =
-                            findStudent(
-                                button.dataset.id
-                            );
-
-
-                        if (student) {
-
-                            showStudentProfile(
-                                student
-                            );
-
-                        }
-
-                    }
-                );
-
-            }
-        );
-
-
-    body
-        .querySelectorAll(
-            ".edit-student"
-        )
-        .forEach(
-            button => {
-
-                button.addEventListener(
-                    "click",
-                    () => {
-
-                        const student =
-                            findStudent(
-                                button.dataset.id
-                            );
-
-
-                        if (student) {
-
-                            editStudent(
-                                student
-                            );
-
-                        }
-
-                    }
-                );
-
-            }
-        );
-
-
-    body
-        .querySelectorAll(
-            ".remove-student"
-        )
-        .forEach(
-            button => {
-
-                button.addEventListener(
-                    "click",
-                    async () => {
-
-                        const student =
-                            findStudent(
-                                button.dataset.id
-                            );
-
-
-                        if (!student) {
-
-                            return;
-
-                        }
-
-
-                        const confirmed =
-                            confirm(
-                                `Remove ${student.name} from the student list?`
-                            );
-
-
-                        if (!confirmed) {
-
-                            return;
-
-                        }
-
-
-                        await deleteStudent(
-                            student
-                        );
-
-                    }
-                );
-
-            }
-        );
-
-
-    body
-        .querySelectorAll(
-            ".generate-qr"
-        )
-        .forEach(
-            button => {
-
-                button.addEventListener(
-                    "click",
-                    () => {
-
-                        const student =
-                            findStudent(
-                                button.dataset.id
-                            );
-
-
-                        if (student) {
-
-                            showStudentQr(
-                                student
-                            );
-
-                        }
-
-                    }
-                );
-
-            }
-        );
-
-}
-
-
-/* =========================================================
-   STUDENT MODAL
-========================================================= */
-
-function initializeStudentModal() {
-
-    document
-        .getElementById(
-            "addStudentButton"
-        )
-        ?.addEventListener(
-            "click",
-            () => {
-
-                currentStudent =
-                    null;
-
-
-                resetStudentForm();
-
-
-                document
-                    .getElementById(
-                        "studentModal"
-                    )
-                    ?.classList.add(
-                        "show"
-                    );
-
-            }
-        );
-
-
-    document
-        .getElementById(
-            "closeStudentModal"
-        )
-        ?.addEventListener(
-            "click",
-            closeStudentModal
-        );
-
-
-    document
-        .getElementById(
-            "cancelStudent"
-        )
-        ?.addEventListener(
-            "click",
-            closeStudentModal
-        );
-
-
-    document
-        .getElementById(
-            "studentForm"
-        )
-        ?.addEventListener(
-            "submit",
-            saveStudent
-        );
-
-}
-
-
-/* =========================================================
-   RESET STUDENT FORM
-========================================================= */
-
-function resetStudentForm() {
-
-    const form =
-        document.getElementById(
-            "studentForm"
-        );
-
-
-    if (form) {
-
-        form.reset();
-
-    }
-
-
-    const authorized =
-        document.getElementById(
-            "studentAuthorized"
-        );
-
-
-    if (authorized) {
-
-        authorized.checked =
-            true;
-
-    }
-
-
-    const title =
-        document.querySelector(
-            "#studentModal .modal-header h2"
-        );
-
-
-    if (title) {
-
-        title.textContent =
-            "Add Student";
-
-    }
-
-}
-
-
-/* =========================================================
-   EDIT STUDENT
-========================================================= */
-
-function editStudent(
-    student
-) {
-
-    currentStudent =
-        student;
-
-
-    const modal =
-        document.getElementById(
-            "studentModal"
-        );
-
-
-    if (!modal) {
-
-        return;
-
-    }
-
-
-    document.getElementById(
-        "studentId"
-    ).value =
-        student.id || "";
-
-
-    document.getElementById(
-        "studentName"
-    ).value =
-        student.name || "";
-
-
-    document.getElementById(
-        "studentLevel"
-    ).value =
-        student.level || "";
-
-
-    const parents =
-        getParentOptions(
-            student.parent
-        );
-
-
-    document.getElementById(
-        "studentParent"
-    ).value =
-        parents[0]?.name || "";
-
-
-    document.getElementById(
-        "studentPhone"
-    ).value =
-        parents[0]?.phone ||
-        student.phone ||
-        "";
-
-
-    document.getElementById(
-        "studentParent2"
-    ).value =
-        parents[1]?.name || "";
-
-
-    document.getElementById(
-        "studentPhone2"
-    ).value =
-        parents[1]?.phone || "";
-
-
-    document.getElementById(
-        "studentParent3"
-    ).value =
-        parents[2]?.name || "";
-
-
-    document.getElementById(
-        "studentPhone3"
-    ).value =
-        parents[2]?.phone || "";
-
-
-    document.getElementById(
-        "studentAuthorized"
-    ).checked =
-        student.authorized !== false;
-
-
-    const title =
-        document.querySelector(
-            "#studentModal .modal-header h2"
-        );
-
-
-    if (title) {
-
-        title.textContent =
-            "Edit Student";
-
-    }
-
-
-    modal.classList.add(
-        "show"
-    );
-
-}
-
-
-/* =========================================================
-   SAVE STUDENT
-========================================================= */
-
-async function saveStudent(
-    event
-) {
-
-    event.preventDefault();
-
-
-    const id =
-        document.getElementById(
-            "studentId"
-        ).value.trim();
-
-
-    const name =
-        document.getElementById(
-            "studentName"
-        ).value.trim();
-
-
-    const level =
-        document.getElementById(
-            "studentLevel"
-        ).value.trim();
-
-
-    const parent =
-        buildParentData();
-
-
-    const phone =
-        document.getElementById(
-            "studentPhone"
-        ).value.trim();
-
-
-    const authorized =
-        document.getElementById(
-            "studentAuthorized"
-        ).checked;
-
-
-    if (
-        !id ||
-        !name ||
-        !level
-    ) {
-
-        showToast(
-            "Please complete Student ID, Name and Level.",
-            "error"
-        );
-
-        return;
-
-    }
-
-
-    try {
-
-        if (currentStudent) {
-
-            const {
-                error
-            } =
-                await supabaseClient
-                    .from("students")
-                    .update({
-
-                        id,
-
-                        name,
-
-                        level,
-
-                        parent,
-
-                        phone,
-
-                        authorized
-
-                    })
-                    .eq(
-                        "id",
-                        currentStudent.id
-                    );
-
-
-            if (error) {
-
-                throw error;
-
-            }
-
-
-            showToast(
-                "Student updated successfully.",
-                "success"
-            );
-
-
-        } else {
-
-            const {
-                error
-            } =
-                await supabaseClient
-                    .from("students")
-                    .insert({
-
-                        id,
-
-                        name,
-
-                        level,
-
-                        parent,
-
-                        phone,
-
-                        authorized
-
-                    });
-
-
-            if (error) {
-
-                throw error;
-
-            }
-
-
-            showToast(
-                "Student added successfully.",
-                "success"
-            );
-
-        }
-
-
-        closeStudentModal();
-
-
-        await loadStudents();
-
-
-    } catch (error) {
-
-        console.error(
-            "Student save error:",
-            error
-        );
-
-
-        showToast(
-            error?.message ||
-            "Unable to save student.",
-            "error"
-        );
-
-    }
-
-}
-
-
-/* =========================================================
-   DELETE STUDENT
-========================================================= */
-
-async function deleteStudent(
-    student
-) {
-
-    try {
-
-        const {
-            error
-        } =
-            await supabaseClient
-                .from("students")
-                .delete()
-                .eq(
-                    "id",
-                    student.id
-                );
-
-
-        if (error) {
-
-            throw error;
-
-        }
-
-
-        showToast(
-            "Student removed successfully.",
-            "success"
-        );
-
-
-        await loadStudents();
-
-
-    } catch (error) {
-
-        console.error(
-            "Delete student error:",
-            error
-        );
-
-
-        showToast(
-            error?.message ||
-            "Unable to remove student.",
-            "error"
-        );
-
-    }
-
-}
-
-
-/* =========================================================
-   CLOSE STUDENT MODAL
-========================================================= */
-
-function closeStudentModal() {
-
-    document
-        .getElementById(
-            "studentModal"
-        )
-        ?.classList.remove(
-            "show"
-        );
-
-
-    currentStudent =
-        null;
-
-
-    resetStudentForm();
-
-}
-
-
-/* =========================================================
-   STUDENT PROFILE
-========================================================= */
-
-function showStudentProfile(
-    student
-) {
-
-    const modal =
-        document.getElementById(
-            "studentResultModal"
-        );
-
-
-    const result =
-        document.getElementById(
-            "studentResult"
-        );
-
-
-    if (
-        !modal ||
-        !result
-    ) {
-
-        return;
-
-    }
-
-
-    const authorized =
-        student.authorized !== false;
-
-
-    const parents =
-        getParentOptions(
-            student.parent
-        );
-
-
-    const parentList =
-        parents.length
-
-            ? parents
-                .map(
-                    parent => `
-
-                        <div
-                            style="
-                                padding:10px;
-                                margin:6px 0;
-                                background:#f8fafc;
-                                border-radius:8px;
-                            "
-                        >
-
-                            <strong>
-                                ${escapeHtml(
-                                    parent.label
-                                )}
-                            </strong>
-
-                            :
-                            ${escapeHtml(
-                                parent.name
-                            )}
-
-                            ${
-                                parent.phone
-                                    ? `<br><small>📞 ${escapeHtml(parent.phone)}</small>`
-                                    : ""
-                            }
-
-                        </div>
-
-                    `
-                )
-                .join("")
-
-            : "-";
-
-
-    result.innerHTML = `
-
-        <div class="student-result">
-
-            <div class="result-avatar">
-                👨‍🎓
-            </div>
-
-
-            <h2>
-                ${escapeHtml(
-                    student.name
-                )}
-            </h2>
-
-
-            <p>
-                ${escapeHtml(
-                    student.level || ""
-                )}
-            </p>
-
-
-            <hr>
-
-
-            <p>
-                <strong>
-                    Student ID:
-                </strong>
-
-                ${escapeHtml(
-                    student.id
-                )}
-            </p>
-
-
-            <p>
-                <strong>
-                    Phone:
-                </strong>
-
-                ${escapeHtml(
-                    student.phone || "-"
-                )}
-            </p>
-
-
-            <p>
-                <strong>
-                    Pickup Authorization:
-                </strong>
-
-                <span
-                    class="status ${
-                        authorized
-                            ? "authorized"
-                            : "not-authorized"
-                    }"
-                >
-                    ${
-                        authorized
-                            ? "AUTHORIZED"
-                            : "UNAUTHORIZED"
-                    }
-                </span>
-            </p>
-
-
-            <div
-                style="
-                    text-align:left;
-                    margin-top:15px;
-                "
-            >
-
-                <strong>
-                    Authorized Pickup People:
-                </strong>
-
-                ${parentList}
-
-            </div>
-
-
-            ${
-                !authorized
-
-                    ? `
-
-                        <div
-                            style="
-                                margin-top:15px;
-                                padding:14px;
-                                background:#fee2e2;
-                                color:#991b1b;
-                                border-radius:10px;
-                                text-align:left;
-                            "
-                        >
-
-                            <strong>
-                                ⚠ SECURITY NOTICE
-                            </strong>
-
-                            <p>
-                                This student is currently
-                                marked as UNAUTHORIZED.
-                                Staff must verify the
-                                pickup person carefully.
-                            </p>
-
-                        </div>
-
-                    `
-
-                    : ""
-            }
-
-
-            <div
-                class="result-actions"
-                style="margin-top:20px"
-            >
-
-                <button
-                    type="button"
-                    class="time-in-button"
-                    id="profileEditButton"
-                >
-                    ✏️ Edit
-                </button>
-
-
-                <button
-                    type="button"
-                    class="time-out-button"
-                    id="profileQrButton"
-                >
-                    ▣ QR Code
-                </button>
-
-            </div>
-
-        </div>
-
-    `;
-
-
-    modal.classList.add(
-        "show"
-    );
-
-
-    document
-        .getElementById(
-            "profileEditButton"
-        )
-        ?.addEventListener(
-            "click",
-            () => {
-
-                modal.classList.remove(
-                    "show"
-                );
-
-
-                editStudent(
-                    student
-                );
-
-            }
-        );
-
-
-    document
-        .getElementById(
-            "profileQrButton"
-        )
-        ?.addEventListener(
-            "click",
-            () => {
-
-                showStudentQr(
-                    student
-                );
-
-            }
-        );
-
-}
-
-
-/* =========================================================
-   QR GENERATOR
-========================================================= */
-
-function showStudentQr(
-    student
-) {
-
-    const modal =
-        document.getElementById(
-            "studentResultModal"
-        );
-
-
-    const result =
-        document.getElementById(
-            "studentResult"
-        );
-
-
-    if (
-        !modal ||
-        !result
-    ) {
-
-        return;
-
-    }
-
-
-    result.innerHTML = `
-
-        <div class="student-result">
-
-            <div class="result-avatar">
-                👨‍🎓
-            </div>
-
-
-            <h2>
-                ${escapeHtml(
-                    student.name
-                )}
-            </h2>
-
-
-            <p>
-                ${escapeHtml(
-                    student.level || ""
-                )}
-            </p>
-
-
-            <div
-                id="generatedQr"
-                style="
-                    display:flex;
-                    justify-content:center;
-                    margin:20px 0;
-                "
-            ></div>
-
-
-            <p>
-                Student ID:
-
-                <strong>
-                    ${escapeHtml(
-                        student.id
-                    )}
-                </strong>
-            </p>
-
-
-            <button
-                type="button"
-                class="primary-button"
-                id="downloadQr"
-            >
-                Download QR
-            </button>
-
-        </div>
-
-    `;
-
-
-    modal.classList.add(
-        "show"
-    );
-
-
-    loadQrGenerator(
-        () => {
-
-            const qrContainer =
-                document.getElementById(
-                    "generatedQr"
-                );
-
-
-            if (!qrContainer) {
-
-                return;
-
-            }
-
-
-            qrContainer.innerHTML =
-                "";
-
-
-            new QRCode(
-                qrContainer,
-                {
-
-                    text:
-                        String(
-                            student.id
-                        ),
-
-                    width:
-                        220,
-
-                    height:
-                        220
-
-                }
-            );
-
-
-            document
-                .getElementById(
-                    "downloadQr"
-                )
-                ?.addEventListener(
-                    "click",
-                    () =>
-                        downloadQr(
-                            student
-                        )
-                );
-
-        }
-    );
-
-}
-
-
-/* =========================================================
-   LOAD QR GENERATOR
-========================================================= */
-
-function loadQrGenerator(
-    callback
-) {
-
-    if (
-        typeof window.QRCode !==
-        "undefined"
-    ) {
-
-        callback();
-
-        return;
-
-    }
-
-
-    /*
-       Prevent loading the same external
-       script multiple times.
-    */
-
-    const existing =
-        document.querySelector(
-            'script[data-vision-qr-generator="true"]'
-        );
-
-
-    if (existing) {
-
-        existing.addEventListener(
-            "load",
-            callback,
-            {
-                once:
-                    true
-            }
-        );
-
-        return;
-
-    }
-
-
-    const script =
-        document.createElement(
-            "script"
-        );
-
-
-    script.src =
-        "https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js";
-
-
-    script.dataset.visionQrGenerator =
-        "true";
-
-
-    script.onload =
-        callback;
-
-
-    script.onerror =
-        () => {
-
-            showToast(
-                "QR generator could not load.",
-                "error"
-            );
-
-        };
-
-
-    document.head.appendChild(
-        script
-    );
-
-}
-
-
-/* =========================================================
-   DOWNLOAD QR
-========================================================= */
-
-function downloadQr(
-    student
-) {
-
-    const canvas =
-        document.querySelector(
-            "#generatedQr canvas"
-        );
-
-
-    const image =
-        document.querySelector(
-            "#generatedQr img"
-        );
-
-
-    const url =
-        canvas
-            ? canvas.toDataURL(
-                "image/png"
-            )
-            : image?.src;
-
-
-    if (!url) {
-
-        showToast(
-            "QR image is not ready.",
-            "error"
-        );
-
-        return;
-
-    }
-
-
-    const link =
-        document.createElement(
-            "a"
-        );
-
-
-    link.href =
-        url;
-
-
-    link.download =
-        `${student.id}-QR.png`;
-
-
-    document.body.appendChild(
-        link
-    );
-
-
-    link.click();
-
-
-    link.remove();
-
-}
-
-
-/* =========================================================
-   SCANNER
-========================================================= */
-
-function initializeScanner() {
-
-    document
-        .getElementById(
-            "startScanner"
-        )
-        ?.addEventListener(
-            "click",
-            startScanner
-        );
-
-
-    document
-        .getElementById(
-            "stopScanner"
-        )
-        ?.addEventListener(
-            "click",
-            stopScanner
-        );
-
-
-    document
-        .getElementById(
-            "manualSearchButton"
-        )
-        ?.addEventListener(
-            "click",
-            manualStudentSearch
-        );
-
-
-    document
-        .getElementById(
-            "manualStudentId"
-        )
-        ?.addEventListener(
-            "keydown",
-            event => {
-
-                if (
-                    event.key ===
-                    "Enter"
-                ) {
-
-                    event.preventDefault();
-
-                    manualStudentSearch();
-
-                }
-
-            }
-        );
-
-}
-
-
-/* =========================================================
-   START SCANNER
-========================================================= */
-
-async function startScanner() {
-
-    if (
-        typeof window.Html5Qrcode ===
-        "undefined"
-    ) {
-
-        showToast(
-            "QR scanner is still loading. Try again.",
-            "error"
-        );
-
-        return;
-
-    }
-
-
-    if (scannerRunning) {
-
-        return;
-
-    }
-
-
-    try {
-
-        html5QrCode =
-            new Html5Qrcode(
-                "reader"
-            );
-
-
-        await html5QrCode.start(
-
-            {
-                facingMode:
-                    "environment"
-            },
-
-            {
-                fps:
-                    10,
-
-                qrbox:
-                    {
-                        width:
-                            250,
-
-                        height:
-                            250
-                    }
-            },
-
-            decodedText => {
-
-                handleQrScan(
-                    decodedText
-                );
-
-            },
-
-            () => {}
-
-        );
-
-
-        scannerRunning =
-            true;
-
-
-        showToast(
-            "Camera started.",
-            "success"
-        );
-
-
-    } catch (error) {
-
-        console.error(
-            "Scanner error:",
-            error
-        );
-
-
-        showToast(
-            "Unable to start camera. Check camera permission.",
-            "error"
-        );
-
-    }
-
-}
-
-
-/* =========================================================
-   STOP SCANNER
-========================================================= */
-
-async function stopScanner() {
-
-    if (
-        !html5QrCode ||
-        !scannerRunning
-    ) {
-
-        return;
-
-    }
-
-
-    try {
-
-        await html5QrCode.stop();
-
-
-        try {
-
-            await html5QrCode.clear();
-
-        } catch (_) {}
-
-
-        scannerRunning =
-            false;
-
-
-    } catch (error) {
-
-        console.error(
-            "Scanner stop error:",
-            error
-        );
-
-
-        scannerRunning =
-            false;
-
-    }
-
-}
-
-
-/* =========================================================
-   HANDLE QR SCAN
-========================================================= */
-
-async function handleQrScan(
-    decodedText
-) {
-
-    await stopScanner();
-
-
-    const id =
-        String(
-            decodedText
-        ).trim();
-
-
-    const student =
-        findStudent(
-            id
-        );
-
-
-    if (!student) {
-
-        showToast(
-            `Student ID "${id}" was not found.`,
-            "error"
-        );
-
-        return;
-
-    }
-
-
-    /*
-       PERFORMANCE FIX:
-       Removed the unnecessary
-       await loadTodayAttendance().
-
-       Attendance was already loaded and cached.
-       This avoids an extra Supabase request
-       every time a QR code is scanned.
-    */
-
-    showAttendanceAction(
-        student
-    );
-
-}
-
-
-/* =========================================================
-   MANUAL SEARCH
-========================================================= */
-
-function manualStudentSearch() {
-
-    const input =
-        document.getElementById(
-            "manualStudentId"
-        );
-
-
-    const id =
-        input?.value
-            ?.trim() || "";
-
-
-    if (!id) {
-
-        showToast(
-            "Enter a Student ID.",
-            "error"
-        );
-
-        return;
-
-    }
-
-
-    const student =
-        findStudent(
-            id
-        );
-
-
-    if (!student) {
-
-        showToast(
-            "Student not found.",
-            "error"
-        );
-
-        return;
-
-    }
-
-
-    showAttendanceAction(
-        student
-    );
-
-}
-
-
-/* =========================================================
-   DATE - VIENTIANE
-========================================================= */
-
-function getVientianeDate() {
-
-    const parts =
-        new Intl.DateTimeFormat(
-            "en-CA",
-            {
-                timeZone:
-                    "Asia/Vientiane",
-
-                year:
-                    "numeric",
-
-                month:
-                    "2-digit",
-
-                day:
-                    "2-digit"
-            }
-        )
-        .formatToParts(
-            new Date()
-        );
-
-
-    const map = {};
-
-
-    parts.forEach(
-        part => {
-
-            if (
-                part.type !==
-                "literal"
-            ) {
-
-                map[
-                    part.type
-                ] =
-                    part.value;
-
-            }
-
-        }
-    );
-
-
-    return `${map.year}-${map.month}-${map.day}`;
-
-}
-
-
-/* =========================================================
-   FORMAT TIME
-========================================================= */
-
-function formatTime(
-    value
-) {
-
-    if (!value) {
-
-        return "-";
-
-    }
-
-
-    try {
-
-        return new Date(
-            value
-        ).toLocaleTimeString(
-            "en-US",
-            {
-
-                timeZone:
-                    "Asia/Vientiane",
-
-                hour:
-                    "2-digit",
-
-                minute:
-                    "2-digit",
-
-                second:
-                    "2-digit",
-
-                hour12:
-                    true
-
-            }
-        );
-
-    } catch (_) {
-
-        return "-";
-
-    }
-
-}
-
-
-/* =========================================================
-   ATTENDANCE ACTION MODAL
-========================================================= */
-
-function showAttendanceAction(
-    student
-) {
-
-    const modal =
-        document.getElementById(
-            "studentResultModal"
-        );
-
-
-    const result =
-        document.getElementById(
-            "studentResult"
-        );
-
-
-    if (
-        !modal ||
-        !result
-    ) {
-
-        return;
-
-    }
-
-
-    const record =
-        attendanceByStudentId.get(
-            String(
-                student.id
-            )
-        ) ||
-        null;
-
-
-    const hasTimeIn =
-        Boolean(
-            record?.time_in
-        );
-
-
-    const hasTimeOut =
-        Boolean(
-            record?.time_out
-        );
-
-
-    result.innerHTML = `
-
-        <div class="student-result">
-
-            <div class="result-avatar">
-                👨‍🎓
-            </div>
-
-
-            <h2>
-                ${escapeHtml(
-                    student.name
-                )}
-            </h2>
-
-
-            <p>
-                ${escapeHtml(
-                    student.level ||
-                    ""
-                )}
-            </p>
-
-
-            <hr>
-
-
-            <p>
-                <strong>
-                    Student ID:
-                </strong>
-
-                ${escapeHtml(
-                    student.id
-                )}
-            </p>
-
-
-            <div
-                style="
-                    margin-top:15px;
-                    padding:14px;
-                    background:#f8fafc;
-                    border-radius:10px;
-                    text-align:left;
-                "
-            >
-
-                <p>
-                    <strong>
-                        Time In:
-                    </strong>
-
-                    ${
-                        hasTimeIn
-                            ? formatTime(
-                                record.time_in
-                            )
-                            : "Not recorded"
-                    }
-                </p>
-
-
-                <p>
-                    <strong>
-                        Time Out:
-                    </strong>
-
-                    ${
-                        hasTimeOut
-                            ? formatTime(
-                                record.time_out
-                            )
-                            : "Not recorded"
-                    }
-                </p>
-
-            </div>
-
-
-            ${
-                !hasTimeIn
-
-                    ? `
-
-                        <div
-                            class="result-actions"
-                            style="margin-top:20px"
-                        >
-
-                            <button
-                                type="button"
-                                class="primary-button"
-                                id="timeInButton"
-                            >
-                                ✓ Time In
-                            </button>
-
-                        </div>
-
-                    `
-
-                    : ""
-            }
-
-
-            ${
-                hasTimeIn &&
-                !hasTimeOut
-
-                    ? `
-
-                        <div
-                            class="result-actions"
-                            style="margin-top:20px"
-                        >
-
-                            <button
-                                type="button"
-                                class="secondary-button"
-                                id="pickupButton"
-                            >
-                                👤 Verify Pickup
-                            </button>
-
-
-                            <button
-                                type="button"
-                                class="primary-button"
-                                id="timeOutButton"
-                            >
-                                ↗ Time Out
-                            </button>
-
-                        </div>
-
-                    `
-
-                    : ""
-            }
-
-
-            ${
-                hasTimeOut
-
-                    ? `
-
-                        <div
-                            style="
-                                margin-top:20px;
-                                padding:14px;
-                                background:#dcfce7;
-                                color:#166534;
-                                border-radius:10px;
-                            "
-                        >
-
-                            ✓ Attendance completed
-                            for today.
-
-                        </div>
-
-                    `
-
-                    : ""
-            }
-
-
-            <div
-                style="
-                    margin-top:20px;
-                    text-align:center;
-                "
-            >
-
-                <button
-                    type="button"
-                    class="secondary-button"
-                    id="profileButton"
-                >
-                    View Student Profile
-                </button>
-
-            </div>
-
-        </div>
-
-    `;
-
-
-    modal.classList.add(
-        "show"
-    );
-
-
-    document
-        .getElementById(
-            "timeInButton"
-        )
-        ?.addEventListener(
-            "click",
-            () =>
-                recordTimeIn(
-                    student
-                )
-        );
-
-
-    document
-        .getElementById(
-            "timeOutButton"
-        )
-        ?.addEventListener(
-            "click",
-            () =>
-                openPickupThenTimeOut(
-                    student
-                )
-        );
-
-
-    document
-        .getElementById(
-            "pickupButton"
-        )
-        ?.addEventListener(
-            "click",
-            () =>
-                openPickupForm(
-                    student
-                )
-        );
-
-
-    document
-        .getElementById(
-            "profileButton"
-        )
-        ?.addEventListener(
-            "click",
-            () =>
-                showStudentProfile(
-                    student
-                )
-        );
-
-}
-
-
-/* =========================================================
-   TIME IN
-========================================================= */
-
-async function recordTimeIn(
-    student
-) {
-
-    try {
-
-        const today =
-            getVientianeDate();
-
-
-        const {
-            data: existingRecords,
-            error: searchError
-        } =
-            await supabaseClient
-                .from("attendance")
-                .select(
-                    "id,student_id,student_name,date,time_in,time_out,pickup_person,pickup_relationship,pickup_phone,pickup_option,approver,notes,created_at"
-                )
-                .eq(
-                    "student_id",
-                    student.id
-                )
-                .eq(
-                    "date",
-                    today
-                )
-                .limit(1);
-
-
-        if (searchError) {
-
-            throw searchError;
-
-        }
-
-
-        const existing =
-            existingRecords?.[0] ||
-            null;
-
-
-        if (
-            existing?.time_in
-        ) {
-
-            showToast(
-                "This student already has a Time In today.",
-                "error"
-            );
-
-            return;
-
-        }
-
-
-        const now =
-            new Date().toISOString();
-
-
-        let savedRecord =
-            existing;
-
-
-        if (existing) {
-
-            const {
-                data,
-                error
-            } =
-                await supabaseClient
-                    .from("attendance")
-                    .update({
-
-                        time_in:
-                            now
-
-                    })
-                    .eq(
-                        "id",
-                        existing.id
-                    )
-                    .select()
-                    .single();
-
-
-            if (error) {
-
-                throw error;
-
-            }
-
-
-            savedRecord =
-                data;
-
-
-        } else {
-
-            const {
-                data,
-                error
-            } =
-                await supabaseClient
-                    .from("attendance")
-                    .insert({
-
-                        student_id:
-                            student.id,
-
-                        student_name:
-                            student.name,
-
-                        date:
-                            today,
-
-                        time_in:
-                            now
-
-                    })
-                    .select()
-                    .single();
-
-
-            if (error) {
-
-                throw error;
-
-            }
-
-
-            savedRecord =
-                data;
-
-        }
-
-
-        /*
-           Update local cache immediately.
-           This makes the UI feel faster.
-        */
-
-        if (savedRecord) {
-
-            updateLocalAttendanceRecord(
-                savedRecord
-            );
-
-        }
-
-
-        showToast(
-            `${student.name} — Time In recorded successfully.`,
-            "success"
-        );
-
-
-        closeResultModal();
-
-
-        /*
-           No need for a full reload immediately.
-           Realtime will synchronize other devices.
-        */
-
-
-        if (
-            isSectionActive(
-                "attendance"
-            )
-        ) {
-
-            renderAttendance();
-
-        }
-
-
-        updateAttendanceStatistics();
-
-
-    } catch (error) {
-
-        console.error(
-            "TIME IN ERROR:",
-            error
-        );
-
-
-        showToast(
-            `Time In failed: ${
-                error?.message ||
-                "Unknown error"
-            }`,
-            "error"
-        );
-
-    }
-
-}
-
-
-/* =========================================================
-   TIME OUT FLOW
-========================================================= */
-
-function openPickupThenTimeOut(
-    student
-) {
-
-    openPickupForm(
-        student,
-        true
-    );
-
-}
-
-
-/* =========================================================
-   PICKUP FORM
-========================================================= */
-
-function openPickupForm(
-    student,
-    closeAfterSave = false
-) {
-
-    const record =
-        attendanceByStudentId.get(
-            String(
-                student.id
-            )
-        );
-
-
-    if (!record) {
-
-        showToast(
-            "Attendance record not found.",
-            "error"
-        );
-
-        return;
-
-    }
-
-
-    const result =
-        document.getElementById(
-            "studentResult"
-        );
-
-
-    const parents =
-        getParentOptions(
-            student.parent
-        );
-
-
-    const authorized =
-        student.authorized !== false;
-
-
-    const pickupOptions =
-        parents
-            .map(
-                parent => `
-
-                    <option
-                        value="${escapeAttribute(
-                            parent.name
-                        )}"
-                    >
-
-                        ${escapeHtml(
-                            parent.label
-                        )}
-                        —
-                        ${escapeHtml(
-                            parent.name
-                        )}
-
-                    </option>
-
-                `
-            )
-            .join("");
-
-
-    result.innerHTML = `
-
-        <div class="student-result">
-
-            <div class="result-avatar">
-                👤
-            </div>
-
-
-            <h2>
-                Student Pickup
-            </h2>
-
-
-            <p>
-                ${escapeHtml(
-                    student.name
-                )}
-            </p>
-
-
-            ${
-                !authorized
-
-                    ? `
-
-                        <div
-                            style="
-                                padding:12px;
-                                background:#fee2e2;
-                                color:#991b1b;
-                                border-radius:10px;
-                                margin:15px 0;
-                                text-align:left;
-                            "
-                        >
-
-                            <strong>
-                                ⚠ UNAUTHORIZED
-                            </strong>
-
-                            <p>
-                                This student is not
-                                currently authorized
-                                for normal pickup.
-                                Staff verification
-                                is required.
-                            </p>
-
-                        </div>
-
-                    `
-
-                    : ""
-            }
-
-
-            <div
-                style="
-                    text-align:left;
-                    margin-top:20px;
-                "
-            >
-
-                <label>
-                    <strong>
-                        Who is picking up the student?
-                    </strong>
-                </label>
-
-
-                <select
-                    id="pickupPersonSelect"
-                    style="
-                        width:100%;
-                        padding:12px;
-                        margin:6px 0 14px;
-                        border:1px solid #d1d5db;
-                        border-radius:8px;
-                        background:white;
-                    "
-                >
-
-                    <option value="">
-                        -- Select Authorized Person --
-                    </option>
-
-                    ${pickupOptions}
-
-                    <option value="Other">
-                        Other / Guest
-                    </option>
-
-                </select>
-
-
-                <div
-                    id="otherPickupContainer"
-                    style="display:none"
-                >
-
-                    <label>
-                        Other / Guest Name
-                    </label>
-
-                    <input
-                        id="otherPickupName"
-                        type="text"
-                        placeholder="Full name"
-                        style="
-                            width:100%;
-                            padding:11px;
-                            margin:6px 0 14px;
-                            border:1px solid #d1d5db;
-                            border-radius:8px;
-                        "
-                    >
-
-                </div>
-
-
-                <label>
-                    Relationship
-                </label>
-
-                <input
-                    id="pickupRelationshipInput"
-                    type="text"
-                    placeholder="Mother, Father, Guardian, Aunt..."
-                    style="
-                        width:100%;
-                        padding:11px;
-                        margin:6px 0 14px;
-                        border:1px solid #d1d5db;
-                        border-radius:8px;
-                    "
-                >
-
-
-                <label>
-                    Phone
-                </label>
-
-                <input
-                    id="pickupPhoneInput"
-                    type="text"
-                    placeholder="Phone number"
-                    style="
-                        width:100%;
-                        padding:11px;
-                        margin:6px 0 14px;
-                        border:1px solid #d1d5db;
-                        border-radius:8px;
-                    "
-                >
-
-
-                <label>
-                    Pickup Option
-                </label>
-
-                <select
-                    id="pickupOptionInput"
-                    style="
-                        width:100%;
-                        padding:11px;
-                        margin:6px 0 14px;
-                        border:1px solid #d1d5db;
-                        border-radius:8px;
-                    "
-                >
-
-                    <option value="">
-                        Select option
-                    </option>
-
-                    <option value="Parent">
-                        Parent
-                    </option>
-
-                    <option value="Guardian">
-                        Guardian
-                    </option>
-
-                    <option value="Authorized Person">
-                        Authorized Person
-                    </option>
-
-                    <option value="Guest">
-                        Guest
-                    </option>
-
-                </select>
-
-
-                <label>
-                    Approver / Staff
-                </label>
-
-                <input
-                    id="approverInput"
-                    type="text"
-                    placeholder="Staff / Teacher name"
-                    style="
-                        width:100%;
-                        padding:11px;
-                        margin:6px 0 14px;
-                        border:1px solid #d1d5db;
-                        border-radius:8px;
-                    "
-                >
-
-
-                <label>
-                    Notes
-                </label>
-
-                <textarea
-                    id="notesInput"
-                    placeholder="Additional security or pickup notes..."
-                    style="
-                        width:100%;
-                        min-height:80px;
-                        padding:11px;
-                        margin:6px 0 14px;
-                        border:1px solid #d1d5db;
-                        border-radius:8px;
-                    "
-                ></textarea>
-
-            </div>
-
-
-            <div
-                class="result-actions"
-            >
-
-                <button
-                    type="button"
-                    class="secondary-button"
-                    id="cancelPickup"
-                >
-                    Cancel
-                </button>
-
-
-                <button
-                    type="button"
-                    class="primary-button"
-                    id="savePickup"
-                >
-                    Save Pickup
-                </button>
-
-            </div>
-
-        </div>
-
-    `;
-
-
-    /*
-       PERSON SELECT
-    */
-
-    document
-        .getElementById(
-            "pickupPersonSelect"
-        )
-        ?.addEventListener(
-            "change",
-            event => {
-
-                const value =
-                    event.target.value;
-
-
-                const otherContainer =
-                    document.getElementById(
-                        "otherPickupContainer"
-                    );
-
-
-                if (otherContainer) {
-
-                    otherContainer.style.display =
-                        value === "Other"
-                            ? "block"
-                            : "none";
-
-                }
-
-
-                const selected =
-                    parents.find(
-                        parent =>
-                            parent.name ===
-                            value
-                    );
-
-
-                if (selected) {
-
-                    const relationship =
-                        document.getElementById(
-                            "pickupRelationshipInput"
-                        );
-
-
-                    const phone =
-                        document.getElementById(
-                            "pickupPhoneInput"
-                        );
-
-
-                    if (relationship) {
-
-                        relationship.value =
-                            selected.label;
-
-                    }
-
-
-                    if (phone) {
-
-                        phone.value =
-                            selected.phone ||
-                            "";
-
-                    }
-
-                }
-
-            }
-        );
-
-
-    /*
-       CANCEL
-    */
-
-    document
-        .getElementById(
-            "cancelPickup"
-        )
-        ?.addEventListener(
-            "click",
-            () =>
-                showAttendanceAction(
-                    student
-                )
-        );
-
-
-    /*
-       SAVE
-    */
-
-    document
-        .getElementById(
-            "savePickup"
-        )
-        ?.addEventListener(
-            "click",
-            () =>
-                savePickup(
-                    student,
-                    record,
-                    closeAfterSave
-                )
-        );
-
-}
-
-
-/* =========================================================
-   SAVE PICKUP
-========================================================= */
-
-async function savePickup(
-    student,
-    record,
-    closeAfterSave = false
-) {
-
-    try {
-
-        console.log(
-            "Saving pickup information..."
-        );
-
-
-        const personSelect =
-            document.getElementById(
-                "pickupPersonSelect"
-            );
-
-
-        if (!personSelect) {
-
-            throw new Error(
-                "Pickup person selector was not found."
-            );
-
-        }
-
-
-        const selectedPerson =
-            personSelect.value;
-
-
-        const otherName =
-            document
-                .getElementById(
-                    "otherPickupName"
-                )
-                ?.value
-                ?.trim() || "";
-
-
-        if (!selectedPerson) {
-
-            showToast(
-                "Please select who is picking up the student.",
-                "error"
-            );
-
-            return;
-
-        }
-
-
-        let pickup_person =
-            selectedPerson;
-
-
-        /*
-           OTHER PERSON
-        */
-
-        if (
-            selectedPerson ===
-            "Other"
-        ) {
-
-            if (!otherName) {
-
-                showToast(
-                    "Please enter the pickup person's name.",
-                    "error"
-                );
-
-                return;
-
-            }
-
-
-            pickup_person =
-                otherName;
-
-        }
-
-
-        /*
-           GET PICKUP INFORMATION
-        */
-
-        const relationship =
-            document
-                .getElementById(
-                    "pickupRelationshipInput"
-                )
-                ?.value
-                ?.trim() || "";
-
-
-        const phone =
-            document
-                .getElementById(
-                    "pickupPhoneInput"
-                )
-                ?.value
-                ?.trim() || "";
-
-
-        const pickup_option =
-            document
-                .getElementById(
-                    "pickupOptionInput"
-                )
-                ?.value || "";
-
-
-        const approver =
-            document
-                .getElementById(
-                    "approverInput"
-                )
-                ?.value
-                ?.trim() || "";
-
-
-        const notes =
-            document
-                .getElementById(
-                    "notesInput"
-                )
-                ?.value
-                ?.trim() || "";
-
-
-        /*
-           VALIDATION
-        */
-
-        if (!pickup_option) {
-
-            showToast(
-                "Please select the pickup option.",
-                "error"
-            );
-
-            return;
-
-        }
-
-
-        if (!approver) {
-
-            showToast(
-                "Please enter the approving staff/teacher.",
-                "error"
-            );
-
-            return;
-
-        }
-
-
-        /*
-           VERIFY ATTENDANCE RECORD
-        */
-
-        if (
-            !record ||
-            record.id === undefined ||
-            record.id === null
-        ) {
-
-            console.error(
-                "Invalid attendance record:",
-                record
-            );
-
-
-            throw new Error(
-                "Attendance record ID is missing."
-            );
-
-        }
-
-
-        /*
-           PICKUP TIME
-        */
-
-        const pickupTime =
-            new Date().toISOString();
-
-
-        /*
-           SUPABASE PAYLOAD
-
-           IMPORTANT:
-           Preserve the current lowercase
-           pickup_relationship behavior.
-        */
-
-        const payload = {
-
-            pickup_person:
-                pickup_person,
-
-            pickup_relationship:
-                relationship,
-
-            pickup_phone:
-                phone,
-
-            pickup_option:
-                pickup_option,
-
-            approver:
-                approver,
-
-            notes:
-                notes,
-
-            /*
-               FIX:
-               Save exact pickup / Time Out.
-            */
-
-            time_out:
-                pickupTime
-
-        };
-
-
-        console.log(
-            "Pickup update payload:",
-            payload
-        );
-
-
-        /*
-           UPDATE ATTENDANCE
-        */
-
-        const {
-            data,
-            error
-        } =
-            await supabaseClient
-                .from("attendance")
-                .update(
-                    payload
-                )
-                .eq(
-                    "id",
-                    record.id
-                )
-                .select()
-                .single();
-
-
-        if (error) {
-
-            console.error(
-                "Supabase pickup update error:",
-                error
-            );
-
-
-            throw error;
-
-        }
-
-
-        /*
-           UPDATE LOCAL CACHE IMMEDIATELY
-        */
-
-        if (data) {
-
-            updateLocalAttendanceRecord(
-                data
-            );
-
-        } else {
-
-            /*
-               Fallback in case Supabase
-               doesn't return the updated row.
-            */
-
-            updateLocalAttendanceRecord({
-
-                ...record,
-
-                ...payload
-
-            });
-
-        }
-
-
-        console.log(
-            "Pickup saved successfully."
-        );
-
-
-        showToast(
-            `Pickup saved: ${pickup_person}`,
-            "success"
-        );
-
-
-        closeResultModal();
-
-
-        updateAttendanceStatistics();
-
-
-        if (
-            isSectionActive(
-                "attendance"
-            )
-        ) {
-
-            renderAttendance();
-
-        }
-
-
-        if (
-            isSectionActive(
-                "dashboard"
-            )
-        ) {
-
-            renderDashboard();
-
-        }
-
-
-    } catch (error) {
-
-        console.error(
-            "Pickup save error:",
-            error
-        );
-
-
-        let message =
-            error?.message ||
-            "Unable to save pickup information.";
-
-
-        if (
-            message
-                .toLowerCase()
-                .includes(
-                    "pickup_relationship"
-                )
-        ) {
-
-            message =
-                "Supabase could not find the pickup_relationship column. Please check the attendance table column name.";
-
-        }
-
-
-        showToast(
-            message,
-            "error"
-        );
-
-    }
-
-}
-
-
-/* =========================================================
-   TIME OUT
-========================================================= */
-
-async function recordTimeOut(
-    student
-) {
-
-    try {
-
-        const today =
-            getVientianeDate();
-
-
-        const {
-            data,
-            error: searchError
-        } =
-            await supabaseClient
-                .from("attendance")
-                .select(
-                    "id,student_id,student_name,date,time_in,time_out"
-                )
-                .eq(
-                    "student_id",
-                    student.id
-                )
-                .eq(
-                    "date",
-                    today
-                )
-                .limit(1);
-
-
-        if (searchError) {
-
-            throw searchError;
-
-        }
-
-
-        const existing =
-            data?.[0] ||
-            null;
-
-
-        if (!existing) {
-
-            showToast(
-                "This student has not been timed in today.",
-                "error"
-            );
-
-            return;
-
-        }
-
-
-        if (!existing.time_in) {
-
-            showToast(
-                "Time In must be recorded first.",
-                "error"
-            );
-
-            return;
-
-        }
-
-
-        if (existing.time_out) {
-
-            showToast(
-                "This student already has a Time Out today.",
-                "error"
-            );
-
-            return;
-
-        }
-
-
-        const now =
-            new Date().toISOString();
-
-
-        const {
-            data: updated,
-            error
-        } =
-            await supabaseClient
-                .from("attendance")
-                .update({
-
-                    time_out:
-                        now
-
-                })
-                .eq(
-                    "id",
-                    existing.id
-                )
-                .select()
-                .single();
-
-
-        if (error) {
-
-            throw error;
-
-        }
-
-
-        if (updated) {
-
-            updateLocalAttendanceRecord(
-                updated
-            );
-
-        }
-
-
-        showToast(
-            `${student.name} — Time Out recorded successfully.`,
-            "success"
-        );
-
-
-        closeResultModal();
-
-
-        updateAttendanceStatistics();
-
-
-        if (
-            isSectionActive(
-                "attendance"
-            )
-        ) {
-
-            renderAttendance();
-
-        }
-
-
-    } catch (error) {
-
-        console.error(
-            "TIME OUT ERROR:",
-            error
-        );
-
-
-        showToast(
-            `Time Out failed: ${
-                error?.message ||
-                "Unknown error"
-            }`,
-            "error"
-        );
-
-    }
-
-}
-
-
-/* =========================================================
-   LOAD TODAY ATTENDANCE
-========================================================= */
-
-async function loadTodayAttendance(
-    options = {}
-) {
-
-    const {
-        render = true
-    } = options;
-
-
-    /*
-       Prevent duplicate simultaneous
-       attendance requests.
-    */
-
-    if (attendanceLoadPromise) {
-
-        return attendanceLoadPromise;
-
-    }
-
-
-    attendanceLoadPromise =
-        (async () => {
-
-            try {
-
-                const today =
-                    getVientianeDate();
-
-
-                const {
-                    data,
-                    error
-                } =
-                    await supabaseClient
-                        .from("attendance")
-                        .select(
-                            "id,student_id,student_name,date,time_in,time_out,pickup_person,pickup_relationship,pickup_phone,pickup_option,approver,notes,created_at"
-                        )
-                        .eq(
-                            "date",
-                            today
-                        )
-                        .order(
-                            "created_at",
-                            {
-                                ascending:
-                                    false
-                            }
-                        );
-
-
-                if (error) {
-
-                    throw error;
-
-                }
-
-
-                attendanceRecords =
-                    data || [];
-
-
-                /*
-                   Build fast attendance lookup.
-                */
-
-                attendanceByStudentId =
-                    new Map();
-
-
-                attendanceRecords.forEach(
-                    record => {
-
-                        attendanceByStudentId.set(
-                            String(
-                                record.student_id
-                            ),
-                            record
-                        );
-
-                    }
-                );
-
-
-                updateAttendanceStatistics();
-
-
-                if (render) {
-
-                    if (
-                        isSectionActive(
-                            "attendance"
-                        )
-                    ) {
-
-                        renderAttendance();
-
-                    }
-
-
-                    if (
-                        isSectionActive(
-                            "dashboard"
-                        )
-                    ) {
-
-                        renderDashboard();
-
-                    }
-
-                }
-
-
-                return attendanceRecords;
-
-
-            } catch (error) {
-
-                console.error(
-                    "Unable to load attendance:",
-                    error
-                );
-
-
-                showToast(
-                    error?.message ||
-                    "Unable to load today's attendance.",
-                    "error"
-                );
-
-
-                throw error;
-
-
-            } finally {
-
-                attendanceLoadPromise =
-                    null;
-
-            }
-
-        })();
-
-
-    return attendanceLoadPromise;
-
-}
-
-
-/* =========================================================
-   UPDATE LOCAL ATTENDANCE CACHE
-========================================================= */
-
-function updateLocalAttendanceRecord(
-    record
-) {
-
-    if (
-        !record ||
-        record.id === undefined ||
-        record.id === null
-    ) {
-
-        return;
-
-    }
-
-
-    const index =
-        attendanceRecords.findIndex(
-            item =>
-                String(
-                    item.id
-                ) ===
-                String(
-                    record.id
-                )
-        );
-
-
-    if (index >= 0) {
-
-        attendanceRecords[index] = {
-
-            ...attendanceRecords[index],
-
-            ...record
-
-        };
-
-    } else {
-
-        attendanceRecords.unshift(
-            record
-        );
-
-    }
-
-
-    attendanceByStudentId.set(
-        String(
-            record.student_id
-        ),
-        record
-    );
-
-}
-
-
-/* =========================================================
-   ATTENDANCE STATISTICS
-========================================================= */
-
-function updateAttendanceStatistics() {
-
-    let timeInCount =
-        0;
-
-
-    let timeOutCount =
-        0;
-
-
-    let currentlyIn =
-        0;
-
-
-    for (
-        const record
-        of attendanceRecords
-    ) {
-
-        if (
-            record.time_in
-        ) {
-
-            timeInCount++;
-
-        }
-
-
-        if (
-            record.time_out
-        ) {
-
-            timeOutCount++;
-
-        }
-
-
-        if (
-            record.time_in &&
-            !record.time_out
-        ) {
-
-            currentlyIn++;
-
-        }
-
-    }
-
-
-    const timeInElement =
-        document.getElementById(
-            "timeInCount"
-        );
-
-
-    const timeOutElement =
-        document.getElementById(
-            "timeOutCount"
-        );
-
-
-    const currentlyInElement =
-        document.getElementById(
-            "currentlyInCount"
-        );
-
-
-    if (timeInElement) {
-
-        timeInElement.textContent =
-            timeInCount;
-
-    }
-
-
-    if (timeOutElement) {
-
-        timeOutElement.textContent =
-            timeOutCount;
-
-    }
-
-
-    if (currentlyInElement) {
-
-        currentlyInElement.textContent =
-            currentlyIn;
-
-    }
-
-}
-
-
-/* =========================================================
-   ATTENDANCE TABLE
-========================================================= */
-
-function renderAttendance() {
-
-    const body =
-        document.getElementById(
-            "attendanceBody"
-        );
-
-
-    if (!body) {
-
-        return;
-
-    }
-
-
-    const search =
-        document
-            .getElementById(
-                "attendanceSearch"
-            )
-            ?.value
-            ?.toLowerCase()
-            ?.trim() || "";
-
-
-    const filtered =
-        attendanceRecords.filter(
-            record => {
-
-                const searchable = [
-
-                    record.student_id,
-
-                    record.student_name,
-
-                    record.pickup_person,
-
-                    record.Pickup_relationship,
-
-                    record.pickup_relationship,
-
-                    record.pickup_phone,
-
-                    record.pickup_option,
-
-                    record.approver
-
-                ]
-                    .filter(Boolean)
-                    .join(" ")
-                    .toLowerCase();
-
-
-                return (
-                    !search ||
-                    searchable.includes(
-                        search
-                    )
-                );
-
-            }
-        );
-
-
-    if (!filtered.length) {
-
-        body.innerHTML = `
-
-            <tr>
-
-                <td
-                    colspan="6"
-                    class="empty-state"
-                >
-                    No attendance records yet.
-                </td>
-
-            </tr>
-
-        `;
-
-        return;
-
-    }
-
-
-    body.innerHTML =
-        filtered
-            .map(
-                record => {
-
-                    const complete =
-                        Boolean(
-                            record.time_in &&
-                            record.time_out
-                        );
-
-
-                    const status =
-                        complete
-                            ? "Completed"
-                            : record.time_in
-                                ? "Currently In"
-                                : "Pending";
-
-
-                    const relationship =
-                        record.Pickup_relationship ||
-                        record.pickup_relationship ||
-                        record.pickup_option ||
-                        "";
-
-
-                    return `
-
-                        <tr>
-
-                            <td>
-
-                                <strong>
-                                    ${escapeHtml(
-                                        record.student_name ||
-                                        record.student_id
-                                    )}
-                                </strong>
-
-                                <small
-                                    style="
-                                        display:block;
-                                        opacity:.65;
-                                    "
-                                >
-                                    ${escapeHtml(
-                                        record.student_id
-                                    )}
-                                </small>
-
-                            </td>
-
-
-                            <td>
-
-                                ${escapeHtml(
-                                    findStudent(
-                                        record.student_id
-                                    )?.level ||
-                                    "-"
-                                )}
-
-                            </td>
-
-
-                            <td>
-
-                                ${formatTime(
-                                    record.time_in
-                                )}
-
-                            </td>
-
-
-                            <td>
-
-                                ${formatTime(
-                                    record.time_out
-                                )}
-
-                            </td>
-
-
-                            <td>
-
-                                ${
-                                    record.pickup_person
-                                        ? `
-
-                                            <strong>
-                                                ${escapeHtml(
-                                                    record.pickup_person
-                                                )}
-                                            </strong>
-
-                                            <small
-                                                style="
-                                                    display:block;
-                                                    opacity:.65;
-                                                "
-                                            >
-                                                ${escapeHtml(
-                                                    relationship
-                                                )}
-                                            </small>
-
-                                        `
-                                        : "-"
-                                }
-
-                            </td>
-
-
-                            <td>
-
-                                <span
-                                    class="status ${
-                                        complete
-                                            ? "authorized"
-                                            : "pending"
-                                    }"
-                                >
-
-                                    ${status}
-
-                                </span>
-
-                            </td>
-
-                        </tr>
-
-                    `;
-
-                }
-            )
-            .join("");
-
-}
-
-
-/* =========================================================
-   DASHBOARD
-========================================================= */
-
-function renderDashboard() {
-
-    const body =
-        document.getElementById(
-            "dashboardAttendanceBody"
-        );
-
-
-    if (!body) {
-
-        return;
-
-    }
-
-
-    const recent =
-        attendanceRecords.slice(
-            0,
-            10
-        );
-
-
-    if (!recent.length) {
-
-        body.innerHTML = `
-
-            <tr>
-
-                <td
-                    colspan="5"
-                    class="empty-state"
-                >
-                    No attendance records yet.
-                </td>
-
-            </tr>
-
-        `;
-
-        return;
-
-    }
-
-
-    body.innerHTML =
-        recent
-            .map(
-                record => {
-
-                    const complete =
-                        Boolean(
-                            record.time_in &&
-                            record.time_out
-                        );
-
-
-                    const status =
-                        complete
-                            ? "Completed"
-                            : record.time_in
-                                ? "Currently In"
-                                : "Pending";
-
-
-                    const student =
-                        findStudent(
-                            record.student_id
-                        );
-
-
-                    return `
-
-                        <tr>
-
-                            <td>
-
-                                <strong>
-                                    ${escapeHtml(
-                                        record.student_name ||
-                                        record.student_id
-                                    )}
-                                </strong>
-
-                            </td>
-
-
-                            <td>
-
-                                ${escapeHtml(
-                                    student?.level ||
-                                    "-"
-                                )}
-
-                            </td>
-
-
-                            <td>
-
-                                ${formatTime(
-                                    record.time_in
-                                )}
-
-                            </td>
-
-
-                            <td>
-
-                                ${formatTime(
-                                    record.time_out
-                                )}
-
-                            </td>
-
-
-                            <td>
-
-                                <span
-                                    class="status ${
-                                        complete
-                                            ? "authorized"
-                                            : "pending"
-                                    }"
-                                >
-
-                                    ${status}
-
-                                </span>
-
-                            </td>
-
-                        </tr>
-
-                    `;
-
-                }
-            )
-            .join("");
-
-}
-
-
-/* =========================================================
-   SEARCH
-========================================================= */
-
-function initializeSearch() {
-
-    document
-        .getElementById(
-            "studentSearch"
-        )
-        ?.addEventListener(
-            "input",
-            renderStudents
-        );
-
-
-    document
-        .getElementById(
-            "levelFilter"
-        )
-        ?.addEventListener(
-            "change",
-            renderStudents
-        );
-
-
-    document
-        .getElementById(
-            "attendanceSearch"
-        )
-        ?.addEventListener(
-            "input",
-            renderAttendance
-        );
-
-
-    document
-        .getElementById(
-            "refreshAttendance"
-        )
-        ?.addEventListener(
-            "click",
-            async () => {
-
-                await loadTodayAttendance();
-
-
-                showToast(
-                    "Attendance refreshed.",
-                    "success"
-                );
-
-            }
-        );
-
-}
-
-
-/* =========================================================
-   REPORTS / CSV
-========================================================= */
-
-function initializeReports() {
-
-    document
-        .getElementById(
-            "exportCsv"
-        )
-        ?.addEventListener(
-            "click",
-            exportCsv
-        );
-
-}
-
-
-function exportCsv() {
-
-    if (
-        !attendanceRecords.length
-    ) {
-
-        showToast(
-            "There are no attendance records to export.",
-            "error"
-        );
-
-        return;
-
-    }
-
-
-    const headers = [
-
-        "Date",
-
-        "Student ID",
-
-        "Student Name",
-
-        "Level",
-
-        "Time In",
-
-        "Time Out",
-
-        "Pickup Person",
-
-        "Pickup Relationship",
-
-        "Pickup Phone",
-
-        "Pickup Option",
-
-        "Approver",
-
-        "Notes"
-
-    ];
-
-
-    const rows =
-        attendanceRecords.map(
-            record => {
-
-                const student =
-                    findStudent(
-                        record.student_id
-                    );
-
-
-                return [
-
-                    record.date ||
-                        "",
-
-                    record.student_id ||
-                        "",
-
-                    record.student_name ||
-                        "",
-
-                    student?.level ||
-                        "",
-
-                    record.time_in
-                        ? formatTime(
-                            record.time_in
-                        )
-                        : "",
-
-                    record.time_out
-                        ? formatTime(
-                            record.time_out
-                        )
-                        : "",
-
-                    record.pickup_person ||
-                        "",
-
-                    record.Pickup_relationship ||
-                        record.pickup_relationship ||
-                        "",
-
-                    record.pickup_phone ||
-                        "",
-
-                    record.pickup_option ||
-                        "",
-
-                    record.approver ||
-                        "",
-
-                    record.notes ||
-                        ""
-
-                ];
-
-            }
-        );
-
-
-    const csv = [
-
-        headers,
-
-        ...rows
-
-    ]
-        .map(
-            row =>
-                row
-                    .map(
-                        value =>
-                            csvEscape(
-                                value
-                            )
-                    )
-                    .join(",")
-        )
-        .join("\r\n");
-
-
-    const blob =
-        new Blob(
-            [
-                "\uFEFF" +
-                csv
-            ],
-            {
-                type:
-                    "text/csv;charset=utf-8;"
-            }
-        );
-
-
-    const url =
-        URL.createObjectURL(
-            blob
-        );
-
-
-    const link =
-        document.createElement(
-            "a"
-        );
-
-
-    link.href =
-        url;
-
-
-    link.download =
-        `Vision-School-Attendance-${getVientianeDate()}.csv`;
-
-
-    document.body.appendChild(
-        link
-    );
-
-
-    link.click();
-
-
-    link.remove();
-
-
-    URL.revokeObjectURL(
-        url
-    );
-
-
-    showToast(
-        "Attendance CSV exported successfully.",
-        "success"
-    );
-
-}
-
-
-function csvEscape(
-    value
-) {
-
-    const text =
-        String(
-            value ?? ""
-        );
-
-
-    if (
-        text.includes(",") ||
-        text.includes('"') ||
-        text.includes("\n")
-    ) {
-
-        return `"${text.replace(
-            /"/g,
-            '""'
-        )}"`;
-
-    }
-
-
-    return text;
-
-}
-
-
-/* =========================================================
-   MODAL CLOSING
-========================================================= */
-
-function initializeModalClosing() {
-
-    document
-        .getElementById(
-            "closeResultModal"
-        )
-        ?.addEventListener(
-            "click",
-            closeResultModal
-        );
-
-
-    document
-        .querySelectorAll(
-            ".modal"
-        )
-        .forEach(
-            modal => {
-
-                modal.addEventListener(
-                    "click",
-                    event => {
-
-                        if (
-                            event.target ===
-                            modal
-                        ) {
-
-                            modal.classList.remove(
-                                "show"
-                            );
-
-                        }
-
-                    }
-                );
-
-            }
-        );
-
-
-    document.addEventListener(
-        "keydown",
-        event => {
-
-            if (
-                event.key !==
-                "Escape"
-            ) {
-
-                return;
-
-            }
-
-
-            document
-                .querySelectorAll(
-                    ".modal.show"
-                )
-                .forEach(
-                    modal => {
-
-                        modal.classList.remove(
-                            "show"
-                        );
-
-                    }
-                );
-
-        }
-    );
-
-}
-
-
-function closeResultModal() {
-
-    document
-        .getElementById(
-            "studentResultModal"
-        )
-        ?.classList.remove(
-            "show"
-        );
-
-}
-
-
-/* =========================================================
-   REALTIME
-========================================================= */
-
-function initializeRealtime() {
-
-    if (
-        !supabaseClient
-    ) {
-
-        return;
-
-    }
-
-
-    try {
-
-        if (
-            realtimeChannel
-        ) {
-
-            supabaseClient
-                .removeChannel(
-                    realtimeChannel
-                );
-
-        }
-
-
-        realtimeChannel =
-            supabaseClient
-                .channel(
-                    "vision-school-live"
-                )
-
-
-                .on(
-
-                    "postgres_changes",
-
-                    {
-                        event: "*",
-                        schema: "public",
-                        table: "students"
-                    },
-
-                    () => {
-
-                        scheduleRealtimeRefresh(
-                            "students"
-                        );
-
-                    }
-
-                )
-
-
-                .on(
-
-                    "postgres_changes",
-
-                    {
-                        event: "*",
-                        schema: "public",
-                        table: "attendance"
-                    },
-
-                    () => {
-
-                        scheduleRealtimeRefresh(
-                            "attendance"
-                        );
-
-                    }
-
-                )
-
-
-                .subscribe();
-
-
-    } catch (error) {
-
-        console.error(
-            "Realtime initialization error:",
-            error
-        );
-
-    }
-
-}
-
-
-/* =========================================================
-   REALTIME DEBOUNCE
-========================================================= */
-
-function scheduleRealtimeRefresh(
-    type
-) {
-
-    clearTimeout(
-        realtimeRefreshTimer
-    );
-
-
-    realtimeRefreshTimer =
-        setTimeout(
-            async () => {
-
-                try {
-
-                    if (
-                        type ===
-                        "students"
-                    ) {
-
-                        await loadStudents();
-
-                    }
-
-
-                    if (
-                        type ===
-                        "attendance"
-                    ) {
-
-                        await loadTodayAttendance();
-
-                    }
-
-
-                    /*
-                       If both types change
-                       quickly, the next event
-                       will refresh the other cache.
-                    */
-
-                } catch (error) {
-
-                    console.error(
-                        "Realtime refresh error:",
-                        error
-                    );
-
-                }
-
-            },
-            400
-        );
-
-}
-
-
-/* =========================================================
-   FIND STUDENT
-========================================================= */
-
-function findStudent(
-    studentId
-) {
-
-    const key =
-        String(
-            studentId
-        );
-
-
-    /*
-       FAST LOOKUP
-    */
-
-    const cached =
-        studentsById.get(
-            key
-        );
-
-
-    if (cached) {
-
-        return cached;
-
-    }
-
-
-    /*
-       Fallback for safety if the Map
-       hasn't been initialized yet.
-    */
-
-    return students.find(
-        student =>
-            String(
-                student.id
-            ) ===
-            key
-    );
-
-}
-
-
-/* =========================================================
-   SECTION HELPER
-========================================================= */
-
-function isSectionActive(
-    sectionId
-) {
-
-    const section =
-        document.getElementById(
-            sectionId
-        );
-
-
-    return Boolean(
-        section?.classList.contains(
-            "active"
-        )
-    );
-
-}
-
-
-/* =========================================================
-   ESCAPE HTML
-========================================================= */
-
-function escapeHtml(
-    value
-) {
-
-    return String(
-        value ?? ""
-    )
-        .replace(
-            /&/g,
-            "&amp;"
-        )
-        .replace(
-            /</g,
-            "&lt;"
-        )
-        .replace(
-            />/g,
-            "&gt;"
-        )
-        .replace(
-            /"/g,
-            "&quot;"
-        )
-        .replace(
-            /'/g,
-            "&#039;"
-        );
-
-}
-
-
-function escapeAttribute(
-    value
-) {
-
-    return escapeHtml(
-        value
-    );
-
-}
-
-
-/* =========================================================
-   TOAST
-========================================================= */
-
-function showToast(
-    message,
-    type = "success"
-) {
-
-    const toast =
-        document.getElementById(
-            "toast"
-        );
-
-
-    if (!toast) {
-
-        return;
-
-    }
-
-
-    clearTimeout(
-        toastTimer
-    );
-
-
-    toast.textContent =
-        message;
-
-
-    toast.className =
-        "toast";
-
-
-    toast.classList.add(
-        "show"
-    );
-
-
-    toast.classList.add(
-        type
-    );
-
-
-    toastTimer =
-        setTimeout(
-            () => {
-
-                toast.classList.remove(
-                    "show"
-                );
-
-            },
-            3500
-        );
-
-}
-
-
-/* =========================================================
-   DEBUG HELPER
-========================================================= */
-
-window.VisionSchool = {
-
-    reloadStudents:
-        loadStudents,
-
-    reloadAttendance:
-        loadTodayAttendance,
-
-    findStudent:
-        findStudent,
-
-    getStudents:
-        () => students,
-
-    getAttendance:
-        () => attendanceRecords
-
+// ============================================
+// PERSONAL GRADING SYSTEM
+// APP.JS
+// Supabase Login + IndexedDB Grading System
+// ============================================
+
+let currentWorkspace = null;
+let editingStudentId = null;
+let selectedSemester = null;
+let selectedSubject = null;
+let selectedComponentIndex = null;
+let editingGradeId = null;
+
+const GRADING_COMPONENTS = {
+  English: [
+    { name: "Reading (Fluency & Comprehension)", weight: 20 },
+    { name: "Writing", weight: 20 },
+    { name: "Speaking & Listening", weight: 20 },
+    { name: "Homework, Classwork & Participation", weight: 10 },
+    { name: "Semestrial Examination", weight: 25 },
+    { name: "Attendance", weight: 5 }
+  ],
+  Mathematics: [
+    { name: "Written Test & Quizzes", weight: 15 },
+    { name: "Performance Tasks / Problem Solving", weight: 20 },
+    { name: "Classwork / Seatwork", weight: 10 },
+    { name: "Homework", weight: 10 },
+    { name: "Participation", weight: 15 },
+    { name: "Semestrial Examination", weight: 25 },
+    { name: "Attendance", weight: 5 }
+  ],
+  Science: [
+    { name: "Written Test & Quizzes", weight: 15 },
+    { name: "Performance Tasks / Experiments", weight: 20 },
+    { name: "Projects", weight: 15 },
+    { name: "Classwork", weight: 10 },
+    { name: "Participation", weight: 10 },
+    { name: "Semestrial Examination", weight: 25 },
+    { name: "Attendance", weight: 5 }
+  ]
 };
 
+// ============================================
+// AUTHENTICATION
+// ============================================
 
-console.log(
-    "Vision School optimized app.js loaded successfully."
-);
+async function checkLoginSession() {
+  try {
+    const { data, error } = await supabaseClient.auth.getSession();
+    if (error) throw error;
+    if (data.session) showApp();
+    else showLoginPage();
+  } catch (error) {
+    console.error("Session check failed:", error);
+    showLoginPage();
+  }
+}
+
+function showLoginPage() {
+  document.getElementById("loginPage")?.classList.remove("hidden");
+  document.getElementById("dashboardPage")?.classList.add("hidden");
+  document.getElementById("workspacePage")?.classList.add("hidden");
+}
+
+function showApp() {
+  document.getElementById("loginPage")?.classList.add("hidden");
+  document.getElementById("workspacePage")?.classList.add("hidden");
+  document.getElementById("dashboardPage")?.classList.remove("hidden");
+}
+
+async function loginUser(email, password) {
+  const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+  if (error) throw error;
+  return data;
+}
+
+async function logoutUser() {
+  const { error } = await supabaseClient.auth.signOut();
+  if (error) {
+    console.error("Logout failed:", error);
+    alert("Unable to sign out.");
+    return;
+  }
+  currentWorkspace = null;
+  showLoginPage();
+}
+
+function setupLogin() {
+  const form = document.getElementById("loginForm");
+  if (!form) return;
+
+  form.addEventListener("submit", async event => {
+    event.preventDefault();
+    const email = document.getElementById("loginEmail")?.value.trim();
+    const password = document.getElementById("loginPassword")?.value;
+    const message = document.getElementById("loginMessage");
+
+    if (!email || !password) {
+      if (message) message.textContent = "Please enter your email and password.";
+      return;
+    }
+
+    if (message) message.textContent = "Signing in...";
+
+    try {
+      await loginUser(email, password);
+      if (message) message.textContent = "";
+      showApp();
+    } catch (error) {
+      console.error("Login failed:", error);
+      if (message) message.textContent = error.message || "Invalid email or password.";
+    }
+  });
+}
+
+// ============================================
+// WORKSPACE
+// ============================================
+
+function openWorkspace(type) {
+  currentWorkspace = type;
+  document.body.classList.remove("wife-theme", "personal-theme");
+  document.body.classList.add(type === "wife" ? "wife-theme" : "personal-theme");
+
+  const dashboard = document.getElementById("dashboardPage");
+  const workspace = document.getElementById("workspacePage");
+  dashboard?.classList.add("hidden");
+  workspace?.classList.remove("hidden");
+
+  const title = document.getElementById("workspaceTitle");
+  const subtitle = document.getElementById("workspaceSubtitle");
+  if (title) title.textContent = type === "wife" ? "👩‍🏫 Wife's Workspace" : "👨‍🏫 My Personal Workspace";
+  if (subtitle) subtitle.textContent = "Student Records & Academic Management";
+
+  resetRecordsInterface();
+  showSection("students");
+}
+
+function goHome() {
+  document.body.classList.remove("wife-theme", "personal-theme");
+  document.getElementById("workspacePage")?.classList.add("hidden");
+  document.getElementById("dashboardPage")?.classList.remove("hidden");
+  currentWorkspace = null;
+}
+
+async function showSection(section) {
+  ["students", "records", "attendance", "notes", "reports", "excel"].forEach(s => {
+    document.getElementById(s + "Section")?.classList.add("hidden");
+  });
+  document.getElementById(section + "Section")?.classList.remove("hidden");
+
+  document.querySelectorAll(".nav-button").forEach(b => b.classList.remove("active"));
+  const i = ["students", "records", "attendance", "notes", "reports", "excel"].indexOf(section);
+  document.querySelectorAll(".nav-button")[i]?.classList.add("active");
+
+  if (section === "students") await loadStudents();
+  if (section === "records") await loadGradeStudents();
+  if (section === "attendance") await initializeAttendance();
+  if (section === "notes") await initializeNotes();
+  if (section === "reports") await loadReportStudents();
+}
+
+// ============================================
+// STUDENTS
+// ============================================
+
+function showStudentForm() {
+  editingStudentId = null;
+  document.querySelector("#studentForm h3")?.replaceChildren(document.createTextNode("Add Student"));
+  document.getElementById("studentId").value = "";
+  document.getElementById("studentName").value = "";
+  document.getElementById("studentSection").value = "";
+  document.getElementById("studentForm")?.classList.remove("hidden");
+}
+
+function hideStudentForm() {
+  editingStudentId = null;
+  document.getElementById("studentForm")?.classList.add("hidden");
+}
+
+async function saveStudent() {
+  const sid = document.getElementById("studentId")?.value.trim();
+  const name = document.getElementById("studentName")?.value.trim();
+  const section = document.getElementById("studentSection")?.value.trim();
+  const year = document.getElementById("academicYearSelect")?.value;
+  const level = document.getElementById("levelSelect")?.value;
+
+  if (!sid || !name || !year || !level) return alert("Please complete Student ID, Name, Academic Year and Level.");
+
+  const all = await getAllRecords(STORES.students);
+
+  if (editingStudentId !== null) {
+    const s = await getRecord(STORES.students, editingStudentId);
+    if (!s) return;
+    Object.assign(s, { studentId: sid, name, section, academicYear: year, level, workspace: currentWorkspace, updatedAt: new Date().toISOString() });
+    await updateRecord(STORES.students, s);
+    alert("Student updated successfully.");
+  } else {
+    if (all.some(s => s.studentId === sid && s.workspace === currentWorkspace && s.academicYear === year)) {
+      return alert("A student with this ID already exists.");
+    }
+    await addRecord(STORES.students, { studentId: sid, name, section, academicYear: year, level, workspace: currentWorkspace, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+    alert("Student added successfully.");
+  }
+
+  hideStudentForm();
+  await loadStudents();
+}
+
+async function loadStudents() {
+  if (!currentWorkspace) return;
+  const all = await getAllRecords(STORES.students);
+  const year = document.getElementById("academicYearSelect")?.value;
+  const list = all.filter(s => s.workspace === currentWorkspace && (!year || s.academicYear === year));
+  renderStudents(list);
+  await loadGradeStudents();
+  await loadNoteStudents();
+  await loadReportStudents();
+}
+
+function renderStudents(list) {
+  const c = document.getElementById("studentList");
+  if (!c) return;
+  if (!list.length) {
+    c.className = "empty-state";
+    c.innerHTML = '<div class="empty-icon">👨‍🎓</div><h3>No students found</h3><p>Add students or select another academic year.</p>';
+    return;
+  }
+  c.className = "student-list";
+  list.sort((a, b) => a.name.localeCompare(b.name));
+  c.innerHTML = list.map(s => `
+    <div class="student-card">
+      <div class="student-info">
+        <div class="student-avatar">👨‍🎓</div>
+        <div>
+          <h3>${escapeHTML(s.name)}</h3>
+          <p>ID: ${escapeHTML(s.studentId)}</p>
+          <div class="student-tags">
+            <span>${escapeHTML(s.level)}</span>
+            <span>${escapeHTML(s.academicYear)}</span>
+            ${s.section ? `<span>${escapeHTML(s.section)}</span>` : ""}
+          </div>
+        </div>
+      </div>
+      <div class="student-actions">
+        <button class="edit-button" onclick="editStudent(${s.id})">✏️ Edit</button>
+        <button class="delete-button" onclick="removeStudent(${s.id})">🗑️ Remove</button>
+      </div>
+    </div>`).join("");
+}
+
+async function editStudent(id) {
+  const s = await getRecord(STORES.students, id);
+  if (!s) return;
+  editingStudentId = id;
+  const h = document.querySelector("#studentForm h3");
+  if (h) h.textContent = "Update Student";
+  document.getElementById("studentId").value = s.studentId || "";
+  document.getElementById("studentName").value = s.name || "";
+  document.getElementById("studentSection").value = s.section || "";
+  document.getElementById("academicYearSelect").value = s.academicYear || "";
+  document.getElementById("levelSelect").value = s.level || "";
+  document.getElementById("studentForm")?.classList.remove("hidden");
+}
+
+async function removeStudent(id) {
+  const s = await getRecord(STORES.students, id);
+  if (s && confirm(`Remove ${s.name}?`)) {
+    await deleteRecord(STORES.students, id);
+    await loadStudents();
+  }
+}
+
+// ============================================
+// GRADE RECORDS
+// ============================================
+
+async function loadGradeStudents() {
+  const sel = document.getElementById("gradeStudentSelect");
+  if (!sel) return;
+  const all = await getAllRecords(STORES.students);
+  const list = all.filter(s => s.workspace === currentWorkspace);
+  sel.innerHTML = '<option value="">Select Student</option>' + list.sort((a,b) => a.name.localeCompare(b.name)).map(s => `<option value="${s.id}" data-academic-year="${escapeHTML(s.academicYear)}">${escapeHTML(s.name)} — ${escapeHTML(s.level)} (${escapeHTML(s.academicYear)})</option>`).join("");
+}
+
+function resetGradeView() {
+  selectedSemester = null;
+  selectedSubject = null;
+  selectedComponentIndex = null;
+  document.getElementById("subjectArea")?.classList.add("hidden");
+  document.getElementById("componentArea")?.classList.add("hidden");
+  document.getElementById("subjectResult")?.classList.add("hidden");
+}
+
+function selectSemester(s) {
+  if (!document.getElementById("gradeStudentSelect")?.value) return alert("Please select a student first.");
+  selectedSemester = s;
+  selectedSubject = null;
+  selectedComponentIndex = null;
+  document.getElementById("subjectArea")?.classList.remove("hidden");
+  document.getElementById("componentArea")?.classList.add("hidden");
+}
+
+async function selectSubject(s) {
+  if (!selectedSemester) return alert("Please select a semester first.");
+  selectedSubject = s;
+  selectedComponentIndex = null;
+  document.getElementById("componentArea")?.classList.remove("hidden");
+  document.getElementById("subjectArea")?.classList.remove("hidden");
+  const title = document.getElementById("selectedSubjectTitle");
+  const semTitle = document.getElementById("selectedSemesterTitle");
+  if (title) title.textContent = s;
+  if (semTitle) semTitle.textContent = selectedSemester === "first" ? "First Semester — August to December" : "Second Semester — January to May";
+  document.getElementById("subjectResult")?.classList.add("hidden");
+  await renderGradingComponents();
+}
+
+async function renderGradingComponents() {
+  const box = document.getElementById("gradingComponents");
+  if (!box) return;
+  const comps = GRADING_COMPONENTS[selectedSubject] || [];
+  box.innerHTML = comps.map((c, i) => `<div class="component-card"><div class="component-card-header"><h3>${escapeHTML(c.name)}</h3><span class="weight-badge">${c.weight}%</span></div><div id="componentRecords-${i}" class="component-records"></div>${c.name === "Attendance" ? '<div class="attendance-grade-info">Attendance is calculated automatically from attendance records.</div>' : `<button class="add-record-button" onclick="openGradeRecordForm(${i})">+ Add Record</button>`}</div>`).join("");
+  for (let i = 0; i < comps.length; i++) await renderComponentRecords(i);
+}
+
+function openGradeRecordForm(index) {
+  const sel = document.getElementById("gradeStudentSelect");
+  if (!sel?.value) return alert("Please select a student first.");
+  selectedComponentIndex = index;
+  editingGradeId = null;
+  closeGradeRecordForm();
+  const c = GRADING_COMPONENTS[selectedSubject][index];
+  const form = document.createElement("div");
+  form.id = "gradeRecordForm";
+  form.className = "form-card";
+  form.innerHTML = `<h3>Add Grade Record</h3><p>${escapeHTML(c.name)} — ${c.weight}%</p><div class="form-grid"><input id="gradeRecordName" placeholder="Record / Activity Name"><input type="date" id="gradeRecordDate" value="${getTodayDate()}"><input type="number" id="gradeScore" placeholder="Score Obtained" min="0" step=".01"><input type="number" id="gradeTotal" placeholder="Total Score" min=".01" step=".01"></div><textarea id="gradeNotes" class="daily-note" placeholder="Optional notes"></textarea><div class="form-actions"><button class="primary-button" onclick="saveGradeRecord()">Save Record</button><button class="secondary-button" onclick="closeGradeRecordForm()">Cancel</button></div>`;
+  document.getElementById("componentArea")?.appendChild(form);
+}
+
+function closeGradeRecordForm() { document.getElementById("gradeRecordForm")?.remove(); }
+
+async function saveGradeRecord() {
+  const studentId = Number(document.getElementById("gradeStudentSelect")?.value);
+  const name = document.getElementById("gradeRecordName")?.value.trim();
+  const date = document.getElementById("gradeRecordDate")?.value;
+  const score = Number(document.getElementById("gradeScore")?.value);
+  const total = Number(document.getElementById("gradeTotal")?.value);
+  const notes = document.getElementById("gradeNotes")?.value.trim();
+
+  if (!studentId || !name || !date || !Number.isFinite(score) || !Number.isFinite(total) || total <= 0) return alert("Please complete the record.");
+  if (score > total) return alert("Score cannot be greater than total.");
+
+  const c = GRADING_COMPONENTS[selectedSubject][selectedComponentIndex];
+  const student = await getRecord(STORES.students, studentId);
+  const now = new Date().toISOString();
+  const r = { studentId, workspace: currentWorkspace, academicYear: student?.academicYear || "", semester: selectedSemester, subject: selectedSubject, component: c.name, componentWeight: c.weight, recordName: name, date, score, total, percentage: score / total * 100, notes, updatedAt: now };
+
+  if (editingGradeId) {
+    r.id = editingGradeId;
+    const old = await getRecord(STORES.grades, editingGradeId);
+    r.createdAt = old?.createdAt || now;
+    await updateRecord(STORES.grades, r);
+  } else {
+    r.createdAt = now;
+    await addRecord(STORES.grades, r);
+  }
+  closeGradeRecordForm();
+  await renderGradingComponents();
+  alert("Grade record saved successfully.");
+}
+
+async function renderComponentRecords(index) {
+  const container = document.getElementById(`componentRecords-${index}`);
+  const sid = Number(document.getElementById("gradeStudentSelect")?.value);
+  if (!container || !sid) return;
+  const c = GRADING_COMPONENTS[selectedSubject][index];
+  const year = await getStudentAcademicYear(sid);
+
+  if (c.name === "Attendance") {
+    const a = await getAttendancePercentageForStudent(sid, year, selectedSemester);
+    container.innerHTML = `<div class="component-average"><strong>Attendance:</strong> ${a.percentage.toFixed(2)}% &nbsp; <strong>Weighted:</strong> ${a.weighted.toFixed(2)}%<br><small>${a.present} Present / ${a.absent} Absent / ${a.total} Marked</small></div>`;
+    return;
+  }
+
+  const grades = await getAllRecords(STORES.grades);
+  const records = grades.filter(r => r.studentId === sid && r.workspace === currentWorkspace && r.academicYear === year && r.semester === selectedSemester && r.subject === selectedSubject && r.component === c.name);
+  if (!records.length) {
+    container.innerHTML = '<div class="component-empty">No records yet.</div>';
+    return;
+  }
+  const avg = records.reduce((x,r) => x + Number(r.percentage), 0) / records.length;
+  container.innerHTML = `<div class="component-average"><strong>Average:</strong> ${avg.toFixed(2)}% &nbsp; <strong>Weighted:</strong> ${(avg*c.weight/100).toFixed(2)}%</div>` + records.map(r => `<div class="grade-record"><div><strong>${escapeHTML(r.recordName)}</strong><small>${r.date}</small></div><strong>${formatNumber(r.score)}/${formatNumber(r.total)} (${Number(r.percentage).toFixed(2)}%)</strong><div class="record-actions"><button class="edit-button" onclick="editGradeRecord(${r.id})">✏️ Edit</button><button class="delete-button" onclick="removeGradeRecord(${r.id})">🗑️ Remove</button></div></div>`).join("");
+}
+
+async function editGradeRecord(id) {
+  const r = await getRecord(STORES.grades, id);
+  if (!r) return;
+  document.getElementById("gradeStudentSelect").value = r.studentId;
+  selectedSemester = r.semester;
+  selectedSubject = r.subject;
+  selectedComponentIndex = (GRADING_COMPONENTS[r.subject] || []).findIndex(c => c.name === r.component);
+  editingGradeId = id;
+  await selectSubject(r.subject);
+  openGradeRecordForm(selectedComponentIndex);
+  document.querySelector("#gradeRecordForm h3").textContent = "Edit Grade Record";
+  document.getElementById("gradeRecordName").value = r.recordName || "";
+  document.getElementById("gradeRecordDate").value = r.date || "";
+  document.getElementById("gradeScore").value = r.score ?? "";
+  document.getElementById("gradeTotal").value = r.total ?? "";
+  document.getElementById("gradeNotes").value = r.notes || "";
+}
+
+async function removeGradeRecord(id) {
+  if (confirm("Remove this grade record?")) {
+    await deleteRecord(STORES.grades, id);
+    await renderGradingComponents();
+  }
+}
+
+// ============================================
+// ATTENDANCE
+// ============================================
+
+function getSemesterFromDate(date) {
+  if (!date || typeof date !== "string") return null;
+  const month = parseInt(date.substring(5, 7), 10);
+  if (month >= 8 && month <= 12) return "first";
+  if (month >= 1 && month <= 5) return "second";
+  return null;
+}
+
+async function getAttendancePercentageForStudent(studentId, year, semester) {
+  const all = await getAllRecords(STORES.attendance);
+  const records = all.filter(a => a.studentId === studentId && a.workspace === currentWorkspace && a.academicYear === year && (!semester || a.semester === semester));
+  const present = records.filter(a => a.status === "present").length;
+  const absent = records.filter(a => a.status === "absent").length;
+  const total = present + absent;
+  const percentage = total ? present / total * 100 : 0;
+  return { present, absent, total, percentage, weighted: percentage * 0.05 };
+}
+
+async function initializeAttendance() {
+  const dateEl = document.getElementById("attendanceDate");
+  const yearEl = document.getElementById("attendanceAcademicYear");
+  if (dateEl && !dateEl.value) dateEl.value = getTodayDate();
+  if (yearEl && !yearEl.value) yearEl.value = document.getElementById("academicYearSelect")?.value || getAcademicYearFromToday();
+  if (yearEl) yearEl.onchange = loadAttendance;
+  if (dateEl) dateEl.onchange = loadAttendance;
+  await loadAttendance();
+}
+
+async function loadAttendance() {
+  const year = document.getElementById("attendanceAcademicYear")?.value;
+  const date = document.getElementById("attendanceDate")?.value;
+  const c = document.getElementById("attendanceStudentList");
+  if (!c) return;
+  if (!year || !date) { c.innerHTML = '<div class="empty-state"><div class="empty-icon">📅</div><h3>Select academic year and date</h3></div>'; return; }
+
+  const students = (await getAllRecords(STORES.students)).filter(s => s.workspace === currentWorkspace && s.academicYear === year);
+  const att = await getAllRecords(STORES.attendance);
+  if (!students.length) { c.innerHTML = '<div class="empty-state"><div class="empty-icon">👨‍🎓</div><h3>No students found</h3></div>'; return; }
+
+  c.innerHTML = students.sort((a,b) => a.name.localeCompare(b.name)).map(s => {
+    const r = att.find(a => a.studentId === s.id && a.workspace === currentWorkspace && a.academicYear === year && a.date === date);
+    return `<div class="attendance-student-card"><div class="attendance-student-info"><div class="student-avatar">👨‍🎓</div><div><h3>${escapeHTML(s.name)}</h3><p>${escapeHTML(s.level)}${s.section ? " • " + escapeHTML(s.section) : ""}</p></div></div><div class="attendance-actions"><button class="attendance-button present-button ${r?.status === "present" ? "selected" : ""}" onclick="setAttendance(${s.id},'present')">🟢 Present</button><button class="attendance-button absent-button ${r?.status === "absent" ? "selected" : ""}" onclick="setAttendance(${s.id},'absent')">🔴 Absent</button></div></div>`;
+  }).join("");
+  await updateAttendanceSummary(year, date);
+}
+
+async function setAttendance(studentId, status) {
+  const year = document.getElementById("attendanceAcademicYear")?.value;
+  const date = document.getElementById("attendanceDate")?.value;
+  if (!year || !date) return alert("Please select academic year and date.");
+
+  // IMPORTANT: calculate semester using the current fixed function.
+  const semester = getSemesterFromDate(date);
+  if (!semester) return alert("Unable to determine semester from this date.");
+
+  const all = await getAllRecords(STORES.attendance);
+  const existing = all.find(a => a.studentId === studentId && a.workspace === currentWorkspace && a.academicYear === year && a.date === date);
+  const s = await getRecord(STORES.students, studentId);
+  const now = new Date().toISOString();
+
+  if (existing) {
+    existing.status = status;
+    existing.semester = semester;
+    existing.month = date.slice(0, 7);
+    existing.updatedAt = now;
+    await updateRecord(STORES.attendance, existing);
+  } else {
+    await addRecord(STORES.attendance, { studentId, studentName: s?.name || "", workspace: currentWorkspace, academicYear: year, semester, date, month: date.slice(0, 7), status, createdAt: now, updatedAt: now });
+  }
+  await loadAttendance();
+}
+
+async function updateAttendanceSummary(year, date) {
+  const month = date.slice(0, 7);
+  const rs = (await getAllRecords(STORES.attendance)).filter(a => a.workspace === currentWorkspace && a.academicYear === year && a.month === month);
+  const p = rs.filter(a => a.status === "present").length;
+  const ab = rs.filter(a => a.status === "absent").length;
+  const total = p + ab;
+  document.getElementById("attendanceSummary")?.classList.remove("hidden");
+  const pt = document.getElementById("presentTotal");
+  const at = document.getElementById("absentTotal");
+  const sd = document.getElementById("schoolDaysTotal");
+  const ap = document.getElementById("attendancePercentage");
+  if (pt) pt.textContent = p;
+  if (at) at.textContent = ab;
+  if (sd) sd.textContent = countSchoolDays(year, month);
+  if (ap) ap.textContent = (total ? p / total * 100 : 0).toFixed(1) + "%";
+}
+
+function countSchoolDays(year, month) {
+  const [y, m] = month.split("-").map(Number);
+  const last = new Date(y, m, 0).getDate();
+  let n = 0;
+  for (let d = 1; d <= last; d++) {
+    const day = new Date(y, m - 1, d).getDay();
+    if (day !== 0 && day !== 6) n++;
+  }
+  return n;
+}
+
+// ============================================
+// GRADE CALCULATION
+// ============================================
+
+async function computeGrades() {
+  const sid = Number(document.getElementById("gradeStudentSelect")?.value);
+  if (!sid || !selectedSubject || !selectedSemester) return alert("Please select a student, semester and subject.");
+  const final = await calculateSubjectGrade(sid, await getStudentAcademicYear(sid), selectedSemester, selectedSubject);
+  document.getElementById("subjectResult")?.classList.remove("hidden");
+  const value = document.getElementById("subjectGradeValue");
+  if (value) value.textContent = final.toFixed(2) + "%";
+}
+
+async function calculateSubjectGrade(sid, year, sem, subject) {
+  const grades = await getAllRecords(STORES.grades);
+  const comps = GRADING_COMPONENTS[subject] || [];
+  let total = 0;
+  for (const c of comps) {
+    if (c.name === "Attendance") {
+      const a = await getAttendancePercentageForStudent(sid, year, sem);
+      total += a.weighted;
+    } else {
+      const rs = grades.filter(r => r.studentId === sid && r.workspace === currentWorkspace && r.academicYear === year && r.semester === sem && r.subject === subject && r.component === c.name);
+      if (rs.length) {
+        const avg = rs.reduce((x,r) => x + Number(r.percentage), 0) / rs.length;
+        total += avg * c.weight / 100;
+      }
+    }
+  }
+  return total;
+}
+
+// ============================================
+// DAILY NOTES
+// ============================================
+
+async function loadNoteStudents() {
+  const sel = document.getElementById("noteStudentSelect");
+  if (!sel) return;
+  const list = (await getAllRecords(STORES.students)).filter(x => x.workspace === currentWorkspace);
+  sel.innerHTML = '<option value="">Select Student</option>' + list.sort((a,b) => a.name.localeCompare(b.name)).map(x => `<option value="${x.id}">${escapeHTML(x.name)} — ${escapeHTML(x.level)}</option>`).join("");
+}
+
+async function initializeNotes() {
+  const date = document.getElementById("noteDate");
+  if (date && !date.value) date.value = getTodayDate();
+  await loadNoteStudents();
+  await loadNotes();
+}
+
+async function saveNote() {
+  const sid = Number(document.getElementById("noteStudentSelect")?.value);
+  const date = document.getElementById("noteDate")?.value;
+  const text = document.getElementById("dailyNote")?.value.trim();
+  if (!sid || !date || !text) return alert("Select a student, date and enter a note.");
+  const student = await getRecord(STORES.students, sid);
+  await addRecord(STORES.notes, { studentId: sid, workspace: currentWorkspace, academicYear: student?.academicYear || "", date, note: text, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+  document.getElementById("dailyNote").value = "";
+  await loadNotes();
+}
+
+async function loadNotes() {
+  const listEl = document.getElementById("notesList");
+  if (!listEl) return;
+  const rs = await getAllRecords(STORES.notes);
+  const students = await getAllRecords(STORES.students);
+  const list = rs.filter(r => r.workspace === currentWorkspace).sort((a,b) => b.date.localeCompare(a.date));
+  listEl.innerHTML = list.length ? list.map(r => { const s = students.find(x => x.id === r.studentId); return `<div class="note-card"><strong>${escapeHTML(s?.name || "Unknown Student")}</strong><small>${r.date} — ${escapeHTML(r.academicYear || "")}</small><p>${escapeHTML(r.note)}</p><button class="delete-button" onclick="removeNote(${r.id})">🗑️ Remove</button></div>`; }).join("") : '<div class="empty-state"><div class="empty-icon">📝</div><h3>No notes yet</h3></div>';
+}
+
+async function removeNote(id) {
+  if (confirm("Remove this note?")) { await deleteRecord(STORES.notes, id); await loadNotes(); }
+}
+
+// ============================================
+// REPORT CARDS
+// ============================================
+
+async function loadReportStudents() {
+  const sel = document.getElementById("reportStudentSelect");
+  if (!sel) return;
+  const list = (await getAllRecords(STORES.students)).filter(s => s.workspace === currentWorkspace);
+  sel.innerHTML = '<option value="">Select Student</option>' + list.sort((a,b) => a.name.localeCompare(b.name)).map(s => `<option value="${s.id}">${escapeHTML(s.name)} — ${escapeHTML(s.level)}</option>`).join("");
+}
+
+async function generateReportCard() {
+  const sid = Number(document.getElementById("reportStudentSelect")?.value);
+  const sem = document.getElementById("reportSemester")?.value;
+  if (!sid) return alert("Please select a student.");
+  const s = await getRecord(STORES.students, sid);
+  if (!s) { await loadReportStudents(); document.getElementById("reportPreview").innerHTML = ""; return alert("This student no longer exists. Please select another student."); }
+
+  const year = s.academicYear;
+  let rows = "";
+  let overall = 0;
+  let count = 0;
+  for (const subject of Object.keys(GRADING_COMPONENTS)) {
+    const grade = await calculateSubjectGrade(sid, year, sem, subject);
+    overall += grade;
+    count++;
+    rows += `<tr><td>${subject}</td><td>${grade.toFixed(2)}%</td><td>${grade >= 75 ? "PASS" : "Needs Improvement"}</td></tr>`;
+  }
+  const att = await getAttendancePercentageForStudent(sid, year, sem);
+  const preview = document.getElementById("reportPreview");
+  if (!preview) return;
+  preview.innerHTML = `<div class="report-card"><h1>🎓 Personal Grading System</h1><h2>Student Report Card</h2><p><strong>Student:</strong> ${escapeHTML(s.name)} &nbsp; <strong>ID:</strong> ${escapeHTML(s.studentId)}</p><p><strong>Level:</strong> ${escapeHTML(s.level)} &nbsp; <strong>Academic Year:</strong> ${escapeHTML(year)}</p><p><strong>Semester:</strong> ${sem === "first" ? "First Semester" : "Second Semester"}</p><table><thead><tr><th>Subject</th><th>Grade</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table><div class="report-attendance"><strong>Attendance:</strong> ${att.percentage.toFixed(2)}% (${att.present} Present / ${att.absent} Absent)</div><h2>Overall Average: ${(count ? overall / count : 0).toFixed(2)}%</h2><button class="primary-button" onclick="window.print()">🖨️ Print Report Card</button></div>`;
+}
+
+// ============================================
+// EXPORTS
+// ============================================
+
+function csvCell(v) { return `"${String(v ?? "").replace(/"/g, '""')}"`; }
+function downloadCSV(name, rows) {
+  const csv = rows.map(r => r.map(csvCell).join(",")).join("\r\n");
+  const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 0);
+}
+
+async function exportDetailedGrades() {
+  const rs = (await getAllRecords(STORES.grades)).filter(r => r.workspace === currentWorkspace);
+  downloadCSV("Grade_Detailed_Records.csv", [["Student ID","Record","Academic Year","Semester","Subject","Component","Date","Score","Total","Percentage","Notes"], ...rs.map(r => [r.studentId,r.recordName,r.academicYear,r.semester,r.subject,r.component,r.date,r.score,r.total,Number(r.percentage).toFixed(2)+"%",r.notes])]);
+}
+
+async function exportGradeSummary() {
+  const students = (await getAllRecords(STORES.students)).filter(s => s.workspace === currentWorkspace);
+  const rows = [["Student","Student ID","Academic Year","Level","Semester","English","Mathematics","Science"]];
+  for (const s of students) for (const sem of ["first","second"]) {
+    const grades = await Promise.all(Object.keys(GRADING_COMPONENTS).map(x => calculateSubjectGrade(s.id, s.academicYear, sem, x)));
+    rows.push([s.name,s.studentId,s.academicYear,s.level,sem === "first" ? "First Semester" : "Second Semester",...grades.map(x => x.toFixed(2)+"%")]);
+  }
+  downloadCSV("Grade_Summary.csv", rows);
+}
+
+async function exportAttendanceMonthly() {
+  const students = (await getAllRecords(STORES.students)).filter(s => s.workspace === currentWorkspace);
+  const att = await getAllRecords(STORES.attendance);
+  const rows = [["Student Name","Student ID","Academic Year","Month","Present","Absent","Total Marked","Attendance %"]];
+  for (const s of students) {
+    const months = [...new Set(att.filter(a => a.studentId === s.id && a.workspace === currentWorkspace).map(a => a.month))].sort();
+    for (const m of months) {
+      const rs = att.filter(a => a.studentId === s.id && a.workspace === currentWorkspace && a.month === m);
+      const p = rs.filter(a => a.status === "present").length;
+      const ab = rs.filter(a => a.status === "absent").length;
+      const t = p + ab;
+      rows.push([s.name,s.studentId,s.academicYear,m,p,ab,t,(t ? p/t*100 : 0).toFixed(2)+"%"]);
+    }
+  }
+  downloadCSV("Attendance_Monthly_Summary.csv", rows);
+}
+
+async function exportAttendanceAll() {
+  const rs = (await getAllRecords(STORES.attendance)).filter(r => r.workspace === currentWorkspace);
+  downloadCSV("Attendance_Detailed.csv", [["Student Name","Student ID","Academic Year","Date","Month","Semester","Status"], ...rs.map(r => [r.studentName,r.studentId,r.academicYear,r.date,r.month,r.semester,r.status])]);
+}
+
+// ============================================
+// HELPERS
+// ============================================
+
+async function getStudentAcademicYear(id) {
+  const s = await getRecord(STORES.students, Number(id));
+  return s?.academicYear || null;
+}
+
+function getSelectedAcademicYear() { return document.getElementById("academicYearSelect")?.value || ""; }
+
+function getTodayDate() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+
+function getAcademicYearFromToday() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = d.getMonth() + 1;
+  return `${m >= 8 ? y : y-1}–${m >= 8 ? y+1 : y}`;
+}
+
+function formatNumber(v) {
+  const n = Number(v);
+  return Number.isInteger(n) ? String(n) : n.toFixed(2);
+}
+
+function escapeHTML(v) {
+  const d = document.createElement("div");
+  d.textContent = v == null ? "" : v;
+  return d.innerHTML;
+}
+
+function resetRecordsInterface() {
+  selectedSemester = null;
+  selectedSubject = null;
+  selectedComponentIndex = null;
+  editingGradeId = null;
+  document.getElementById("subjectArea")?.classList.add("hidden");
+  document.getElementById("componentArea")?.classList.add("hidden");
+  document.getElementById("subjectResult")?.classList.add("hidden");
+}
+
+// ============================================
+// START
+// ============================================
+
+document.addEventListener("DOMContentLoaded", async () => {
+  console.log("Personal Grading System loaded.");
+  const ay = document.getElementById("academicYearSelect");
+  if (ay) ay.value = "2026–2027";
+  const ad = document.getElementById("attendanceDate");
+  if (ad) ad.value = getTodayDate();
+  const nd = document.getElementById("noteDate");
+  if (nd) nd.value = getTodayDate();
+
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("sw.js").then(() => console.log("✅ Service Worker registered.")).catch(error => console.warn("Service Worker registration failed:", error));
+  }
+  setupLogin();
+  await checkLoginSession();
+});
+
+if (typeof supabaseClient !== "undefined") {
+  supabaseClient.auth.onAuthStateChange((event, session) => {
+    console.log("Auth event:", event);
+    if (event === "SIGNED_OUT") showLoginPage();
+    if (event === "SIGNED_IN" && session) showApp();
+  });
+}
+
+console.log("Personal Grading System loaded.");
