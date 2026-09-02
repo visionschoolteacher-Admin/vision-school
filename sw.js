@@ -1,4 +1,4 @@
-const CACHE_NAME = "vision-school-v2026-08-14-2";
+const CACHE_NAME = "vision-school-v2026-09-02-1";
 
 const APP_FILES = [
     "./",
@@ -48,17 +48,12 @@ self.addEventListener("install", event => {
                         );
 
                         if (!response.ok) {
-
                             throw new Error(
                                 `HTTP ${response.status} for ${file}`
                             );
-
                         }
 
-                        await cache.put(
-                            file,
-                            response
-                        );
+                        await cache.put(file, response);
 
                         console.log(
                             "[Vision School SW] Cached:",
@@ -81,7 +76,6 @@ self.addEventListener("install", event => {
 
     );
 
-    // Activate the new worker immediately
     self.skipWaiting();
 
 });
@@ -117,9 +111,7 @@ self.addEventListener("activate", event => {
                                 cacheName
                             );
 
-                            return caches.delete(
-                                cacheName
-                            );
+                            return caches.delete(cacheName);
 
                         }
 
@@ -128,12 +120,7 @@ self.addEventListener("activate", event => {
                 );
 
             })
-            .then(() => {
-
-                // Take control of all open pages
-                return self.clients.claim();
-
-            })
+            .then(() => self.clients.claim())
 
     );
 
@@ -148,32 +135,19 @@ self.addEventListener("fetch", event => {
 
     const request = event.request;
 
-    // Only handle GET requests
     if (request.method !== "GET") {
         return;
     }
 
-    const url = new URL(
-        request.url
-    );
+    const url = new URL(request.url);
 
-    // Do not interfere with Supabase/API requests
     if (
         url.hostname.includes("supabase.co") ||
         url.pathname.includes("/rest/") ||
         url.pathname.includes("/auth/")
     ) {
-
         return;
-
     }
-
-
-    // -----------------------------------------------------
-    // HTML DOCUMENTS
-    // Always check the network first.
-    // This prevents an old index.html from returning.
-    // -----------------------------------------------------
 
     if (
         request.mode === "navigate" ||
@@ -182,30 +156,48 @@ self.addEventListener("fetch", event => {
 
         event.respondWith(
 
-            fetch(
-                request,
-                {
-                    cache: "no-store"
-                }
-            )
+            fetch(request, { cache: "no-store" })
+                .then(response => {
+
+                    if (response && response.ok) {
+
+                        const copy = response.clone();
+
+                        caches.open(CACHE_NAME).then(cache => {
+                            cache.put(request, copy);
+                        });
+
+                    }
+
+                    return response;
+
+                })
+                .catch(() => {
+
+                    return caches.match(request).then(cached => {
+
+                        return cached || caches.match("./index.html");
+
+                    });
+
+                })
+
+        );
+
+        return;
+    }
+
+    event.respondWith(
+
+        fetch(request, { cache: "no-cache" })
             .then(response => {
 
-                if (
-                    response &&
-                    response.ok
-                ) {
+                if (response && response.ok) {
 
                     const copy = response.clone();
 
-                    caches.open(
-                        CACHE_NAME
-                    ).then(cache => {
-
-                        cache.put(
-                            request,
-                            copy
-                        );
-
+                    caches.open(CACHE_NAME).then(cache => {
+                        cache.put(request, copy);
                     });
 
                 }
@@ -213,73 +205,7 @@ self.addEventListener("fetch", event => {
                 return response;
 
             })
-            .catch(() => {
-
-                return caches.match(
-                    request
-                ).then(cached => {
-
-                    return cached ||
-                        caches.match(
-                            "./index.html"
-                        );
-
-                });
-
-            })
-
-        );
-
-        return;
-    }
-
-
-    // -----------------------------------------------------
-    // CSS / JS / IMAGES / MANIFEST
-    // Network first, cache fallback.
-    // -----------------------------------------------------
-
-    event.respondWith(
-
-        fetch(
-            request,
-            {
-                cache: "no-cache"
-            }
-        )
-        .then(response => {
-
-            if (
-                response &&
-                response.ok
-            ) {
-
-                const copy =
-                    response.clone();
-
-                caches.open(
-                    CACHE_NAME
-                ).then(cache => {
-
-                    cache.put(
-                        request,
-                        copy
-                    );
-
-                });
-
-            }
-
-            return response;
-
-        })
-        .catch(() => {
-
-            return caches.match(
-                request
-            );
-
-        })
+            .catch(() => caches.match(request))
 
     );
 
@@ -290,19 +216,15 @@ self.addEventListener("fetch", event => {
 // MESSAGE
 // =========================================================
 
-self.addEventListener(
-    "message",
-    event => {
+self.addEventListener("message", event => {
 
-        if (
-            event.data &&
-            event.data.type ===
-            "SKIP_WAITING"
-        ) {
+    if (
+        event.data &&
+        event.data.type === "SKIP_WAITING"
+    ) {
 
-            self.skipWaiting();
-
-        }
+        self.skipWaiting();
 
     }
-);
+
+});
