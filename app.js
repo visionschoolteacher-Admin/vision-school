@@ -60,74 +60,6 @@ let supabaseClient = null;
 let students = [];
 let attendanceRecords = [];
 
-/* =========================================================
-   REFRESH-SAFE LOCAL CACHE
-   Supabase remains the source of truth. These caches are only
-   used so a page refresh does not blank the existing data while
-   Supabase is temporarily unavailable or still loading.
-========================================================= */
-
-const VISION_SCHOOL_STUDENTS_CACHE = "vision-school-students-cache";
-const VISION_SCHOOL_ATTENDANCE_CACHE_PREFIX = "vision-school-attendance-cache-";
-
-function saveStudentsCache() {
-    try {
-        localStorage.setItem(
-            VISION_SCHOOL_STUDENTS_CACHE,
-            JSON.stringify(students || [])
-        );
-    } catch (error) {
-        console.warn("Unable to save students cache:", error);
-    }
-}
-
-function restoreStudentsCache() {
-    try {
-        const cached = localStorage.getItem(VISION_SCHOOL_STUDENTS_CACHE);
-        if (!cached) return false;
-
-        const parsed = JSON.parse(cached);
-        if (!Array.isArray(parsed)) return false;
-
-        students = parsed;
-        return true;
-    } catch (error) {
-        console.warn("Unable to restore students cache:", error);
-        return false;
-    }
-}
-
-function getAttendanceCacheKey() {
-    return VISION_SCHOOL_ATTENDANCE_CACHE_PREFIX + getVientianeDate();
-}
-
-function saveAttendanceCache() {
-    try {
-        localStorage.setItem(
-            getAttendanceCacheKey(),
-            JSON.stringify(attendanceRecords || [])
-        );
-    } catch (error) {
-        console.warn("Unable to save attendance cache:", error);
-    }
-}
-
-function restoreAttendanceCache() {
-    try {
-        const cached = localStorage.getItem(getAttendanceCacheKey());
-        if (!cached) return false;
-
-        const parsed = JSON.parse(cached);
-        if (!Array.isArray(parsed)) return false;
-
-        attendanceRecords = parsed;
-        return true;
-    } catch (error) {
-        console.warn("Unable to restore attendance cache:", error);
-        return false;
-    }
-}
-
 let currentStudent = null;
 
 let html5QrCode = null;
@@ -137,29 +69,12 @@ let realtimeChannel = null;
 
 let toastTimer = null;
 
-// Small in-memory caches/flags to avoid repeated work during realtime updates.
-const parentQrTokenCache = new Map();
-let realtimeRefreshTimer = null;
-let realtimeNeedsStudents = false;
-let realtimeNeedsAttendance = false;
-
 
 /* =========================================================
    START APPLICATION
 ========================================================= */
 
 document.addEventListener("DOMContentLoaded", async () => {
-
-    // Register the PWA service worker without blocking application startup.
-    if ("serviceWorker" in navigator) {
-        navigator.serviceWorker.register("./sw.js")
-            .then(registration => {
-                console.log("Vision School service worker registered:", registration.scope);
-            })
-            .catch(error => {
-                console.warn("Service worker registration failed:", error);
-            });
-    }
 
     console.log("Vision School Attendance System starting...");
 
@@ -197,33 +112,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         initializeModalClosing();
 
 
-        // Restore the last successful data immediately so a refresh never
-        // starts the Student Information and Dashboard from an empty state.
-        restoreStudentsCache();
-        restoreAttendanceCache();
+        await testSupabaseConnection();
 
-        if (students.length) {
-            const total = document.getElementById("totalStudents");
-            if (total) total.textContent = students.length;
-            populateLevelFilter();
-            renderStudents();
-            renderDashboard();
-        }
+        await loadStudents();
 
-        if (attendanceRecords.length) {
-            updateAttendanceStatistics();
-            renderAttendance();
-            renderDashboard();
-        }
-
-        // Supabase remains the source of truth. Refresh it after the cached
-        // data has been displayed. A temporary connection failure will no
-        // longer erase the already-visible data.
-        await Promise.allSettled([
-            testSupabaseConnection(),
-            loadStudents(),
-            loadTodayAttendance()
-        ]);
+        await loadTodayAttendance();
 
         initializeRealtime();
 
@@ -657,12 +550,7 @@ async function loadStudents() {
 
 
         students =
-            Array.isArray(data)
-                ? data
-                : [];
-
-        // Only cache data after a successful Supabase response.
-        saveStudentsCache();
+            data || [];
 
 
         const total =
@@ -692,23 +580,9 @@ async function loadStudents() {
         );
 
 
-        // Never replace existing data with an empty array when a refresh
-        // fails. Restore the last successful cache only if needed.
-        if (!students.length) {
-            restoreStudentsCache();
-        }
-
-        if (students.length) {
-            const total = document.getElementById("totalStudents");
-            if (total) total.textContent = students.length;
-            populateLevelFilter();
-            renderStudents();
-            renderDashboard();
-        }
-
         showToast(
             error?.message ||
-            "Unable to load students. Showing the last saved data.",
+            "Unable to load students.",
             "error"
         );
     }
@@ -2232,25 +2106,14 @@ function normalizeParentValue(value) {
 }
 
 async function getParentQrToken(name, phone) {
-    const normalizedName = normalizeParentValue(name);
-    const normalizedPhone = normalizeParentValue(phone);
-    const cacheKey = `${normalizedName}|${normalizedPhone}`;
-
-    const cached = parentQrTokenCache.get(cacheKey);
-    if (cached) {
-        return cached;
-    }
-
-    const raw = cacheKey;
+    const raw = `${normalizeParentValue(name)}|${normalizeParentValue(phone)}`;
 
     if (window.crypto?.subtle) {
         const bytes = new TextEncoder().encode(raw);
         const digest = await crypto.subtle.digest("SHA-256", bytes);
-        const token = Array.from(new Uint8Array(digest))
+        return Array.from(new Uint8Array(digest))
             .map(byte => byte.toString(16).padStart(2, "0"))
             .join("");
-        parentQrTokenCache.set(cacheKey, token);
-        return token;
     }
 
     // Deterministic fallback for browsers without Web Crypto.
@@ -2263,9 +2126,7 @@ async function getParentQrToken(name, phone) {
         hash2 ^= code + i;
         hash2 = Math.imul(hash2, 2166136261);
     }
-    const token = `${(hash1 >>> 0).toString(16).padStart(8, "0")}${(hash2 >>> 0).toString(16).padStart(8, "0")}`;
-    parentQrTokenCache.set(cacheKey, token);
-    return token;
+    return `${(hash1 >>> 0).toString(16).padStart(8, "0")}${(hash2 >>> 0).toString(16).padStart(8, "0")}`;
 }
 
 async function showParentQr(student, parentIndex = 0) {
@@ -2344,34 +2205,17 @@ async function handleParentQrScan(decodedText) {
         return;
     }
 
-    // Hash each unique parent identity once and in parallel. This matters
-    // when the school has many students linked to the same parent.
-    const parentEntries = [];
-    const uniqueParents = new Map();
-
+    const matches = [];
     for (const student of students) {
         const parents = getParentOptions(student.parent);
         for (const parent of parents) {
             if (!parent.name) continue;
-            const key = `${normalizeParentValue(parent.name)}|${normalizeParentValue(parent.phone)}`;
-            if (!uniqueParents.has(key)) {
-                uniqueParents.set(key, parent);
+            const parentToken = await getParentQrToken(parent.name, parent.phone);
+            if (parentToken === token) {
+                matches.push({ student, parent });
             }
-            parentEntries.push({ student, parent, key });
         }
     }
-
-    const tokenPairs = await Promise.all(
-        Array.from(uniqueParents.entries()).map(async ([key, parent]) => [
-            key,
-            await getParentQrToken(parent.name, parent.phone)
-        ])
-    );
-
-    const tokenMap = new Map(tokenPairs);
-    const matches = parentEntries
-        .filter(entry => tokenMap.get(entry.key) === token)
-        .map(entry => ({ student: entry.student, parent: entry.parent }));
 
     if (!matches.length) {
         showToast("This Parent QR is not linked to any registered student.", "error");
@@ -4531,12 +4375,7 @@ async function loadTodayAttendance() {
 
 
         attendanceRecords =
-            Array.isArray(data)
-                ? data
-                : [];
-
-        // Cache today's successful Supabase result for refresh fallback.
-        saveAttendanceCache();
+            data || [];
 
 
         updateAttendanceStatistics();
@@ -4554,21 +4393,9 @@ async function loadTodayAttendance() {
         );
 
 
-        // Keep the current data intact if Supabase fails. If this is a
-        // fresh page load, restore today's last successful cache.
-        if (!attendanceRecords.length) {
-            restoreAttendanceCache();
-        }
-
-        if (attendanceRecords.length) {
-            updateAttendanceStatistics();
-            renderAttendance();
-            renderDashboard();
-        }
-
         showToast(
             error?.message ||
-            "Unable to load today's attendance. Showing the last saved data.",
+            "Unable to load today's attendance.",
             "error"
         );
     }
@@ -5425,93 +5252,86 @@ function closeResultModal() {
    REALTIME
 ========================================================= */
 
-function scheduleRealtimeRefresh(type) {
-
-    if (type === "students") {
-        realtimeNeedsStudents = true;
-    }
-
-    if (type === "attendance") {
-        realtimeNeedsAttendance = true;
-    }
-
-    if (realtimeRefreshTimer) {
-        return;
-    }
-
-    // Supabase can emit several changes for one real-world action.
-    // Coalesce them so the UI does not repeatedly download/render the same data.
-    realtimeRefreshTimer = setTimeout(async () => {
-
-        const refreshStudents = realtimeNeedsStudents;
-        const refreshAttendance = realtimeNeedsAttendance;
-
-        realtimeNeedsStudents = false;
-        realtimeNeedsAttendance = false;
-        realtimeRefreshTimer = null;
-
-        try {
-            const tasks = [];
-
-            if (refreshStudents) {
-                tasks.push(loadStudents());
-            }
-
-            if (refreshAttendance) {
-                tasks.push(loadTodayAttendance());
-            }
-
-            await Promise.all(tasks);
-        } catch (error) {
-            console.error("Realtime refresh error:", error);
-        }
-
-    }, 350);
-}
-
-
 function initializeRealtime() {
 
-    if (!supabaseClient) {
+    if (
+        !supabaseClient
+    ) {
         return;
     }
+
 
     try {
 
-        if (realtimeChannel) {
-            supabaseClient.removeChannel(realtimeChannel);
+        if (
+            realtimeChannel
+        ) {
+
+            supabaseClient
+                .removeChannel(
+                    realtimeChannel
+                );
+
         }
+
 
         realtimeChannel =
             supabaseClient
-                .channel("vision-school-live")
+                .channel(
+                    "vision-school-live"
+                )
+
+
                 .on(
+
                     "postgres_changes",
+
                     {
                         event: "*",
                         schema: "public",
                         table: "students"
                     },
-                    () => scheduleRealtimeRefresh("students")
+
+                    async () => {
+
+                        await loadStudents();
+
+                    }
+
                 )
+
+
                 .on(
+
                     "postgres_changes",
+
                     {
                         event: "*",
                         schema: "public",
                         table: "attendance"
                     },
-                    () => scheduleRealtimeRefresh("attendance")
+
+                    async () => {
+
+                        await loadTodayAttendance();
+
+                    }
+
                 )
+
+
                 .subscribe();
 
+
     } catch (error) {
+
         console.error(
             "Realtime initialization error:",
             error
         );
     }
 }
+
 
 /* =========================================================
    FIND STUDENT
