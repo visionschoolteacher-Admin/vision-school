@@ -1,4 +1,4 @@
-const CACHE_NAME = "vision-school-v2026-09-02-4";
+const CACHE_NAME = "vision-school-v2026-09-02-1";
 
 const APP_FILES = [
     "./",
@@ -115,8 +115,6 @@ self.addEventListener("activate", event => {
 
                         }
 
-                        return null;
-
                     })
 
                 );
@@ -143,11 +141,6 @@ self.addEventListener("fetch", event => {
 
     const url = new URL(request.url);
 
-
-    // =====================================================
-    // NEVER INTERCEPT SUPABASE
-    // =====================================================
-
     if (
         url.hostname.includes("supabase.co") ||
         url.pathname.includes("/rest/") ||
@@ -156,11 +149,6 @@ self.addEventListener("fetch", event => {
         return;
     }
 
-
-    // =====================================================
-    // NAVIGATION
-    // =====================================================
-
     if (
         request.mode === "navigate" ||
         request.destination === "document"
@@ -168,163 +156,56 @@ self.addEventListener("fetch", event => {
 
         event.respondWith(
 
-            fetch(
-                request,
-                {
-                    cache: "no-store"
-                }
-            )
-
+            fetch(request, { cache: "no-store" })
                 .then(response => {
 
-                    if (
-                        response &&
-                        response.ok
-                    ) {
+                    if (response && response.ok) {
 
-                        const copy =
-                            response.clone();
+                        const copy = response.clone();
 
-                        caches
-                            .open(CACHE_NAME)
-                            .then(cache => {
-
-                                cache.put(
-                                    request,
-                                    copy
-                                );
-
-                            })
-                            .catch(() => {});
+                        caches.open(CACHE_NAME).then(cache => {
+                            cache.put(request, copy);
+                        });
 
                     }
 
                     return response;
 
                 })
-
                 .catch(() => {
 
-                    return caches.match(request)
-                        .then(cached => {
+                    return caches.match(request).then(cached => {
 
-                            return (
-                                cached ||
-                                caches.match(
-                                    "./index.html"
-                                )
-                            );
+                        return cached || caches.match("./index.html");
 
-                        });
+                    });
 
                 })
 
         );
 
         return;
-
     }
-
-
-    // =====================================================
-    // SAME-ORIGIN FILES
-    // =====================================================
-
-    if (
-        url.origin ===
-        self.location.origin
-    ) {
-
-        event.respondWith(
-
-            caches
-                .match(request)
-                .then(cached => {
-
-                    if (cached) {
-                        return cached;
-                    }
-
-                    return fetch(
-                        request,
-                        {
-                            cache: "no-cache"
-                        }
-                    )
-
-                        .then(response => {
-
-                            if (
-                                response &&
-                                response.ok
-                            ) {
-
-                                const copy =
-                                    response.clone();
-
-                                caches
-                                    .open(
-                                        CACHE_NAME
-                                    )
-                                    .then(
-                                        cache => {
-
-                                            cache.put(
-                                                request,
-                                                copy
-                                            );
-
-                                        }
-                                    )
-                                    .catch(
-                                        () => {}
-                                    );
-
-                            }
-
-                            return response;
-
-                        });
-
-                })
-
-                .catch(() => {
-
-                    return caches.match(
-                        request
-                    );
-
-                })
-
-        );
-
-        return;
-
-    }
-
-
-    // =====================================================
-    // EXTERNAL RESOURCES
-    // =====================================================
-
-    // Do NOT let the service worker turn an external
-    // network failure into an unhandled FetchEvent error.
 
     event.respondWith(
 
-        fetch(request)
-            .catch(() => {
+        fetch(request, { cache: "no-cache" })
+            .then(response => {
 
-                return new Response(
-                    "",
-                    {
-                        status: 503,
-                        statusText:
-                            "External resource unavailable"
-                    }
-                );
+                if (response && response.ok) {
+
+                    const copy = response.clone();
+
+                    caches.open(CACHE_NAME).then(cache => {
+                        cache.put(request, copy);
+                    });
+
+                }
+
+                return response;
 
             })
+            .catch(() => caches.match(request))
 
     );
 
@@ -339,8 +220,7 @@ self.addEventListener("message", event => {
 
     if (
         event.data &&
-        event.data.type ===
-            "SKIP_WAITING"
+        event.data.type === "SKIP_WAITING"
     ) {
 
         self.skipWaiting();
