@@ -1,4 +1,4 @@
-const CACHE_NAME = "vision-school-v2026-09-02-2"
+const CACHE_NAME = "vision-school-v2026-09-02-1";
 
 const APP_FILES = [
     "./",
@@ -7,8 +7,7 @@ const APP_FILES = [
     "./app.js",
     "./manifest.json",
     "./logo.png",
-    "./school-background.png",
-    "./images/vision-school-logo.png"
+    "./school-background.png"
 ];
 
 console.log(
@@ -133,13 +132,15 @@ self.addEventListener("activate", event => {
 // =========================================================
 
 self.addEventListener("fetch", event => {
+
     const request = event.request;
 
-    if (request.method !== "GET") return;
+    if (request.method !== "GET") {
+        return;
+    }
 
     const url = new URL(request.url);
 
-    // Never intercept Supabase/API traffic.
     if (
         url.hostname.includes("supabase.co") ||
         url.pathname.includes("/rest/") ||
@@ -148,46 +149,66 @@ self.addEventListener("fetch", event => {
         return;
     }
 
-    // Keep navigation network-first so deployments are picked up quickly,
-    // with the cached page available as an offline fallback.
-    if (request.mode === "navigate" || request.destination === "document") {
+    if (
+        request.mode === "navigate" ||
+        request.destination === "document"
+    ) {
+
         event.respondWith(
+
             fetch(request, { cache: "no-store" })
                 .then(response => {
+
                     if (response && response.ok) {
+
                         const copy = response.clone();
-                        caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
+
+                        caches.open(CACHE_NAME).then(cache => {
+                            cache.put(request, copy);
+                        });
+
                     }
+
                     return response;
+
                 })
-                .catch(() =>
-                    caches.match(request).then(cached => cached || caches.match("./index.html"))
-                )
+                .catch(() => {
+
+                    return caches.match(request).then(cached => {
+
+                        return cached || caches.match("./index.html");
+
+                    });
+
+                })
+
         );
+
         return;
     }
 
-    // Same-origin application assets use cache-first. The cache name is bumped
-    // for each deployment, so updated app files are installed as a new version.
-    if (url.origin === self.location.origin) {
-        event.respondWith(
-            caches.match(request).then(cached => {
-                if (cached) return cached;
+    event.respondWith(
 
-                return fetch(request, { cache: "no-cache" }).then(response => {
-                    if (response && response.ok) {
-                        const copy = response.clone();
-                        caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
-                    }
-                    return response;
-                });
-            }).catch(() => caches.match(request))
-        );
-        return;
-    }
+        fetch(request, { cache: "no-cache" })
+            .then(response => {
 
-    // External CDN resources stay outside the app cache.
-    event.respondWith(fetch(request));
+                if (response && response.ok) {
+
+                    const copy = response.clone();
+
+                    caches.open(CACHE_NAME).then(cache => {
+                        cache.put(request, copy);
+                    });
+
+                }
+
+                return response;
+
+            })
+            .catch(() => caches.match(request))
+
+    );
+
 });
 
 
