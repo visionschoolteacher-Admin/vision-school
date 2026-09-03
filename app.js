@@ -1293,67 +1293,165 @@ function renderStudents() {
             .join("");
 
 
-    /* STUDENT ACTIONS — delegated so buttons keep working after every table refresh.
-       Appearance is untouched; this only makes the existing actions reliable. */
-    if (!window.__visionStudentActionsBound) {
-        document.addEventListener("click", async event => {
-            const button = event.target.closest?.(
-                ".view-student, .edit-student, .remove-student, .generate-qr, .generate-parent-qr"
+    /* VIEW */
+
+    body
+        .querySelectorAll(
+            ".view-student"
+        )
+        .forEach(button => {
+
+            button.addEventListener(
+                "click",
+                () => {
+
+                    const student =
+                        findStudent(
+                            button.dataset.id
+                        );
+
+
+                    if (student) {
+
+                        showStudentProfile(
+                            student
+                        );
+
+                    }
+
+                }
             );
-            if (!button) return;
 
-            const studentId = button.dataset.id;
-            const student = findStudent(studentId);
-
-            console.log("[Vision School] Student action:", {
-                action: button.className,
-                studentId,
-                found: Boolean(student)
-            });
-
-            if (!student) {
-                showToast("Student information could not be found.", "error");
-                return;
-            }
-
-            event.preventDefault();
-            event.stopPropagation();
-
-            try {
-                if (button.classList.contains("view-student")) {
-                    showStudentProfile(student);
-                    return;
-                }
-
-                if (button.classList.contains("edit-student")) {
-                    editStudent(student);
-                    return;
-                }
-
-                if (button.classList.contains("remove-student")) {
-                    const confirmed = confirm(
-                        `Remove ${student.name} from the student list?`
-                    );
-                    if (confirmed) await deleteStudent(student);
-                    return;
-                }
-
-                if (button.classList.contains("generate-qr")) {
-                    showStudentQr(student);
-                    return;
-                }
-
-                if (button.classList.contains("generate-parent-qr")) {
-                    const parentIndex = Number(button.dataset.parentIndex || 0);
-                    await showParentQr(student, parentIndex);
-                }
-            } catch (error) {
-                console.error("[Vision School] Student action error:", error);
-                showToast(error?.message || "Unable to complete this action.", "error");
-            }
         });
-        window.__visionStudentActionsBound = true;
-    }
+
+
+    /* EDIT */
+
+    body
+        .querySelectorAll(
+            ".edit-student"
+        )
+        .forEach(button => {
+
+            button.addEventListener(
+                "click",
+                () => {
+
+                    const student =
+                        findStudent(
+                            button.dataset.id
+                        );
+
+
+                    if (student) {
+
+                        editStudent(
+                            student
+                        );
+
+                    }
+
+                }
+            );
+
+        });
+
+
+    /* REMOVE */
+
+    body
+        .querySelectorAll(
+            ".remove-student"
+        )
+        .forEach(button => {
+
+            button.addEventListener(
+                "click",
+                async () => {
+
+                    const student =
+                        findStudent(
+                            button.dataset.id
+                        );
+
+
+                    if (!student) {
+                        return;
+                    }
+
+
+                    const confirmed =
+                        confirm(
+                            `Remove ${student.name} from the student list?`
+                        );
+
+
+                    if (!confirmed) {
+                        return;
+                    }
+
+
+                    await deleteStudent(
+                        student
+                    );
+
+                }
+            );
+
+        });
+
+
+    /* QR */
+
+    body
+        .querySelectorAll(
+            ".generate-qr"
+        )
+        .forEach(button => {
+
+            button.addEventListener(
+                "click",
+                () => {
+
+                    const student =
+                        findStudent(
+                            button.dataset.id
+                        );
+
+
+                    if (student) {
+
+                        showStudentQr(
+                            student
+                        );
+
+                    }
+
+                }
+            );
+
+        });
+
+
+    body
+        .querySelectorAll(
+            ".generate-parent-qr"
+        )
+        .forEach(button => {
+
+            button.addEventListener(
+                "click",
+                async () => {
+                    const student = findStudent(button.dataset.id);
+                    const parentIndex = Number(button.dataset.parentIndex || 0);
+                    if (student) {
+                        await showParentQr(student, parentIndex);
+                    }
+                }
+            );
+
+        });
+
 }
 
 
@@ -2127,6 +2225,7 @@ async function getParentQrToken(name, phone) {
 }
 
 async function showParentQr(student, parentIndex = 0) {
+    console.log("[Vision School] Parent QR clicked:", student?.id, "parent index:", parentIndex);
     const parents = getParentOptions(student?.parent);
     const parent = parents[parentIndex];
     if (!parent?.name) {
@@ -2134,9 +2233,7 @@ async function showParentQr(student, parentIndex = 0) {
         return;
     }
 
-    const modal = document.getElementById("studentResultModal");
-    const result = document.getElementById("studentResult");
-    if (!modal || !result) return;
+    const { modal, result } = ensureQrResultModal();
 
     const token = await getParentQrToken(parent.name, parent.phone);
     const payload = `VISION-PARENT:${token}`;
@@ -2358,25 +2455,51 @@ async function saveParentPickup(matches) {
 }
 
 /* =========================================================
+   QR RESULT MODAL SAFETY
+   Creates the existing result modal only when needed. This does not
+   change the QR button behavior; it prevents a missing modal from
+   silently making the QR action appear to do nothing.
+========================================================= */
+function ensureQrResultModal() {
+    let modal = document.getElementById("studentResultModal");
+    let result = document.getElementById("studentResult");
+
+    if (modal && result) return { modal, result };
+
+    modal = document.createElement("div");
+    modal.id = "studentResultModal";
+    modal.className = "modal";
+    modal.innerHTML = `
+        <div class="modal-box" style="width:min(520px,100%);max-height:90vh;overflow:auto;">
+            <button type="button" class="modal-close" id="closeResultModal" aria-label="Close">×</button>
+            <div id="studentResult"></div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    result = modal.querySelector("#studentResult");
+
+    modal.addEventListener("click", event => {
+        if (event.target === modal) modal.classList.remove("show");
+    });
+
+    modal.querySelector("#closeResultModal")?.addEventListener("click", () => {
+        modal.classList.remove("show");
+    });
+
+    console.log("[Vision School] QR result modal created.");
+    return { modal, result };
+}
+
+/* =========================================================
    QR GENERATOR
 ========================================================= */
 
 function showStudentQr(student) {
 
-    const modal =
-        document.getElementById(
-            "studentResultModal"
-        );
+    console.log("[Vision School] Student QR clicked:", student?.id, student?.name);
 
-    const result =
-        document.getElementById(
-            "studentResult"
-        );
-
-
-    if (!modal || !result) {
-        return;
-    }
+    const { modal, result } = ensureQrResultModal();
 
 
     result.innerHTML = `
@@ -2499,46 +2622,51 @@ function showStudentQr(student) {
 ========================================================= */
 
 function loadQrGenerator(callback) {
-
-    if (
-        typeof window.QRCode !==
-        "undefined"
-    ) {
-
+    if (typeof window.QRCode !== "undefined") {
         callback();
-
         return;
     }
 
+    if (window.__visionQrLoading) {
+        window.__visionQrLoading.push(callback);
+        return;
+    }
 
-    const script =
-        document.createElement(
-            "script"
-        );
+    window.__visionQrLoading = [callback];
+    const urls = [
+        "https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js",
+        "https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"
+    ];
+    let index = 0;
 
+    const tryNext = () => {
+        if (typeof window.QRCode !== "undefined") {
+            const callbacks = window.__visionQrLoading.splice(0);
+            window.__visionQrLoading = null;
+            callbacks.forEach(fn => {
+                try { fn(); } catch (error) { console.error("Vision School QR render error:", error); }
+            });
+            return;
+        }
 
-    script.src =
-        "https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js";
+        if (index >= urls.length) {
+            const callbacks = window.__visionQrLoading.splice(0);
+            window.__visionQrLoading = null;
+            callbacks.forEach(() => {});
+            console.error("Vision School: QR generator library could not be loaded from either CDN.");
+            showToast("QR generator could not load. Please check the internet connection.", "error");
+            return;
+        }
 
+        const script = document.createElement("script");
+        script.src = urls[index++];
+        script.async = true;
+        script.onload = tryNext;
+        script.onerror = tryNext;
+        document.head.appendChild(script);
+    };
 
-    script.onload =
-        callback;
-
-
-    script.onerror =
-        () => {
-
-            showToast(
-                "QR generator could not load.",
-                "error"
-            );
-
-        };
-
-
-    document.head.appendChild(
-        script
-    );
+    tryNext();
 }
 
 
