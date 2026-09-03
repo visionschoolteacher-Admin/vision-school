@@ -4818,12 +4818,69 @@ function updateAttendanceStatistics() {
    ATTENDANCE TABLE
 ========================================================= */
 
+function ensureAttendanceTableBody() {
+    const section = document.getElementById("attendance");
+
+    if (!section) {
+        console.warn("Vision School: Attendance section not found.");
+        return null;
+    }
+
+    const table = section.querySelector("table");
+
+    if (!table) {
+        console.warn("Vision School: Attendance table not found.");
+        return null;
+    }
+
+    // The current index.html has the Attendance table but its <tbody>
+    // does not have the ID expected by renderAttendance(). Give the
+    // existing tbody the expected ID instead of changing the page layout.
+    let body = table.querySelector("tbody");
+
+    if (!body) {
+        body = document.createElement("tbody");
+        table.appendChild(body);
+    }
+
+    body.id = "attendanceBody";
+
+    // Keep the table columns aligned with renderAttendance().
+    // This also restores Time Out, Pickup and Status if an older
+    // index.html contains only the first three headings.
+    const headerRow = table.querySelector("thead tr");
+
+    if (headerRow) {
+        const headers = [
+            "Student",
+            "Level",
+            "Time In",
+            "Time Out",
+            "Pickup",
+            "Status"
+        ];
+
+        while (headerRow.children.length < headers.length) {
+            const th = document.createElement("th");
+            headerRow.appendChild(th);
+        }
+
+        while (headerRow.children.length > headers.length) {
+            headerRow.removeChild(headerRow.lastElementChild);
+        }
+
+        [...headerRow.children].forEach((th, index) => {
+            th.textContent = headers[index];
+        });
+    }
+
+    return body;
+}
+
 function renderAttendance() {
 
     const body =
-        document.getElementById(
-            "attendanceBody"
-        );
+        ensureAttendanceTableBody();
 
 
     if (!body) {
