@@ -69,12 +69,29 @@ let realtimeChannel = null;
 
 let toastTimer = null;
 
+// Small in-memory caches/flags to avoid repeated work during realtime updates.
+const parentQrTokenCache = new Map();
+let realtimeRefreshTimer = null;
+let realtimeNeedsStudents = false;
+let realtimeNeedsAttendance = false;
+
 
 /* =========================================================
    START APPLICATION
 ========================================================= */
 
 document.addEventListener("DOMContentLoaded", async () => {
+
+    // Register the PWA service worker without blocking application startup.
+    if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.register("./sw.js")
+            .then(registration => {
+                console.log("Vision School service worker registered:", registration.scope);
+            })
+            .catch(error => {
+                console.warn("Service worker registration failed:", error);
+            });
+    }
 
     console.log("Vision School Attendance System starting...");
 
@@ -112,11 +129,13 @@ document.addEventListener("DOMContentLoaded", async () => {
         initializeModalClosing();
 
 
-        await testSupabaseConnection();
-
-        await loadStudents();
-
-        await loadTodayAttendance();
+        // These requests are independent. Running them together makes startup
+        // noticeably faster without changing the data or UI flow.
+        await Promise.all([
+            testSupabaseConnection(),
+            loadStudents(),
+            loadTodayAttendance()
+        ]);
 
         initializeRealtime();
 
@@ -724,7 +743,6 @@ function getParentOptions(parentValue) {
             ) {
 
                 return parsed
-                    .slice(0, 3)
                     .map(
                         (
                             item,
@@ -797,7 +815,6 @@ function getParentOptions(parentValue) {
 
 
     return parts
-        .slice(0, 3)
         .map(
             (
                 item,
@@ -1188,8 +1205,19 @@ function renderStudents() {
                                     class="small-button generate-qr"
                                     data-id="${escapeAttribute(student.id)}"
                                 >
-                                    QR
+                                    Student QR
                                 </button>
+
+                                ${parents.length ? parents.map((parent, parentIndex) => `
+                                    <button
+                                        type="button"
+                                        class="small-button generate-parent-qr"
+                                        data-id="${escapeAttribute(student.id)}"
+                                        data-parent-index="${parentIndex}"
+                                    >
+                                        Parent QR ${parentIndex + 1}
+                                    </button>
+                                `).join("") : ""}
 
                             </td>
 
@@ -1336,6 +1364,26 @@ function renderStudents() {
 
                     }
 
+                }
+            );
+
+        });
+
+
+    body
+        .querySelectorAll(
+            ".generate-parent-qr"
+        )
+        .forEach(button => {
+
+            button.addEventListener(
+                "click",
+                async () => {
+                    const student = findStudent(button.dataset.id);
+                    const parentIndex = Number(button.dataset.parentIndex || 0);
+                    if (student) {
+                        await showParentQr(student, parentIndex);
+                    }
                 }
             );
 
@@ -1625,6 +1673,8 @@ async function saveStudent(event) {
                     .from("students")
                     .update({
 
+                        id,
+
                         name,
 
                         level,
@@ -1850,6 +1900,16 @@ function showStudentProfile(student) {
                                     : ""
                             }
 
+                            <br>
+                            <button
+                                type="button"
+                                class="small-button profile-parent-qr"
+                                data-parent-index="${parent.index - 1}"
+                                style="margin-top:6px;"
+                            >
+                                Parent QR
+                            </button>
+
                         </div>
 
                     `
@@ -2049,6 +2109,288 @@ function showStudentProfile(student) {
         );
 }
 
+
+/* =========================================================
+   PARENT QR
+   A parent QR is independent from any one student. The same
+   registered parent name + phone can therefore be linked to
+   multiple students without changing the database schema.
+========================================================= */
+
+function normalizeParentValue(value) {
+    return String(value || "")
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, " ");
+}
+
+async function getParentQrToken(name, phone) {
+    const normalizedName = normalizeParentValue(name);
+    const normalizedPhone = normalizeParentValue(phone);
+    const cacheKey = `${normalizedName}|${normalizedPhone}`;
+
+    const cached = parentQrTokenCache.get(cacheKey);
+    if (cached) {
+        return cached;
+    }
+
+    const raw = cacheKey;
+
+    if (window.crypto?.subtle) {
+        const bytes = new TextEncoder().encode(raw);
+        const digest = await crypto.subtle.digest("SHA-256", bytes);
+        const token = Array.from(new Uint8Array(digest))
+            .map(byte => byte.toString(16).padStart(2, "0"))
+            .join("");
+        parentQrTokenCache.set(cacheKey, token);
+        return token;
+    }
+
+    // Deterministic fallback for browsers without Web Crypto.
+    let hash1 = 2166136261;
+    let hash2 = 16777619;
+    for (let i = 0; i < raw.length; i++) {
+        const code = raw.charCodeAt(i);
+        hash1 ^= code;
+        hash1 = Math.imul(hash1, 16777619);
+        hash2 ^= code + i;
+        hash2 = Math.imul(hash2, 2166136261);
+    }
+    const token = `${(hash1 >>> 0).toString(16).padStart(8, "0")}${(hash2 >>> 0).toString(16).padStart(8, "0")}`;
+    parentQrTokenCache.set(cacheKey, token);
+    return token;
+}
+
+async function showParentQr(student, parentIndex = 0) {
+    const parents = getParentOptions(student?.parent);
+    const parent = parents[parentIndex];
+    if (!parent?.name) {
+        showToast("This student has no registered parent/guardian at that position.", "error");
+        return;
+    }
+
+    const modal = document.getElementById("studentResultModal");
+    const result = document.getElementById("studentResult");
+    if (!modal || !result) return;
+
+    const token = await getParentQrToken(parent.name, parent.phone);
+    const payload = `VISION-PARENT:${token}`;
+
+    result.innerHTML = `
+        <div class="student-result">
+            <div class="result-avatar">👨‍👩‍👧</div>
+            <h2>${escapeHtml(parent.name)}</h2>
+            <p>${escapeHtml(parent.label || "Parent / Guardian")}</p>
+            ${parent.phone ? `<p>📞 ${escapeHtml(parent.phone)}</p>` : ""}
+
+            <div id="generatedParentQr" style="display:flex;justify-content:center;margin:20px 0;"></div>
+
+            <div class="security-box security-authorized">
+                <strong>Separate Parent QR</strong>
+                <p style="margin:6px 0 0;">
+                    This QR identifies this parent/guardian and can be linked to every student registered with the same name and phone number.
+                </p>
+            </div>
+
+            <button type="button" class="primary-button" id="downloadParentQr">
+                Download Parent QR
+            </button>
+        </div>
+    `;
+
+    modal.classList.add("show");
+
+    loadQrGenerator(() => {
+        const container = document.getElementById("generatedParentQr");
+        if (!container) return;
+        container.innerHTML = "";
+        new QRCode(container, {
+            text: payload,
+            width: 220,
+            height: 220
+        });
+
+        document.getElementById("downloadParentQr")?.addEventListener("click", () => {
+            const canvas = container.querySelector("canvas");
+            const image = container.querySelector("img");
+            const source = canvas?.toDataURL("image/png") || image?.src;
+            if (!source) {
+                showToast("Unable to prepare the Parent QR image.", "error");
+                return;
+            }
+            const link = document.createElement("a");
+            link.href = source;
+            link.download = `Vision-School-Parent-QR-${parent.name.replace(/[^a-z0-9]+/gi, "-")}.png`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        });
+    });
+}
+
+async function handleParentQrScan(decodedText) {
+    const prefix = "VISION-PARENT:";
+    const token = String(decodedText || "").trim().slice(prefix.length);
+
+    if (!token) {
+        showToast("Invalid Parent QR code.", "error");
+        return;
+    }
+
+    // Hash each unique parent identity once and in parallel. This matters
+    // when the school has many students linked to the same parent.
+    const parentEntries = [];
+    const uniqueParents = new Map();
+
+    for (const student of students) {
+        const parents = getParentOptions(student.parent);
+        for (const parent of parents) {
+            if (!parent.name) continue;
+            const key = `${normalizeParentValue(parent.name)}|${normalizeParentValue(parent.phone)}`;
+            if (!uniqueParents.has(key)) {
+                uniqueParents.set(key, parent);
+            }
+            parentEntries.push({ student, parent, key });
+        }
+    }
+
+    const tokenPairs = await Promise.all(
+        Array.from(uniqueParents.entries()).map(async ([key, parent]) => [
+            key,
+            await getParentQrToken(parent.name, parent.phone)
+        ])
+    );
+
+    const tokenMap = new Map(tokenPairs);
+    const matches = parentEntries
+        .filter(entry => tokenMap.get(entry.key) === token)
+        .map(entry => ({ student: entry.student, parent: entry.parent }));
+
+    if (!matches.length) {
+        showToast("This Parent QR is not linked to any registered student.", "error");
+        return;
+    }
+
+    showParentPickupSelection(matches);
+}
+
+async function showParentPickupSelection(matches) {
+    const modal = document.getElementById("studentResultModal");
+    const result = document.getElementById("studentResult");
+    if (!modal || !result) return;
+
+    await loadTodayAttendance();
+
+    const firstParent = matches[0].parent;
+    const rows = matches.map((match, index) => {
+        const record = attendanceRecords.find(
+            item => String(item.student_id) === String(match.student.id)
+        );
+        const ready = Boolean(record?.time_in) && !record?.time_out;
+        const reason = !record?.time_in
+            ? "Not timed in today"
+            : record?.time_out
+                ? `Already picked up at ${formatTime(record.time_out)}`
+                : "Ready for pickup";
+
+        return `
+            <label class="parent-pickup-row ${ready ? "" : "disabled"}">
+                <input type="checkbox" class="parent-pickup-checkbox" data-index="${index}" ${ready ? "" : "disabled"}>
+                <span>
+                    <strong>${escapeHtml(match.student.name)}</strong>
+                    <small>${escapeHtml(match.student.id)} • ${escapeHtml(match.student.level || "")}</small>
+                    <em>${escapeHtml(reason)}</em>
+                </span>
+            </label>
+        `;
+    }).join("");
+
+    result.innerHTML = `
+        <div class="student-result">
+            <div class="result-avatar">👨‍👩‍👧</div>
+            <h2>Parent Pickup</h2>
+            <p><strong>${escapeHtml(firstParent.name)}</strong>${firstParent.phone ? ` • ${escapeHtml(firstParent.phone)}` : ""}</p>
+
+            <div class="security-box security-authorized" style="text-align:left;">
+                <strong>Registered Parent / Guardian</strong>
+                <p style="margin:6px 0 0;">Select the child or children this parent is picking up now.</p>
+            </div>
+
+            <div class="parent-pickup-list">${rows}</div>
+
+            <div class="form-group" style="text-align:left;margin-top:16px;">
+                <label for="parentPickupNotes">Notes (optional)</label>
+                <textarea id="parentPickupNotes" rows="3" placeholder="Pickup notes..."></textarea>
+            </div>
+
+            <div class="result-actions">
+                <button type="button" class="secondary-button" id="cancelParentPickup">Cancel</button>
+                <button type="button" class="primary-button" id="saveParentPickup">Confirm Pickup</button>
+            </div>
+        </div>
+    `;
+
+    modal.classList.add("show");
+
+    document.getElementById("cancelParentPickup")?.addEventListener("click", closeResultModal);
+    document.getElementById("saveParentPickup")?.addEventListener("click", () => saveParentPickup(matches));
+}
+
+async function saveParentPickup(matches) {
+    const selected = Array.from(document.querySelectorAll(".parent-pickup-checkbox:checked"))
+        .map(input => Number(input.dataset.index))
+        .filter(Number.isInteger)
+        .map(index => matches[index])
+        .filter(Boolean);
+
+    if (!selected.length) {
+        showToast("Please select at least one child for pickup.", "error");
+        return;
+    }
+
+    const notes = document.getElementById("parentPickupNotes")?.value.trim() || "";
+    const pickupTime = new Date().toISOString();
+    let saved = 0;
+
+    try {
+        for (const match of selected) {
+            const record = attendanceRecords.find(
+                item => String(item.student_id) === String(match.student.id)
+            );
+
+            if (!record?.id || !record.time_in || record.time_out) continue;
+
+            const payload = {
+                pickup_person: match.parent.name,
+                pickup_relationship: match.parent.label || "Parent / Guardian",
+                pickup_phone: match.parent.phone || "",
+                pickup_option: "Parent / Guardian",
+                approver: "",
+                notes,
+                time_out: pickupTime
+            };
+
+            const { error } = await supabaseClient
+                .from("attendance")
+                .update(payload)
+                .eq("id", record.id);
+
+            if (error) throw error;
+            saved++;
+        }
+
+        if (!saved) {
+            throw new Error("No selected child was ready for pickup.");
+        }
+
+        showToast(`${saved} student${saved === 1 ? "" : "s"} picked up successfully.`, "success");
+        closeResultModal();
+        await loadTodayAttendance();
+    } catch (error) {
+        console.error("Parent pickup error:", error);
+        showToast(error?.message || "Unable to save parent pickup.", "error");
+    }
+}
 
 /* =========================================================
    QR GENERATOR
@@ -2509,6 +2851,10 @@ async function handleQrScan(
             decodedText
         ).trim();
 
+    if (id.startsWith("VISION-PARENT:")) {
+        await handleParentQrScan(id);
+        return;
+    }
 
     const student =
         findStudent(
@@ -4605,194 +4951,239 @@ function initializeSearch() {
 function initializeReports() {
 
     document
-        .getElementById(
-            "exportCsv"
-        )
-        ?.addEventListener(
-            "click",
-            exportCsv
-        );
+        .getElementById("exportCsv")
+        ?.addEventListener("click", exportAttendanceReport);
+
+    document
+        .getElementById("reportPeriod")
+        ?.addEventListener("change", updateReportDateControls);
+
+    document
+        .getElementById("reportReferenceDate")
+        ?.addEventListener("change", updateReportDateControls);
+
+    document
+        .getElementById("reportStartDate")
+        ?.addEventListener("change", updateReportDateControls);
+
+    document
+        .getElementById("reportEndDate")
+        ?.addEventListener("change", updateReportDateControls);
+
+    updateReportDateControls();
 }
 
+function pad2(value) {
+    return String(value).padStart(2, "0");
+}
 
-function exportCsv() {
+function dateFromParts(year, month, day) {
+    return `${year}-${pad2(month)}-${pad2(day)}`;
+}
 
-    if (
-        !attendanceRecords.length
-    ) {
+function parseDateOnly(value) {
+    const [year, month, day] = String(value || "").split("-").map(Number);
+    if (!year || !month || !day) return null;
+    return new Date(year, month - 1, day);
+}
 
-        showToast(
-            "There are no attendance records to export.",
-            "error"
-        );
+function formatDateInput(date) {
+    return dateFromParts(date.getFullYear(), date.getMonth() + 1, date.getDate());
+}
 
-        return;
+function getAcademicYearStartYear(referenceDate) {
+    return referenceDate.getMonth() >= 7
+        ? referenceDate.getFullYear()
+        : referenceDate.getFullYear() - 1;
+}
+
+function getReportRange() {
+    const period = document.getElementById("reportPeriod")?.value || "weekly";
+    const referenceValue = document.getElementById("reportReferenceDate")?.value || getVientianeDate();
+    const referenceDate = parseDateOnly(referenceValue) || new Date();
+
+    if (period === "custom") {
+        const start = document.getElementById("reportStartDate")?.value || "";
+        const end = document.getElementById("reportEndDate")?.value || "";
+        if (!start || !end) throw new Error("Please select both custom start and end dates.");
+        if (start > end) throw new Error("Custom start date cannot be after the end date.");
+        return { start, end, label: "Custom" };
     }
 
+    if (period === "monthly") {
+        const start = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), 1);
+        const end = new Date(referenceDate.getFullYear(), referenceDate.getMonth() + 1, 0);
+        return { start: formatDateInput(start), end: formatDateInput(end), label: "Monthly" };
+    }
 
-    const headers = [
+    if (period === "first_semester") {
+        const academicStart = getAcademicYearStartYear(referenceDate);
+        return {
+            start: dateFromParts(academicStart, 8, 1),
+            end: dateFromParts(academicStart, 12, 31),
+            label: "1st Semester"
+        };
+    }
 
-        "Date",
+    if (period === "second_semester") {
+        const academicStart = getAcademicYearStartYear(referenceDate);
+        return {
+            start: dateFromParts(academicStart + 1, 1, 1),
+            end: dateFromParts(academicStart + 1, 5, 31),
+            label: "2nd Semester"
+        };
+    }
 
-        "Student ID",
+    // Weekly: Monday through Sunday.
+    const start = new Date(referenceDate);
+    const day = start.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    start.setDate(start.getDate() + diff);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    return { start: formatDateInput(start), end: formatDateInput(end), label: "Weekly" };
+}
 
-        "Student Name",
+function updateReportDateControls() {
+    const period = document.getElementById("reportPeriod")?.value || "weekly";
+    const custom = document.getElementById("customReportDates");
+    if (custom) custom.style.display = period === "custom" ? "grid" : "none";
 
-        "Level",
+    try {
+        const range = getReportRange();
+        const summary = document.getElementById("reportRangeSummary");
+        if (summary) summary.textContent = `${range.label}: ${range.start} → ${range.end}`;
+    } catch (error) {
+        const summary = document.getElementById("reportRangeSummary");
+        if (summary) summary.textContent = error.message;
+    }
+}
 
-        "Time In",
+async function loadReportAttendance(start, end) {
+    const { data, error } = await supabaseClient
+        .from("attendance")
+        .select("*")
+        .gte("date", start)
+        .lte("date", end)
+        .order("date", { ascending: true })
+        .order("created_at", { ascending: true });
 
-        "Time Out",
+    if (error) throw error;
+    return data || [];
+}
 
-        "Pickup Person",
+function getPickupRelationship(record) {
+    return record?.Pickup_relationship ?? record?.pickup_relationship ?? "";
+}
 
-        "Pickup Relationship",
+function attendanceRows(records) {
+    const studentMap = new Map(students.map(student => [String(student.id), student]));
+    return records.map(record => {
+        const student = studentMap.get(String(record.student_id));
+        return [
+            record.date || "",
+            record.student_id || "",
+            record.student_name || student?.name || "",
+            student?.level || record.level || "",
+            record.time_in ? formatTime(record.time_in) : "",
+            record.time_out ? formatTime(record.time_out) : "",
+            record.pickup_person || "",
+            getPickupRelationship(record),
+            record.pickup_phone || "",
+            record.pickup_option || "",
+            record.approver || "",
+            record.notes || ""
+        ];
+    });
+}
 
-        "Pickup Phone",
+async function loadSheetJs() {
+    if (window.XLSX) return window.XLSX;
 
-        "Pickup Option",
+    return new Promise((resolve, reject) => {
+        const existing = document.querySelector('script[data-vision-xlsx="1"]');
+        if (existing) {
+            existing.addEventListener("load", () => resolve(window.XLSX));
+            existing.addEventListener("error", () => reject(new Error("Excel library could not be loaded.")));
+            return;
+        }
 
-        "Approver",
+        const script = document.createElement("script");
+        script.src = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
+        script.async = true;
+        script.dataset.visionXlsx = "1";
+        script.onload = () => window.XLSX ? resolve(window.XLSX) : reject(new Error("Excel library is unavailable."));
+        script.onerror = () => reject(new Error("Excel library could not be loaded. Check the internet connection."));
+        document.head.appendChild(script);
+    });
+}
 
-        "Notes"
-
-    ];
-
-
-    const rows =
-        attendanceRecords.map(
-            record => {
-
-                const student =
-                    findStudent(
-                        record.student_id
-                    );
-
-
-                return [
-
-                    record.date ||
-                        "",
-
-                    record.student_id ||
-                        "",
-
-                    record.student_name ||
-                        "",
-
-                    student?.level ||
-                        "",
-
-                    record.time_in
-                        ? formatTime(
-                            record.time_in
-                        )
-                        : "",
-
-                    record.time_out
-                        ? formatTime(
-                            record.time_out
-                        )
-                        : "",
-
-                    record.pickup_person ||
-                        "",
-
-                    record.Pickup_relationship ||
-                        "",
-
-                    record.pickup_phone ||
-                        "",
-
-                    record.pickup_option ||
-                        "",
-
-                    record.approver ||
-                        "",
-
-                    record.notes ||
-                        ""
-
-                ];
-
-            }
-        );
-
-
-    const csv = [
-
-        headers,
-
-        ...rows
-
-    ]
-        .map(
-            row =>
-                row
-                    .map(
-                        value =>
-                            csvEscape(
-                                value
-                            )
-                    )
-                    .join(",")
-        )
+function downloadCsvRows(headers, rows, filename) {
+    const csv = [headers, ...rows]
+        .map(row => row.map(value => csvEscape(value)).join(","))
         .join("\r\n");
 
-
-    const blob =
-        new Blob(
-            [
-                "\uFEFF" +
-                csv
-            ],
-            {
-                type:
-                    "text/csv;charset=utf-8;"
-            }
-        );
-
-
-    const url =
-        URL.createObjectURL(
-            blob
-        );
-
-
-    const link =
-        document.createElement(
-            "a"
-        );
-
-
-    link.href =
-        url;
-
-
-    link.download =
-        `Vision-School-Attendance-${getVientianeDate()}.csv`;
-
-
-    document.body.appendChild(
-        link
-    );
-
-
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
     link.click();
-
-
     link.remove();
+    URL.revokeObjectURL(url);
+}
 
+async function exportAttendanceReport() {
+    const button = document.getElementById("exportCsv");
+    const originalText = button?.textContent || "Export Excel";
 
-    URL.revokeObjectURL(
-        url
-    );
+    try {
+        const range = getReportRange();
+        if (button) {
+            button.disabled = true;
+            button.textContent = "Preparing...";
+        }
 
+        const records = await loadReportAttendance(range.start, range.end);
+        if (!records.length) {
+            showToast(`No attendance records found from ${range.start} to ${range.end}.`, "error");
+            return;
+        }
 
-    showToast(
-        "Attendance CSV exported successfully.",
-        "success"
-    );
+        const headers = [
+            "Date", "Student ID", "Student Name", "Level", "Time In", "Time Out",
+            "Pickup Person", "Pickup Relationship", "Pickup Phone", "Pickup Option",
+            "Approver", "Notes"
+        ];
+        const rows = attendanceRows(records);
+
+        try {
+            const XLSX = await loadSheetJs();
+            const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+            worksheet["!cols"] = [
+                { wch: 12 }, { wch: 14 }, { wch: 28 }, { wch: 16 }, { wch: 13 }, { wch: 13 },
+                { wch: 24 }, { wch: 24 }, { wch: 18 }, { wch: 24 }, { wch: 22 }, { wch: 40 }
+            ];
+
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Attendance");
+            XLSX.writeFile(workbook, `Vision-School-Attendance-${range.label.replace(/\s+/g, "-")}-${range.start}-to-${range.end}.xlsx`);
+            showToast(`Excel report exported: ${range.start} to ${range.end}.`, "success");
+        } catch (excelError) {
+            console.warn("Excel export fallback:", excelError);
+            downloadCsvRows(headers, rows, `Vision-School-Attendance-${range.label.replace(/\s+/g, "-")}-${range.start}-to-${range.end}.csv`);
+            showToast("Excel library could not load, so a CSV fallback was downloaded.", "success");
+        }
+    } catch (error) {
+        console.error("Report export error:", error);
+        showToast(error?.message || "Unable to export attendance report.", "error");
+    } finally {
+        if (button) {
+            button.disabled = false;
+            button.textContent = originalText;
+        }
+    }
 }
 
 
@@ -4910,86 +5301,93 @@ function closeResultModal() {
    REALTIME
 ========================================================= */
 
-function initializeRealtime() {
+function scheduleRealtimeRefresh(type) {
 
-    if (
-        !supabaseClient
-    ) {
+    if (type === "students") {
+        realtimeNeedsStudents = true;
+    }
+
+    if (type === "attendance") {
+        realtimeNeedsAttendance = true;
+    }
+
+    if (realtimeRefreshTimer) {
         return;
     }
 
+    // Supabase can emit several changes for one real-world action.
+    // Coalesce them so the UI does not repeatedly download/render the same data.
+    realtimeRefreshTimer = setTimeout(async () => {
+
+        const refreshStudents = realtimeNeedsStudents;
+        const refreshAttendance = realtimeNeedsAttendance;
+
+        realtimeNeedsStudents = false;
+        realtimeNeedsAttendance = false;
+        realtimeRefreshTimer = null;
+
+        try {
+            const tasks = [];
+
+            if (refreshStudents) {
+                tasks.push(loadStudents());
+            }
+
+            if (refreshAttendance) {
+                tasks.push(loadTodayAttendance());
+            }
+
+            await Promise.all(tasks);
+        } catch (error) {
+            console.error("Realtime refresh error:", error);
+        }
+
+    }, 350);
+}
+
+
+function initializeRealtime() {
+
+    if (!supabaseClient) {
+        return;
+    }
 
     try {
 
-        if (
-            realtimeChannel
-        ) {
-
-            supabaseClient
-                .removeChannel(
-                    realtimeChannel
-                );
-
+        if (realtimeChannel) {
+            supabaseClient.removeChannel(realtimeChannel);
         }
-
 
         realtimeChannel =
             supabaseClient
-                .channel(
-                    "vision-school-live"
-                )
-
-
+                .channel("vision-school-live")
                 .on(
-
                     "postgres_changes",
-
                     {
                         event: "*",
                         schema: "public",
                         table: "students"
                     },
-
-                    async () => {
-
-                        await loadStudents();
-
-                    }
-
+                    () => scheduleRealtimeRefresh("students")
                 )
-
-
                 .on(
-
                     "postgres_changes",
-
                     {
                         event: "*",
                         schema: "public",
                         table: "attendance"
                     },
-
-                    async () => {
-
-                        await loadTodayAttendance();
-
-                    }
-
+                    () => scheduleRealtimeRefresh("attendance")
                 )
-
-
                 .subscribe();
 
-
     } catch (error) {
-
         console.error(
             "Realtime initialization error:",
             error
         );
     }
 }
-
 
 /* =========================================================
    FIND STUDENT
