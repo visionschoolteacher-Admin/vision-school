@@ -120,7 +120,106 @@ function setConnectionStatus(state, message) {
     }
 }
 
+function ensureVisionSchoolModals() {
+    // The current index.html intentionally contains the page UI, but older
+    // versions of the app expected these two shared modals to be present.
+    // Create them once at runtime so View / Edit / Student QR / Parent QR
+    // continue to work without changing the existing page layout.
+
+    if (!document.getElementById("studentResultModal")) {
+        const modal = document.createElement("div");
+        modal.id = "studentResultModal";
+        modal.className = "modal";
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Student Information</h2>
+                    <button type="button" class="modal-close" id="closeResultModal" aria-label="Close">&times;</button>
+                </div>
+                <div id="studentResult"></div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+
+    if (!document.getElementById("studentModal")) {
+        const modal = document.createElement("div");
+        modal.id = "studentModal";
+        modal.className = "modal";
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Add Student</h2>
+                    <button type="button" class="modal-close" id="closeStudentModal" aria-label="Close">&times;</button>
+                </div>
+
+                <form id="studentForm">
+                    <div class="form-group">
+                        <label for="studentId">Student ID</label>
+                        <input id="studentId" type="text" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="studentName">Student Name</label>
+                        <input id="studentName" type="text" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="studentLevel">Level</label>
+                        <input id="studentLevel" type="text" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="studentParent">Parent / Guardian 1</label>
+                        <input id="studentParent" type="text">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="studentPhone">Phone 1</label>
+                        <input id="studentPhone" type="tel">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="studentParent2">Parent / Guardian 2</label>
+                        <input id="studentParent2" type="text">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="studentPhone2">Phone 2</label>
+                        <input id="studentPhone2" type="tel">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="studentParent3">Parent / Guardian 3</label>
+                        <input id="studentParent3" type="text">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="studentPhone3">Phone 3</label>
+                        <input id="studentPhone3" type="tel">
+                    </div>
+
+                    <div class="form-group">
+                        <label style="display:flex;align-items:center;gap:8px;">
+                            <input id="studentAuthorized" type="checkbox" checked>
+                            Pickup Authorized
+                        </label>
+                    </div>
+
+                    <div class="result-actions">
+                        <button type="button" class="secondary-button" id="cancelStudent">Cancel</button>
+                        <button type="submit" class="primary-button">Save Student</button>
+                    </div>
+                </form>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+}
+
 function initializeAppUI() {
+    ensureVisionSchoolModals();
+
     // These must never depend on Supabase. The app remains clickable while
     // the cloud connection is being established.
     initializeNavigation();
@@ -1312,7 +1411,7 @@ function renderStudents() {
 
 
                     if (student) {
-
+                        console.log("Vision School: View student", student.id);
                         showStudentProfile(
                             student
                         );
@@ -1344,7 +1443,7 @@ function renderStudents() {
 
 
                     if (student) {
-
+                        console.log("Vision School: Edit student", student.id);
                         editStudent(
                             student
                         );
@@ -1376,9 +1475,11 @@ function renderStudents() {
 
 
                     if (!student) {
+                        console.warn("Vision School: Remove student not found", button.dataset.id);
                         return;
                     }
 
+                    console.log("Vision School: Remove student clicked", student.id);
 
                     const confirmed =
                         confirm(
@@ -1420,7 +1521,7 @@ function renderStudents() {
 
 
                     if (student) {
-
+                        console.log("Vision School: Student QR", student.id);
                         showStudentQr(
                             student
                         );
@@ -1445,6 +1546,7 @@ function renderStudents() {
                     const student = findStudent(button.dataset.id);
                     const parentIndex = Number(button.dataset.parentIndex || 0);
                     if (student) {
+                        console.log("Vision School: Parent QR", student.id, parentIndex);
                         await showParentQr(student, parentIndex);
                     }
                 }
@@ -1916,6 +2018,7 @@ function showStudentProfile(student) {
 
 
     if (!modal || !result) {
+        console.error("Vision School: Student result modal is missing.");
         return;
     }
 
@@ -2170,6 +2273,13 @@ function showStudentProfile(student) {
 
             }
         );
+
+    result.querySelectorAll(".profile-parent-qr").forEach(button => {
+        button.addEventListener("click", async () => {
+            const parentIndex = Number(button.dataset.parentIndex || 0);
+            await showParentQr(student, parentIndex);
+        });
+    });
 }
 
 
@@ -2234,7 +2344,10 @@ async function showParentQr(student, parentIndex = 0) {
 
     const modal = document.getElementById("studentResultModal");
     const result = document.getElementById("studentResult");
-    if (!modal || !result) return;
+    if (!modal || !result) {
+        console.error("Vision School: Parent QR result modal is missing.");
+        return;
+    }
 
     const token = await getParentQrToken(parent.name, parent.phone);
     const payload = `VISION-PARENT:${token}`;
@@ -2473,6 +2586,7 @@ function showStudentQr(student) {
 
 
     if (!modal || !result) {
+        console.error("Vision School: Student QR result modal is missing.");
         return;
     }
 
