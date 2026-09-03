@@ -267,6 +267,26 @@ document.addEventListener("DOMContentLoaded", async () => {
         // while Supabase is still connecting.
         restoreCachedData();
 
+        /*
+         IMPORTANT STARTUP ORDER
+         -----------------------
+         The navigation/UI must be initialized BEFORE waiting for Supabase.
+         If the CDN is slow or unavailable, the old startup sequence waited
+         here first, leaving the app stuck on "Connecting..." and making
+         every Dashboard button appear dead.
+
+         The UI is local and does not need Supabase to navigate between
+         Dashboard, Students, QR Scanner, Attendance, and Reports.
+        */
+        initializeNavigation();
+        initializeMobileMenu();
+        initializeClock();
+        initializeStudentModal();
+        initializeScanner();
+        initializeSearch();
+        initializeReports();
+        initializeModalClosing();
+
         const supabaseLibrary =
             await waitForSupabaseLibrary();
 
@@ -275,23 +295,6 @@ document.addEventListener("DOMContentLoaded", async () => {
                 SUPABASE_URL,
                 SUPABASE_ANON_KEY
             );
-
-
-        initializeNavigation();
-
-        initializeMobileMenu();
-
-        initializeClock();
-
-        initializeStudentModal();
-
-        initializeScanner();
-
-        initializeSearch();
-
-        initializeReports();
-
-        initializeModalClosing();
 
 
         // These requests are independent. Keep loading even if the
@@ -326,6 +329,19 @@ document.addEventListener("DOMContentLoaded", async () => {
             "Initialization error:",
             error
         );
+
+        const connectionDot =
+            document.getElementById("connectionDot");
+        const connectionText =
+            document.getElementById("connectionText");
+
+        connectionDot?.classList.remove("connected");
+        connectionDot?.classList.add("offline");
+
+        if (connectionText) {
+            connectionText.textContent =
+                "Connection Error";
+        }
 
         showToast(
             error?.message ||
@@ -440,16 +456,49 @@ function initializeNavigation() {
 
             button.addEventListener(
                 "click",
-                () => {
+                event => {
 
-                    showSection(
-                        button.dataset.section
-                    );
+                    event.preventDefault();
+
+                    const sectionId =
+                        button.dataset.section;
+
+                    if (sectionId) {
+                        showSection(sectionId);
+                    }
 
                 }
             );
 
         });
+
+    /*
+       Defensive delegated handler for Dashboard Quick Actions and
+       any data-section control added later by the HTML.
+       It only runs when a click was not already handled by the
+       direct button listener.
+    */
+    document.addEventListener("click", event => {
+
+        const control =
+            event.target.closest?.("[data-section]");
+
+        if (!control) {
+            return;
+        }
+
+        if (control.tagName === "BUTTON") {
+            return;
+        }
+
+        const sectionId =
+            control.dataset.section;
+
+        if (sectionId) {
+            event.preventDefault();
+            showSection(sectionId);
+        }
+    });
 }
 
 
