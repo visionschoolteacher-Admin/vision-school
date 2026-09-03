@@ -120,218 +120,7 @@ function setConnectionStatus(state, message) {
     }
 }
 
-function ensureVisionSchoolModalStyles() {
-    if (document.getElementById("visionSchoolModalFixStyles")) {
-        return;
-    }
-
-    const style = document.createElement("style");
-    style.id = "visionSchoolModalFixStyles";
-    style.textContent = `
-        /* =====================================================
-           STUDENT MODAL FIX
-           Keeps the existing dashboard UI unchanged.
-        ===================================================== */
-
-        #studentModal.modal,
-        #studentResultModal.modal {
-            position: fixed !important;
-            inset: 0 !important;
-            width: 100% !important;
-            height: 100% !important;
-            box-sizing: border-box !important;
-            padding: 20px !important;
-            overflow-y: auto !important;
-            overflow-x: hidden !important;
-            -webkit-overflow-scrolling: touch;
-            display: none;
-            align-items: flex-start !important;
-            justify-content: center !important;
-            background: rgba(0, 0, 0, 0.55) !important;
-            z-index: 99999 !important;
-        }
-
-        #studentModal.modal.show,
-        #studentResultModal.modal.show {
-            display: flex !important;
-        }
-
-        #studentModal .modal-content,
-        #studentResultModal .modal-content {
-            width: min(620px, calc(100vw - 40px)) !important;
-            max-width: 620px !important;
-            min-width: 0 !important;
-            max-height: calc(100vh - 40px) !important;
-            margin: auto !important;
-            box-sizing: border-box !important;
-            overflow-y: auto !important;
-            overflow-x: hidden !important;
-            border-radius: 14px !important;
-            padding: 24px !important;
-            background: #ffffff !important;
-            opacity: 1 !important;
-            color: #0b3555 !important;
-            position: relative !important;
-            box-shadow: 0 18px 50px rgba(0,0,0,.28) !important;
-        }
-
-        #studentModal form {
-            width: 100% !important;
-            box-sizing: border-box !important;
-        }
-
-        #studentModal .form-group {
-            width: 100% !important;
-            box-sizing: border-box !important;
-        }
-
-        #studentModal input,
-        #studentModal select {
-            width: 100% !important;
-            max-width: 100% !important;
-            box-sizing: border-box !important;
-        }
-
-        #studentModal .modal-header {
-            position: sticky;
-            top: -24px;
-            z-index: 2;
-            padding-bottom: 14px;
-            background: inherit;
-        }
-
-        #studentModal .result-actions {
-            display: flex;
-            justify-content: flex-end;
-            flex-wrap: wrap;
-            gap: 10px;
-            padding-bottom: 4px;
-        }
-
-        @media (max-width: 700px) {
-            #studentModal.modal,
-            #studentResultModal.modal {
-                padding: 10px;
-            }
-
-            #studentModal .modal-content,
-            #studentResultModal .modal-content {
-                width: calc(100vw - 20px) !important;
-                max-width: none !important;
-                max-height: calc(100vh - 20px) !important;
-                padding: 18px !important;
-            }
-
-            #studentModal .modal-header {
-                top: -18px;
-            }
-        }
-    `;
-    document.head.appendChild(style);
-}
-
-function ensureVisionSchoolModals() {
-    ensureVisionSchoolModalStyles();
-
-    // The current index.html intentionally contains the page UI, but older
-    // versions of the app expected these two shared modals to be present.
-    // Create them once at runtime so View / Edit / Student QR / Parent QR
-    // continue to work without changing the existing page layout.
-
-    if (!document.getElementById("studentResultModal")) {
-        const modal = document.createElement("div");
-        modal.id = "studentResultModal";
-        modal.className = "modal";
-        modal.innerHTML = `
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h2>Student Information</h2>
-                    <button type="button" class="modal-close" id="closeResultModal" aria-label="Close">&times;</button>
-                </div>
-                <div id="studentResult"></div>
-            </div>
-        `;
-        document.body.appendChild(modal);
-    }
-
-    if (!document.getElementById("studentModal")) {
-        const modal = document.createElement("div");
-        modal.id = "studentModal";
-        modal.className = "modal";
-        modal.innerHTML = `
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h2>Add Student</h2>
-                    <button type="button" class="modal-close" id="closeStudentModal" aria-label="Close">&times;</button>
-                </div>
-
-                <form id="studentForm">
-                    <div class="form-group">
-                        <label for="studentId">Student ID</label>
-                        <input id="studentId" type="text" required>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="studentName">Student Name</label>
-                        <input id="studentName" type="text" required>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="studentLevel">Level</label>
-                        <input id="studentLevel" type="text" required>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="studentParent">Parent / Guardian 1</label>
-                        <input id="studentParent" type="text">
-                    </div>
-
-                    <div class="form-group">
-                        <label for="studentPhone">Phone 1</label>
-                        <input id="studentPhone" type="tel">
-                    </div>
-
-                    <div class="form-group">
-                        <label for="studentParent2">Parent / Guardian 2</label>
-                        <input id="studentParent2" type="text">
-                    </div>
-
-                    <div class="form-group">
-                        <label for="studentPhone2">Phone 2</label>
-                        <input id="studentPhone2" type="tel">
-                    </div>
-
-                    <div class="form-group">
-                        <label for="studentParent3">Parent / Guardian 3</label>
-                        <input id="studentParent3" type="text">
-                    </div>
-
-                    <div class="form-group">
-                        <label for="studentPhone3">Phone 3</label>
-                        <input id="studentPhone3" type="tel">
-                    </div>
-
-                    <div class="form-group">
-                        <label style="display:flex;align-items:center;gap:8px;">
-                            <input id="studentAuthorized" type="checkbox" checked>
-                            Pickup Authorized
-                        </label>
-                    </div>
-
-                    <div class="result-actions">
-                        <button type="button" class="secondary-button" id="cancelStudent">Cancel</button>
-                        <button type="submit" class="primary-button">Save Student</button>
-                    </div>
-                </form>
-            </div>
-        `;
-        document.body.appendChild(modal);
-    }
-}
-
 function initializeAppUI() {
-    ensureVisionSchoolModals();
-
     // These must never depend on Supabase. The app remains clickable while
     // the cloud connection is being established.
     initializeNavigation();
@@ -1523,7 +1312,7 @@ function renderStudents() {
 
 
                     if (student) {
-                        console.log("Vision School: View student", student.id);
+
                         showStudentProfile(
                             student
                         );
@@ -1555,7 +1344,7 @@ function renderStudents() {
 
 
                     if (student) {
-                        console.log("Vision School: Edit student", student.id);
+
                         editStudent(
                             student
                         );
@@ -1587,11 +1376,9 @@ function renderStudents() {
 
 
                     if (!student) {
-                        console.warn("Vision School: Remove student not found", button.dataset.id);
                         return;
                     }
 
-                    console.log("Vision School: Remove student clicked", student.id);
 
                     const confirmed =
                         confirm(
@@ -1633,7 +1420,7 @@ function renderStudents() {
 
 
                     if (student) {
-                        console.log("Vision School: Student QR", student.id);
+
                         showStudentQr(
                             student
                         );
@@ -1658,7 +1445,6 @@ function renderStudents() {
                     const student = findStudent(button.dataset.id);
                     const parentIndex = Number(button.dataset.parentIndex || 0);
                     if (student) {
-                        console.log("Vision School: Parent QR", student.id, parentIndex);
                         await showParentQr(student, parentIndex);
                     }
                 }
@@ -2130,7 +1916,6 @@ function showStudentProfile(student) {
 
 
     if (!modal || !result) {
-        console.error("Vision School: Student result modal is missing.");
         return;
     }
 
@@ -2385,13 +2170,6 @@ function showStudentProfile(student) {
 
             }
         );
-
-    result.querySelectorAll(".profile-parent-qr").forEach(button => {
-        button.addEventListener("click", async () => {
-            const parentIndex = Number(button.dataset.parentIndex || 0);
-            await showParentQr(student, parentIndex);
-        });
-    });
 }
 
 
@@ -2456,10 +2234,7 @@ async function showParentQr(student, parentIndex = 0) {
 
     const modal = document.getElementById("studentResultModal");
     const result = document.getElementById("studentResult");
-    if (!modal || !result) {
-        console.error("Vision School: Parent QR result modal is missing.");
-        return;
-    }
+    if (!modal || !result) return;
 
     const token = await getParentQrToken(parent.name, parent.phone);
     const payload = `VISION-PARENT:${token}`;
@@ -2698,7 +2473,6 @@ function showStudentQr(student) {
 
 
     if (!modal || !result) {
-        console.error("Vision School: Student QR result modal is missing.");
         return;
     }
 
@@ -3784,138 +3558,51 @@ function openPickupForm(
     const record =
         attendanceRecords.find(
             item =>
-                String(
-                    item.student_id
-                ) ===
-                String(
-                    student.id
-                )
+                String(item.student_id) ===
+                String(student.id)
         );
-
 
     if (!record) {
-
-        showToast(
-            "Attendance record not found.",
-            "error"
-        );
-
+        showToast("Attendance record not found.", "error");
         return;
     }
 
-
     const result =
-        document.getElementById(
-            "studentResult"
-        );
+        document.getElementById("studentResult");
 
+    if (!result) {
+        showToast("Student information area was not found.", "error");
+        return;
+    }
 
-    const parents =
-        getParentOptions(
-            student.parent
-        );
+    const parents = getParentOptions(student.parent);
 
-
-    const authorized =
-        student.authorized !== false;
-
-
-    const pickupOptions =
-        parents
-            .map(
-                parent => `
-
-                    <option
-                        value="${escapeAttribute(
-                            parent.name
-                        )}"
-                    >
-
-                        ${escapeHtml(
-                            parent.label
-                        )}
-                        —
-                        ${escapeHtml(
-                            parent.name
-                        )}
-
-                    </option>
-
-                `
-            )
-            .join("");
-
+    const pickupOptions = parents
+        .map(parent => `
+            <option value="${escapeAttribute(parent.name)}">
+                ${escapeHtml(parent.label)} — ${escapeHtml(parent.name)}
+            </option>
+        `)
+        .join("");
 
     result.innerHTML = `
-
         <div class="student-result">
+            <div class="result-avatar">👤</div>
 
-            <div class="result-avatar">
-                👤
-            </div>
-
-
-            <h2>
-                Student Pickup
-            </h2>
-
+            <h2>Student Pickup</h2>
 
             <p>
-                ${escapeHtml(
-                    student.name
-                )}
+                ${escapeHtml(student.name)}
             </p>
 
-
-            ${
-                !authorized
-
-                    ? `
-
-                        <div
-                            style="
-                                padding:12px;
-                                background:#fee2e2;
-                                color:#991b1b;
-                                border-radius:10px;
-                                margin:15px 0;
-                                text-align:left;
-                            "
-                        >
-
-                            <strong>
-                                ⚠ UNAUTHORIZED
-                            </strong>
-
-                            <p>
-                                This student is not
-                                currently authorized
-                                for normal pickup.
-                                Staff verification
-                                is required.
-                            </p>
-
-                        </div>
-
-                    `
-
-                    : ""
-            }
-
-
-            <div
-                style="
-                    text-align:left;
-                    margin-top:20px;
-                "
-            >
+            <div style="
+                text-align:left;
+                margin-top:20px;
+            ">
 
                 <label>
-                    <strong>
-                        Who is picking up the student?
-                    </strong>
+                    <strong>Who is picking up the student?</strong>
                 </label>
-
 
                 <select
                     id="pickupPersonSelect"
@@ -3928,29 +3615,39 @@ function openPickupForm(
                         background:white;
                     "
                 >
-
                     <option value="">
-                        -- Select Authorized Person --
+                        -- Select Parent / Guardian --
                     </option>
 
                     ${pickupOptions}
 
-                    <option value="Other">
-                        Other / Guest
+                    <option value="__UNAUTHORIZED_PERSON__">
+                        Unauthorized Person — Admin Approval
                     </option>
-
                 </select>
 
-
+                <!-- Only shown for an unauthorized person. -->
                 <div
-                    id="otherPickupContainer"
-                    style="display:none"
+                    id="unauthorizedPickupContainer"
+                    style="display:none;"
                 >
+                    <div style="
+                        padding:12px;
+                        background:#fff7ed;
+                        color:#9a3412;
+                        border:1px solid #fed7aa;
+                        border-radius:10px;
+                        margin:0 0 14px;
+                    ">
+                        <strong>⚠ Unauthorized Person</strong>
+                        <div style="font-size:12px;margin-top:4px;">
+                            Please record the visitor's basic information and the approving staff member.
+                        </div>
+                    </div>
 
                     <label>
-                        Other / Guest Name
+                        Person's Name <strong style="color:#dc2626">*</strong>
                     </label>
-
                     <input
                         id="otherPickupName"
                         type="text"
@@ -3964,125 +3661,87 @@ function openPickupForm(
                         "
                     >
 
+                    <label>
+                        Phone Number <strong style="color:#dc2626">*</strong>
+                    </label>
+                    <input
+                        id="pickupPhoneInput"
+                        type="text"
+                        placeholder="Phone number"
+                        style="
+                            width:100%;
+                            padding:11px;
+                            margin:6px 0 14px;
+                            border:1px solid #d1d5db;
+                            border-radius:8px;
+                        "
+                    >
+
+                    <label>
+                        Relationship / Basic Information <strong style="color:#dc2626">*</strong>
+                    </label>
+                    <input
+                        id="pickupRelationshipInput"
+                        type="text"
+                        placeholder="e.g. Aunt, Uncle, Family Friend"
+                        style="
+                            width:100%;
+                            padding:11px;
+                            margin:6px 0 14px;
+                            border:1px solid #d1d5db;
+                            border-radius:8px;
+                        "
+                    >
+
+                    <label>
+                        Approver / Staff <strong style="color:#dc2626">*</strong>
+                    </label>
+                    <input
+                        id="approverInput"
+                        type="text"
+                        placeholder="Staff / Teacher name"
+                        style="
+                            width:100%;
+                            padding:11px;
+                            margin:6px 0 14px;
+                            border:1px solid #d1d5db;
+                            border-radius:8px;
+                        "
+                    >
+
+                    <label>Notes</label>
+                    <textarea
+                        id="notesInput"
+                        placeholder="Additional security or pickup notes..."
+                        style="
+                            width:100%;
+                            min-height:80px;
+                            padding:11px;
+                            margin:6px 0 14px;
+                            border:1px solid #d1d5db;
+                            border-radius:8px;
+                        "
+                    ></textarea>
                 </div>
 
-
-                <label>
-                    Relationship
-                </label>
-
-                <input
-                    id="pickupRelationshipInput"
-                    type="text"
-                    placeholder="Mother, Father, Guardian, Aunt..."
+                <div
+                    id="registeredPickupInfo"
                     style="
-                        width:100%;
-                        padding:11px;
-                        margin:6px 0 14px;
-                        border:1px solid #d1d5db;
-                        border-radius:8px;
+                        padding:12px;
+                        background:#f0fdf4;
+                        color:#166534;
+                        border:1px solid #bbf7d0;
+                        border-radius:10px;
+                        margin-bottom:14px;
+                        display:none;
                     "
                 >
-
-
-                <label>
-                    Phone
-                </label>
-
-                <input
-                    id="pickupPhoneInput"
-                    type="text"
-                    placeholder="Phone number"
-                    style="
-                        width:100%;
-                        padding:11px;
-                        margin:6px 0 14px;
-                        border:1px solid #d1d5db;
-                        border-radius:8px;
-                    "
-                >
-
-
-                <label>
-                    Pickup Option
-                </label>
-
-                <select
-                    id="pickupOptionInput"
-                    style="
-                        width:100%;
-                        padding:11px;
-                        margin:6px 0 14px;
-                        border:1px solid #d1d5db;
-                        border-radius:8px;
-                    "
-                >
-
-                    <option value="">
-                        Select option
-                    </option>
-
-                    <option value="Parent">
-                        Parent
-                    </option>
-
-                    <option value="Guardian">
-                        Guardian
-                    </option>
-
-                    <option value="Authorized Person">
-                        Authorized Person
-                    </option>
-
-                    <option value="Guest">
-                        Guest
-                    </option>
-
-                </select>
-
-
-                <label>
-                    Approver / Staff
-                </label>
-
-                <input
-                    id="approverInput"
-                    type="text"
-                    placeholder="Staff / Teacher name"
-                    style="
-                        width:100%;
-                        padding:11px;
-                        margin:6px 0 14px;
-                        border:1px solid #d1d5db;
-                        border-radius:8px;
-                    "
-                >
-
-
-                <label>
-                    Notes
-                </label>
-
-                <textarea
-                    id="notesInput"
-                    placeholder="Additional security or pickup notes..."
-                    style="
-                        width:100%;
-                        min-height:80px;
-                        padding:11px;
-                        margin:6px 0 14px;
-                        border:1px solid #d1d5db;
-                        border-radius:8px;
-                    "
-                ></textarea>
+                    ✓ Registered parent / guardian information will be used automatically.
+                </div>
 
             </div>
 
-
-            <div
-                class="result-actions"
-            >
-
+            <div class="result-actions">
                 <button
                     type="button"
                     class="secondary-button"
@@ -4091,7 +3750,6 @@ function openPickupForm(
                     Cancel
                 </button>
 
-
                 <button
                     type="button"
                     class="primary-button"
@@ -4099,118 +3757,67 @@ function openPickupForm(
                 >
                     Save Pickup
                 </button>
-
             </div>
-
         </div>
-
     `;
 
+    const personSelect = document.getElementById("pickupPersonSelect");
+    const unauthorizedContainer = document.getElementById("unauthorizedPickupContainer");
+    const registeredInfo = document.getElementById("registeredPickupInfo");
 
-    /* PERSON SELECT */
+    function updatePickupFields() {
+        const value = personSelect?.value || "";
+        const isUnauthorized = value === "__UNAUTHORIZED_PERSON__";
+        const selectedParent = parents.find(parent => parent.name === value);
 
-    document
-        .getElementById(
-            "pickupPersonSelect"
-        )
-        ?.addEventListener(
-            "change",
-            event => {
+        if (unauthorizedContainer) {
+            unauthorizedContainer.style.display = isUnauthorized ? "block" : "none";
+        }
 
-                const value =
-                    event.target.value;
+        if (registeredInfo) {
+            registeredInfo.style.display = selectedParent ? "block" : "none";
+        }
 
+        // Registered parent/guardian: no duplicate data entry is needed.
+        if (selectedParent) {
+            const relationship = document.getElementById("pickupRelationshipInput");
+            const phone = document.getElementById("pickupPhoneInput");
 
-                const otherContainer =
-                    document.getElementById(
-                        "otherPickupContainer"
-                    );
+            if (relationship) relationship.value = selectedParent.label || "Parent / Guardian";
+            if (phone) phone.value = selectedParent.phone || "";
+        }
 
+        // When switching away from unauthorized, clear visitor-only fields.
+        if (!isUnauthorized) {
+            const otherName = document.getElementById("otherPickupName");
+            const relationship = document.getElementById("pickupRelationshipInput");
+            const phone = document.getElementById("pickupPhoneInput");
+            const approver = document.getElementById("approverInput");
+            const notes = document.getElementById("notesInput");
 
-                if (otherContainer) {
-
-                    otherContainer.style.display =
-                        value === "Other"
-                            ? "block"
-                            : "none";
-
-                }
-
-
-                const selected =
-                    parents.find(
-                        parent =>
-                            parent.name ===
-                            value
-                    );
-
-
-                if (selected) {
-
-                    const relationship =
-                        document.getElementById(
-                            "pickupRelationshipInput"
-                        );
-
-                    const phone =
-                        document.getElementById(
-                            "pickupPhoneInput"
-                        );
-
-
-                    if (relationship) {
-
-                        relationship.value =
-                            selected.label;
-
-                    }
-
-
-                    if (phone) {
-
-                        phone.value =
-                            selected.phone ||
-                            "";
-
-                    }
-
-                }
-
+            if (!selectedParent) {
+                if (otherName) otherName.value = "";
+                if (relationship) relationship.value = "";
+                if (phone) phone.value = "";
             }
-        );
+            if (approver) approver.value = "";
+            if (notes) notes.value = "";
+        }
+    }
 
+    personSelect?.addEventListener("change", updatePickupFields);
 
-    /* CANCEL */
+    document.getElementById("cancelPickup")?.addEventListener(
+        "click",
+        () => showAttendanceAction(student)
+    );
 
-    document
-        .getElementById(
-            "cancelPickup"
-        )
-        ?.addEventListener(
-            "click",
-            () =>
-                showAttendanceAction(
-                    student
-                )
-        );
+    document.getElementById("savePickup")?.addEventListener(
+        "click",
+        () => savePickup(student, record, closeAfterSave)
+    );
 
-
-    /* SAVE */
-
-    document
-        .getElementById(
-            "savePickup"
-        )
-        ?.addEventListener(
-            "click",
-            () =>
-                savePickup(
-                    student,
-                    record,
-                    closeAfterSave
-                )
-        );
-
+    updatePickupFields();
 }
 
 
@@ -4218,328 +3825,126 @@ function openPickupForm(
    SAVE PICKUP
 ========================================================= */
 
-/* =========================================================
-   SAVE PICKUP
-   ========================================================= */
-
 async function savePickup(student, record) {
 
-  try {
+    try {
+        console.log("Saving pickup information...");
+        console.log("Student:", student);
+        console.log("Attendance record:", record);
 
-    console.log("Saving pickup information...");
-    console.log("Student:", student);
-    console.log("Attendance record:", record);
+        const personSelect = document.getElementById("pickupPersonSelect");
 
+        if (!personSelect) {
+            throw new Error("Pickup person selector was not found.");
+        }
 
-    /* =====================================================
-       GET PICKUP PERSON
-       ===================================================== */
+        const selectedPerson = personSelect.value;
 
-    const personSelect =
-      document.getElementById("pickupPersonSelect");
+        if (!selectedPerson) {
+            showToast("Please select who is picking up the student.", "error");
+            return;
+        }
 
-    if (!personSelect) {
-      throw new Error(
-        "Pickup person selector was not found."
-      );
+        const isUnauthorized = selectedPerson === "__UNAUTHORIZED_PERSON__";
+        const parents = getParentOptions(student.parent);
+        const selectedParent = parents.find(parent => parent.name === selectedPerson);
+
+        let pickup_person = "";
+        let relationship = "";
+        let phone = "";
+        let pickup_option = "";
+        let approver = "";
+        let notes = "";
+
+        if (selectedParent) {
+            // Registered parent/guardian: use the stored student information.
+            pickup_person = selectedParent.name;
+            relationship = selectedParent.label || "Parent / Guardian";
+            phone = selectedParent.phone || "";
+            pickup_option = "Parent / Guardian";
+            approver = null;
+            notes = null;
+        } else if (isUnauthorized) {
+            pickup_person = document.getElementById("otherPickupName")?.value?.trim() || "";
+            relationship = document.getElementById("pickupRelationshipInput")?.value?.trim() || "";
+            phone = document.getElementById("pickupPhoneInput")?.value?.trim() || "";
+            pickup_option = "Unauthorized Person - Admin Approval";
+            approver = document.getElementById("approverInput")?.value?.trim() || "";
+            notes = document.getElementById("notesInput")?.value?.trim() || "";
+
+            if (!pickup_person) {
+                showToast("Please enter the unauthorized person's name.", "error");
+                return;
+            }
+
+            if (!phone) {
+                showToast("Please enter the unauthorized person's phone number.", "error");
+                return;
+            }
+
+            if (!relationship) {
+                showToast("Please enter the relationship / basic information.", "error");
+                return;
+            }
+
+            if (!approver) {
+                showToast("Please enter the approving staff/teacher.", "error");
+                return;
+            }
+        } else {
+            showToast("Please select a registered parent/guardian or Unauthorized Person.", "error");
+            return;
+        }
+
+        if (!record || record.id === undefined || record.id === null) {
+            console.error("Invalid attendance record:", record);
+            throw new Error("Attendance record ID is missing.");
+        }
+
+        const payload = {
+            pickup_person,
+            pickup_relationship: relationship,
+            pickup_phone: phone,
+            pickup_option,
+            approver,
+            notes,
+            time_out: new Date().toISOString()
+        };
+
+        console.log("Pickup update payload:", payload);
+
+        const { data, error } = await supabaseClient
+            .from("attendance")
+            .update(payload)
+            .eq("id", record.id)
+            .select()
+            .single();
+
+        if (error) {
+            console.error("Supabase pickup update error:", error);
+            console.error("Error message:", error.message);
+            console.error("Error details:", error.details);
+            console.error("Error hint:", error.hint);
+            console.error("Error code:", error.code);
+            throw error;
+        }
+
+        console.log("Pickup saved successfully:", data);
+        showToast(`Pickup saved: ${pickup_person}`, "success");
+        closeResultModal();
+        await loadTodayAttendance();
+
+    } catch (error) {
+        console.error("Pickup save error:", error);
+
+        let message = error?.message || "Unable to save pickup information.";
+
+        if (message.toLowerCase().includes("pickup_relationship")) {
+            message = "Supabase could not find the pickup_relationship column. Please check the attendance table column name.";
+        }
+
+        showToast(message, "error");
     }
-
-    const selectedPerson =
-      personSelect.value;
-
-
-    const otherName =
-      document
-        .getElementById("otherPickupName")
-        ?.value
-        ?.trim() || "";
-
-
-    if (!selectedPerson) {
-
-      showToast(
-        "Please select who is picking up the student.",
-        "error"
-      );
-
-      return;
-    }
-
-
-    let pickup_person =
-      selectedPerson;
-
-
-    /* =====================================================
-       OTHER PERSON
-       ===================================================== */
-
-    if (selectedPerson === "Other") {
-
-      if (!otherName) {
-
-        showToast(
-          "Please enter the pickup person's name.",
-          "error"
-        );
-
-        return;
-      }
-
-      pickup_person =
-        otherName;
-    }
-
-
-    /* =====================================================
-       GET OTHER PICKUP INFORMATION
-       ===================================================== */
-
-    const relationship =
-      document
-        .getElementById("pickupRelationshipInput")
-        ?.value
-        ?.trim() || "";
-
-
-    const phone =
-      document
-        .getElementById("pickupPhoneInput")
-        ?.value
-        ?.trim() || "";
-
-
-    const pickup_option =
-      document
-        .getElementById("pickupOptionInput")
-        ?.value || "";
-
-
-    const approver =
-      document
-        .getElementById("approverInput")
-        ?.value
-        ?.trim() || "";
-
-
-    const notes =
-      document
-        .getElementById("notesInput")
-        ?.value
-        ?.trim() || "";
-
-
-    /* =====================================================
-       VALIDATION
-       ===================================================== */
-
-    if (!pickup_option) {
-
-      showToast(
-        "Please select the pickup option.",
-        "error"
-      );
-
-      return;
-    }
-
-
-    if (!approver) {
-
-      showToast(
-        "Please enter the approving staff/teacher.",
-        "error"
-      );
-
-      return;
-    }
-
-
-    /* =====================================================
-       VERIFY ATTENDANCE RECORD
-       ===================================================== */
-
-    if (
-      !record ||
-      record.id === undefined ||
-      record.id === null
-    ) {
-
-      console.error(
-        "Invalid attendance record:",
-        record
-      );
-
-      throw new Error(
-        "Attendance record ID is missing."
-      );
-    }
-
-
-    console.log(
-      "Updating attendance ID:",
-      record.id
-    );
-
-
-    /* =====================================================
-       SUPABASE PAYLOAD
-
-       IMPORTANT:
-       Use lowercase pickup_relationship.
-       PostgreSQL/Supabase commonly stores the column
-       using lowercase naming.
-       ===================================================== */
-
-    const payload = {
-
-      pickup_person:
-        pickup_person,
-
-      pickup_relationship:
-        relationship,
-
-      pickup_phone:
-        phone,
-
-      pickup_option:
-        pickup_option,
-
-      approver:
-        approver,
-
-      notes:
-        notes,
-
-      // FIX: Save the exact pickup time
-      time_out:
-        new Date().toISOString()
-
-    };
-
-
-    console.log(
-      "Pickup update payload:",
-      payload
-    );
-
-
-    /* =====================================================
-       UPDATE ATTENDANCE
-       ===================================================== */
-
-    const {
-      data,
-      error
-    } =
-      await supabaseClient
-        .from("attendance")
-        .update(payload)
-        .eq(
-          "id",
-          record.id
-        )
-        .select()
-        .single();
-
-
-    /* =====================================================
-       SUPABASE ERROR
-       ===================================================== */
-
-    if (error) {
-
-      console.error(
-        "Supabase pickup update error:",
-        error
-      );
-
-      console.error(
-        "Error message:",
-        error.message
-      );
-
-      console.error(
-        "Error details:",
-        error.details
-      );
-
-      console.error(
-        "Error hint:",
-        error.hint
-      );
-
-      console.error(
-        "Error code:",
-        error.code
-      );
-
-      throw error;
-    }
-
-
-    /* =====================================================
-       SUCCESS
-       ===================================================== */
-
-    console.log(
-      "Pickup saved successfully:",
-      data
-    );
-
-
-    showToast(
-      `Pickup saved: ${pickup_person}`,
-      "success"
-    );
-
-
-    /* Close modal */
-
-    closeResultModal();
-
-
-    /* Reload attendance */
-
-    await loadTodayAttendance();
-
-
-  } catch (error) {
-
-    console.error(
-      "Pickup save error:",
-      error
-    );
-
-
-    let message =
-      error?.message ||
-      "Unable to save pickup information.";
-
-
-    /*
-       Give a clearer message for missing columns.
-    */
-
-    if (
-      message
-        .toLowerCase()
-        .includes("pickup_relationship")
-    ) {
-
-      message =
-        "Supabase could not find the pickup_relationship column. Please check the attendance table column name.";
-
-    }
-
-
-    showToast(
-      message,
-      "error"
-    );
-
-  }
-
 }
 
 
@@ -4818,69 +4223,12 @@ function updateAttendanceStatistics() {
    ATTENDANCE TABLE
 ========================================================= */
 
-function ensureAttendanceTableBody() {
-    const section = document.getElementById("attendance");
-
-    if (!section) {
-        console.warn("Vision School: Attendance section not found.");
-        return null;
-    }
-
-    const table = section.querySelector("table");
-
-    if (!table) {
-        console.warn("Vision School: Attendance table not found.");
-        return null;
-    }
-
-    // The current index.html has the Attendance table but its <tbody>
-    // does not have the ID expected by renderAttendance(). Give the
-    // existing tbody the expected ID instead of changing the page layout.
-    let body = table.querySelector("tbody");
-
-    if (!body) {
-        body = document.createElement("tbody");
-        table.appendChild(body);
-    }
-
-    body.id = "attendanceBody";
-
-    // Keep the table columns aligned with renderAttendance().
-    // This also restores Time Out, Pickup and Status if an older
-    // index.html contains only the first three headings.
-    const headerRow = table.querySelector("thead tr");
-
-    if (headerRow) {
-        const headers = [
-            "Student",
-            "Level",
-            "Time In",
-            "Time Out",
-            "Pickup",
-            "Status"
-        ];
-
-        while (headerRow.children.length < headers.length) {
-            const th = document.createElement("th");
-            headerRow.appendChild(th);
-        }
-
-        while (headerRow.children.length > headers.length) {
-            headerRow.removeChild(headerRow.lastElementChild);
-        }
-
-        [...headerRow.children].forEach((th, index) => {
-            th.textContent = headers[index];
-        });
-    }
-
-    return body;
-}
-
 function renderAttendance() {
 
     const body =
-        ensureAttendanceTableBody();
+        document.getElementById(
+            "attendanceBody"
+        );
 
 
     if (!body) {
@@ -5293,152 +4641,7 @@ function initializeSearch() {
    REPORTS / CSV
 ========================================================= */
 
-
-function ensureReportsSection() {
-    let section = document.getElementById("reports");
-    if (section) return section;
-
-    const main = document.querySelector(".main-content");
-    if (!main) {
-        console.warn("Vision School: main-content not found; Reports cannot be created.");
-        return null;
-    }
-
-    section = document.createElement("section");
-    section.id = "reports";
-    section.className = "page-section";
-    section.innerHTML = `
-        <div class="section-card">
-            <div class="section-card-header">
-                <div>
-                    <h3>Attendance Reports</h3>
-                    <p>View and export attendance records from Supabase.</p>
-                </div>
-            </div>
-
-            <div class="filters" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;align-items:end;">
-                <div>
-                    <label for="reportPeriod"><strong>Reporting Period</strong></label>
-                    <select id="reportPeriod" style="width:100%;box-sizing:border-box;">
-                        <option value="weekly">Weekly</option>
-                        <option value="monthly">Monthly</option>
-                        <option value="first_semester">1st Semester (August - December)</option>
-                        <option value="second_semester">2nd Semester (January - May)</option>
-                        <option value="custom">Custom Date Range</option>
-                    </select>
-                </div>
-
-                <div>
-                    <label for="reportReferenceDate"><strong>Reference Date</strong></label>
-                    <input type="date" id="reportReferenceDate" value="${getVientianeDate()}" style="width:100%;box-sizing:border-box;">
-                </div>
-
-                <div id="customReportDates" style="display:none;grid-column:1/-1;grid-template-columns:repeat(2,minmax(180px,1fr));gap:12px;">
-                    <div>
-                        <label for="reportStartDate"><strong>Start Date</strong></label>
-                        <input type="date" id="reportStartDate" style="width:100%;box-sizing:border-box;">
-                    </div>
-                    <div>
-                        <label for="reportEndDate"><strong>End Date</strong></label>
-                        <input type="date" id="reportEndDate" style="width:100%;box-sizing:border-box;">
-                    </div>
-                </div>
-            </div>
-
-            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:18px 0;">
-                <strong id="reportRangeSummary">Loading report range...</strong>
-                <button type="button" id="exportCsv" class="primary-button">📊 Export Excel</button>
-            </div>
-
-            <div class="table-container">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th>Student</th>
-                            <th>Level</th>
-                            <th>Time In</th>
-                            <th>Time Out</th>
-                            <th>Pickup</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody id="reportPreviewBody">
-                        <tr>
-                            <td colspan="7" class="empty-state">Loading report...</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    `;
-
-    // Put Reports after the existing Attendance section, preserving the
-    // existing Dashboard/Students/QR/Attendance markup.
-    const attendance = document.getElementById("attendance");
-    if (attendance && attendance.parentNode === main) {
-        attendance.insertAdjacentElement("afterend", section);
-    } else {
-        main.appendChild(section);
-    }
-
-    return section;
-}
-
-async function refreshReportPreview() {
-    const body = document.getElementById("reportPreviewBody");
-    if (!body) return;
-
-    try {
-        const range = getReportRange();
-        body.innerHTML = `<tr><td colspan="7" class="empty-state">Loading ${range.start} to ${range.end}...</td></tr>`;
-
-        const records = await loadReportAttendance(range.start, range.end);
-
-        if (!records.length) {
-            body.innerHTML = `<tr><td colspan="7" class="empty-state">No attendance records found from ${range.start} to ${range.end}.</td></tr>`;
-            return;
-        }
-
-        const studentMap = new Map(students.map(student => [String(student.id), student]));
-
-        body.innerHTML = records.map(record => {
-            const student = studentMap.get(String(record.student_id));
-            const pickup = record.pickup_person
-                ? `${record.pickup_person}${getPickupRelationship(record) ? ` (${getPickupRelationship(record)})` : ""}`
-                : "—";
-            const status = record.time_out ? "Completed" : (record.time_in ? "Currently In" : "—");
-
-            return `
-                <tr>
-                    <td>${escapeHtml(record.date || "")}</td>
-                    <td>${escapeHtml(record.student_name || student?.name || record.student_id || "")}</td>
-                    <td>${escapeHtml(student?.level || record.level || "")}</td>
-                    <td>${escapeHtml(record.time_in ? formatTime(record.time_in) : "—")}</td>
-                    <td>${escapeHtml(record.time_out ? formatTime(record.time_out) : "—")}</td>
-                    <td>${escapeHtml(pickup)}</td>
-                    <td>${escapeHtml(status)}</td>
-                </tr>
-            `;
-        }).join("");
-    } catch (error) {
-        console.error("Report preview error:", error);
-        body.innerHTML = `<tr><td colspan="7" class="empty-state">Unable to load report: ${escapeHtml(error?.message || "Unknown error")}</td></tr>`;
-    }
-}
-
-function escapeHtml(value) {
-    return String(value ?? "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
-}
-
 function initializeReports() {
-
-    ensureReportsSection();
 
     document
         .getElementById("exportCsv")
@@ -5446,34 +4649,21 @@ function initializeReports() {
 
     document
         .getElementById("reportPeriod")
-        ?.addEventListener("change", () => {
-            updateReportDateControls();
-            refreshReportPreview();
-        });
+        ?.addEventListener("change", updateReportDateControls);
 
     document
         .getElementById("reportReferenceDate")
-        ?.addEventListener("change", () => {
-            updateReportDateControls();
-            refreshReportPreview();
-        });
+        ?.addEventListener("change", updateReportDateControls);
 
     document
         .getElementById("reportStartDate")
-        ?.addEventListener("change", () => {
-            updateReportDateControls();
-            refreshReportPreview();
-        });
+        ?.addEventListener("change", updateReportDateControls);
 
     document
         .getElementById("reportEndDate")
-        ?.addEventListener("change", () => {
-            updateReportDateControls();
-            refreshReportPreview();
-        });
+        ?.addEventListener("change", updateReportDateControls);
 
     updateReportDateControls();
-    refreshReportPreview();
 }
 
 function pad2(value) {
