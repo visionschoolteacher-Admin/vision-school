@@ -5293,7 +5293,152 @@ function initializeSearch() {
    REPORTS / CSV
 ========================================================= */
 
+
+function ensureReportsSection() {
+    let section = document.getElementById("reports");
+    if (section) return section;
+
+    const main = document.querySelector(".main-content");
+    if (!main) {
+        console.warn("Vision School: main-content not found; Reports cannot be created.");
+        return null;
+    }
+
+    section = document.createElement("section");
+    section.id = "reports";
+    section.className = "page-section";
+    section.innerHTML = `
+        <div class="section-card">
+            <div class="section-card-header">
+                <div>
+                    <h3>Attendance Reports</h3>
+                    <p>View and export attendance records from Supabase.</p>
+                </div>
+            </div>
+
+            <div class="filters" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;align-items:end;">
+                <div>
+                    <label for="reportPeriod"><strong>Reporting Period</strong></label>
+                    <select id="reportPeriod" style="width:100%;box-sizing:border-box;">
+                        <option value="weekly">Weekly</option>
+                        <option value="monthly">Monthly</option>
+                        <option value="first_semester">1st Semester (August - December)</option>
+                        <option value="second_semester">2nd Semester (January - May)</option>
+                        <option value="custom">Custom Date Range</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label for="reportReferenceDate"><strong>Reference Date</strong></label>
+                    <input type="date" id="reportReferenceDate" value="${getVientianeDate()}" style="width:100%;box-sizing:border-box;">
+                </div>
+
+                <div id="customReportDates" style="display:none;grid-column:1/-1;grid-template-columns:repeat(2,minmax(180px,1fr));gap:12px;">
+                    <div>
+                        <label for="reportStartDate"><strong>Start Date</strong></label>
+                        <input type="date" id="reportStartDate" style="width:100%;box-sizing:border-box;">
+                    </div>
+                    <div>
+                        <label for="reportEndDate"><strong>End Date</strong></label>
+                        <input type="date" id="reportEndDate" style="width:100%;box-sizing:border-box;">
+                    </div>
+                </div>
+            </div>
+
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:18px 0;">
+                <strong id="reportRangeSummary">Loading report range...</strong>
+                <button type="button" id="exportCsv" class="primary-button">📊 Export Excel</button>
+            </div>
+
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Student</th>
+                            <th>Level</th>
+                            <th>Time In</th>
+                            <th>Time Out</th>
+                            <th>Pickup</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reportPreviewBody">
+                        <tr>
+                            <td colspan="7" class="empty-state">Loading report...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+
+    // Put Reports after the existing Attendance section, preserving the
+    // existing Dashboard/Students/QR/Attendance markup.
+    const attendance = document.getElementById("attendance");
+    if (attendance && attendance.parentNode === main) {
+        attendance.insertAdjacentElement("afterend", section);
+    } else {
+        main.appendChild(section);
+    }
+
+    return section;
+}
+
+async function refreshReportPreview() {
+    const body = document.getElementById("reportPreviewBody");
+    if (!body) return;
+
+    try {
+        const range = getReportRange();
+        body.innerHTML = `<tr><td colspan="7" class="empty-state">Loading ${range.start} to ${range.end}...</td></tr>`;
+
+        const records = await loadReportAttendance(range.start, range.end);
+
+        if (!records.length) {
+            body.innerHTML = `<tr><td colspan="7" class="empty-state">No attendance records found from ${range.start} to ${range.end}.</td></tr>`;
+            return;
+        }
+
+        const studentMap = new Map(students.map(student => [String(student.id), student]));
+
+        body.innerHTML = records.map(record => {
+            const student = studentMap.get(String(record.student_id));
+            const pickup = record.pickup_person
+                ? `${record.pickup_person}${getPickupRelationship(record) ? ` (${getPickupRelationship(record)})` : ""}`
+                : "—";
+            const status = record.time_out ? "Completed" : (record.time_in ? "Currently In" : "—");
+
+            return `
+                <tr>
+                    <td>${escapeHtml(record.date || "")}</td>
+                    <td>${escapeHtml(record.student_name || student?.name || record.student_id || "")}</td>
+                    <td>${escapeHtml(student?.level || record.level || "")}</td>
+                    <td>${escapeHtml(record.time_in ? formatTime(record.time_in) : "—")}</td>
+                    <td>${escapeHtml(record.time_out ? formatTime(record.time_out) : "—")}</td>
+                    <td>${escapeHtml(pickup)}</td>
+                    <td>${escapeHtml(status)}</td>
+                </tr>
+            `;
+        }).join("");
+    } catch (error) {
+        console.error("Report preview error:", error);
+        body.innerHTML = `<tr><td colspan="7" class="empty-state">Unable to load report: ${escapeHtml(error?.message || "Unknown error")}</td></tr>`;
+    }
+}
+
+function escapeHtml(value) {
+    return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
 function initializeReports() {
+
+    ensureReportsSection();
 
     document
         .getElementById("exportCsv")
@@ -5301,21 +5446,34 @@ function initializeReports() {
 
     document
         .getElementById("reportPeriod")
-        ?.addEventListener("change", updateReportDateControls);
+        ?.addEventListener("change", () => {
+            updateReportDateControls();
+            refreshReportPreview();
+        });
 
     document
         .getElementById("reportReferenceDate")
-        ?.addEventListener("change", updateReportDateControls);
+        ?.addEventListener("change", () => {
+            updateReportDateControls();
+            refreshReportPreview();
+        });
 
     document
         .getElementById("reportStartDate")
-        ?.addEventListener("change", updateReportDateControls);
+        ?.addEventListener("change", () => {
+            updateReportDateControls();
+            refreshReportPreview();
+        });
 
     document
         .getElementById("reportEndDate")
-        ?.addEventListener("change", updateReportDateControls);
+        ?.addEventListener("change", () => {
+            updateReportDateControls();
+            refreshReportPreview();
+        });
 
     updateReportDateControls();
+    refreshReportPreview();
 }
 
 function pad2(value) {
