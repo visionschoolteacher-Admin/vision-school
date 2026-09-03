@@ -2799,89 +2799,91 @@ function initializeScanner() {
 
 async function startScanner() {
 
-    if (
-        typeof window.Html5Qrcode ===
-        "undefined"
-    ) {
+    console.log("[Vision School] Start scanner clicked.");
 
-        showToast(
-            "QR scanner is still loading. Try again.",
-            "error"
-        );
-
+    if (typeof window.Html5Qrcode === "undefined") {
+        console.error("[Vision School] Html5Qrcode library is not loaded.");
+        showToast("QR scanner library is not loaded. Refresh the page and try again.", "error");
         return;
     }
-
 
     if (scannerRunning) {
+        console.log("[Vision School] Scanner is already running.");
         return;
     }
 
+    const reader = document.getElementById("reader");
+    if (!reader) {
+        console.error("[Vision School] Scanner container #reader was not found.");
+        showToast("Scanner area is unavailable.", "error");
+        return;
+    }
 
     try {
+        // Clear any stale scanner instance/container before starting.
+        if (html5QrCode) {
+            try { await html5QrCode.stop(); } catch (_) {}
+            try { await html5QrCode.clear(); } catch (_) {}
+            html5QrCode = null;
+        }
 
-        html5QrCode =
-            new Html5Qrcode(
-                "reader"
-            );
+        html5QrCode = new window.Html5Qrcode("reader");
 
+        const qrSuccess = async decodedText => {
+            const raw = String(decodedText ?? "").trim();
+            if (!raw) return;
+
+            console.log("[Vision School] QR SCANNED:", raw);
+            showToast("QR detected. Looking up student...", "success");
+
+            // Ignore repeated callbacks while processing the same QR.
+            if (window.__visionLastScannedQr === raw && window.__visionLastScannedAt && Date.now() - window.__visionLastScannedAt < 2500) {
+                return;
+            }
+            window.__visionLastScannedQr = raw;
+            window.__visionLastScannedAt = Date.now();
+
+            try {
+                await handleQrScan(raw);
+            } catch (error) {
+                console.error("[Vision School] QR processing error:", error);
+                showToast("QR was detected, but could not be processed.", "error");
+            }
+        };
+
+        const qrError = errorMessage => {
+            // html5-qrcode calls this continuously while looking for a code.
+            // Do not show a toast for normal frame-by-frame decode misses.
+            if (window.__visionScannerDebug) {
+                console.debug("[Vision School] QR frame not decoded:", errorMessage);
+            }
+        };
 
         await html5QrCode.start(
-
+            { facingMode: "environment" },
             {
-                facingMode:
-                    "environment"
+                fps: 10,
+                qrbox: { width: 250, height: 250 },
+                aspectRatio: 1.0
             },
-
-            {
-                fps:
-                    10,
-
-                qrbox:
-                    {
-                        width:
-                            250,
-
-                        height:
-                            250
-                    }
-            },
-
-            decodedText => {
-
-                handleQrScan(
-                    decodedText
-                );
-
-            },
-
-            () => {}
-
+            qrSuccess,
+            qrError
         );
 
-
-        scannerRunning =
-            true;
-
-
-        showToast(
-            "Camera started.",
-            "success"
-        );
-
+        scannerRunning = true;
+        console.log("[Vision School] Camera scanner started successfully.");
+        showToast("Camera started. Point it at the Student QR code.", "success");
 
     } catch (error) {
+        scannerRunning = false;
+        console.error("[Vision School] Scanner start error:", error);
 
-        console.error(
-            "Scanner error:",
-            error
-        );
-
-
-        showToast(
-            "Unable to start camera. Check camera permission.",
-            "error"
-        );
+        const message = String(error?.message || error || "");
+        if (/permission|notallowed|denied/i.test(message)) {
+            showToast("Camera permission was denied. Allow camera access and try again.", "error");
+        } else {
+            showToast("Unable to start camera. Check camera permission and try again.", "error");
+        }
     }
 }
 
@@ -2932,46 +2934,54 @@ async function stopScanner() {
    HANDLE QR SCAN
 ========================================================= */
 
-async function handleQrScan(
-    decodedText
-) {
+async function handleQrScan(decodedText) {
+
+    const raw = String(decodedText ?? "").trim();
+    console.log("[Vision School] Processing QR value:", raw);
 
     await stopScanner();
 
-
-    const id =
-        String(
-            decodedText
-        ).trim();
-
-    if (id.startsWith("VISION-PARENT:")) {
-        await handleParentQrScan(id);
+    if (!raw) {
+        showToast("The QR code is empty.", "error");
         return;
     }
 
-    const student =
-        findStudent(
-            id
-        );
+    // Parent QR format used by this application.
+    if (raw.startsWith("VISION-PARENT:")) {
+        console.log("[Vision School] Parent QR detected.");
+        await handleParentQrScan(raw);
+        return;
+    }
 
+    // Student QR normally contains only the Student ID.
+    // Also accept common URL/JSON wrappers so saved/printed QR codes remain usable.
+    let id = raw;
+    try {
+        if ((raw.startsWith("{") && raw.endsWith("}")) || (raw.startsWith("[") && raw.endsWith("]"))) {
+            const parsed = JSON.parse(raw);
+            id = String(parsed.student_id || parsed.studentId || parsed.id || raw).trim();
+        }
+    } catch (_) {}
+
+    try {
+        const url = new URL(raw);
+        const candidate = url.searchParams.get("student_id") || url.searchParams.get("studentId") || url.searchParams.get("id");
+        if (candidate) id = candidate.trim();
+    } catch (_) {}
+
+    console.log("[Vision School] Student ID extracted from QR:", id);
+
+    const student = findStudent(id);
 
     if (!student) {
-
-        showToast(
-            `Student ID "${id}" was not found.`,
-            "error"
-        );
-
+        console.error("[Vision School] Student not found for QR value:", id);
+        showToast(`Student ID "${id}" was not found.`, "error");
         return;
     }
 
-
+    console.log("[Vision School] Student found from QR:", student.id, student.name);
     await loadTodayAttendance();
-
-
-    showAttendanceAction(
-        student
-    );
+    showAttendanceAction(student);
 }
 
 
