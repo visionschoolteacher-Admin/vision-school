@@ -120,7 +120,111 @@ function setConnectionStatus(state, message) {
     }
 }
 
+function ensureVisionSchoolModalStyles() {
+    if (document.getElementById("visionSchoolModalFixStyles")) {
+        return;
+    }
+
+    const style = document.createElement("style");
+    style.id = "visionSchoolModalFixStyles";
+    style.textContent = `
+        /* =====================================================
+           STUDENT MODAL FIX
+           Keeps the existing dashboard UI unchanged.
+        ===================================================== */
+
+        #studentModal.modal,
+        #studentResultModal.modal {
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            box-sizing: border-box;
+            padding: 20px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            -webkit-overflow-scrolling: touch;
+            display: none;
+            align-items: flex-start;
+            justify-content: center;
+        }
+
+        #studentModal.modal.show,
+        #studentResultModal.modal.show {
+            display: flex;
+        }
+
+        #studentModal .modal-content,
+        #studentResultModal .modal-content {
+            width: min(620px, 100%);
+            max-width: 620px;
+            max-height: calc(100vh - 40px);
+            margin: auto;
+            box-sizing: border-box;
+            overflow-y: auto;
+            overflow-x: hidden;
+            border-radius: 14px;
+            padding: 24px;
+        }
+
+        #studentModal form {
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        #studentModal .form-group {
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        #studentModal input,
+        #studentModal select {
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
+        }
+
+        #studentModal .modal-header {
+            position: sticky;
+            top: -24px;
+            z-index: 2;
+            padding-bottom: 14px;
+            background: inherit;
+        }
+
+        #studentModal .result-actions {
+            display: flex;
+            justify-content: flex-end;
+            flex-wrap: wrap;
+            gap: 10px;
+            padding-bottom: 4px;
+        }
+
+        @media (max-width: 700px) {
+            #studentModal.modal,
+            #studentResultModal.modal {
+                padding: 10px;
+            }
+
+            #studentModal .modal-content,
+            #studentResultModal .modal-content {
+                width: 100%;
+                max-width: none;
+                max-height: calc(100vh - 20px);
+                padding: 18px;
+            }
+
+            #studentModal .modal-header {
+                top: -18px;
+            }
+        }
+    `;
+    document.head.appendChild(style);
+}
+
 function ensureVisionSchoolModals() {
+    ensureVisionSchoolModalStyles();
+
     // The current index.html intentionally contains the page UI, but older
     // versions of the app expected these two shared modals to be present.
     // Create them once at runtime so View / Edit / Student QR / Parent QR
