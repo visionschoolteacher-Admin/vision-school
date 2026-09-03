@@ -77,6 +77,171 @@ let realtimeNeedsAttendance = false;
 
 
 /* =========================================================
+   SAFE LOCAL CACHE
+   ---------------------------------------------------------
+   Supabase remains the source of truth.
+   This cache is only a last-known-good UI fallback so a
+   temporary network/Supabase startup problem does not make
+   the dashboard appear to have zero students/attendance
+   after a browser refresh.
+========================================================= */
+
+const VISION_SCHOOL_CACHE = {
+    students: "visionSchool_students_cache_v1",
+    attendance: "visionSchool_attendance_cache_v1"
+};
+
+function readVisionSchoolCache(key) {
+
+    try {
+
+        const rawValue =
+            localStorage.getItem(key);
+
+        if (!rawValue) {
+            return null;
+        }
+
+        const parsed =
+            JSON.parse(rawValue);
+
+        return Array.isArray(parsed)
+            ? parsed
+            : null;
+
+    } catch (error) {
+
+        console.warn(
+            "Vision School cache read failed:",
+            error
+        );
+
+        return null;
+    }
+}
+
+
+function writeVisionSchoolCache(key, value) {
+
+    if (!Array.isArray(value)) {
+        return;
+    }
+
+    try {
+
+        localStorage.setItem(
+            key,
+            JSON.stringify(value)
+        );
+
+    } catch (error) {
+
+        console.warn(
+            "Vision School cache write failed:",
+            error
+        );
+    }
+}
+
+
+/* =========================================================
+   WAIT FOR SUPABASE LIBRARY
+   ---------------------------------------------------------
+   DOMContentLoaded can happen before a CDN script finishes
+   loading. Wait briefly instead of initializing with an
+   undefined client and leaving the UI at zero.
+========================================================= */
+
+async function waitForSupabaseLibrary(timeoutMs = 15000) {
+
+    const start =
+        Date.now();
+
+    while (
+        Date.now() - start <
+        timeoutMs
+    ) {
+
+        if (
+            window.supabase &&
+            typeof window.supabase.createClient ===
+            "function"
+        ) {
+
+            return window.supabase;
+        }
+
+        await new Promise(
+            resolve =>
+                setTimeout(
+                    resolve,
+                    100
+                )
+        );
+    }
+
+    throw new Error(
+        "Supabase library has not loaded. Please check the Supabase script in index.html."
+    );
+}
+
+
+/* =========================================================
+   RESTORE LAST GOOD DATA BEFORE NETWORK LOAD
+========================================================= */
+
+function restoreCachedData() {
+
+    const cachedStudents =
+        readVisionSchoolCache(
+            VISION_SCHOOL_CACHE.students
+        );
+
+    const cachedAttendance =
+        readVisionSchoolCache(
+            VISION_SCHOOL_CACHE.attendance
+        );
+
+
+    if (
+        cachedStudents &&
+        cachedStudents.length
+    ) {
+
+        students =
+            cachedStudents;
+
+        const total =
+            document.getElementById(
+                "totalStudents"
+            );
+
+        if (total) {
+            total.textContent =
+                students.length;
+        }
+
+        populateLevelFilter();
+        renderStudents();
+    }
+
+
+    if (
+        cachedAttendance &&
+        cachedAttendance.length
+    ) {
+
+        attendanceRecords =
+            cachedAttendance;
+
+        updateAttendanceStatistics();
+        renderAttendance();
+        renderDashboard();
+    }
+}
+
+
+/* =========================================================
    START APPLICATION
 ========================================================= */
 
@@ -97,16 +262,16 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     try {
 
-        if (
-            typeof window.supabase === "undefined"
-        ) {
-            throw new Error(
-                "Supabase library has not loaded."
-            );
-        }
+        // Restore last successful cloud data immediately so a refresh
+        // never visually replaces real data with an empty dashboard
+        // while Supabase is still connecting.
+        restoreCachedData();
+
+        const supabaseLibrary =
+            await waitForSupabaseLibrary();
 
         supabaseClient =
-            window.supabase.createClient(
+            supabaseLibrary.createClient(
                 SUPABASE_URL,
                 SUPABASE_ANON_KEY
             );
@@ -129,13 +294,24 @@ document.addEventListener("DOMContentLoaded", async () => {
         initializeModalClosing();
 
 
-        // These requests are independent. Running them together makes startup
-        // noticeably faster without changing the data or UI flow.
-        await Promise.all([
-            testSupabaseConnection(),
-            loadStudents(),
-            loadTodayAttendance()
-        ]);
+        // These requests are independent. Keep loading even if the
+        // connection indicator fails; load functions preserve the
+        // last good data instead of replacing it with empty arrays.
+        const startupResults =
+            await Promise.allSettled([
+                testSupabaseConnection(),
+                loadStudents(),
+                loadTodayAttendance()
+            ]);
+
+        startupResults.forEach(result => {
+            if (result.status === "rejected") {
+                console.error(
+                    "Vision School startup task failed:",
+                    result.reason
+                );
+            }
+        });
 
         initializeRealtime();
 
@@ -546,6 +722,10 @@ async function testSupabaseConnection() {
 
 async function loadStudents() {
 
+    if (!supabaseClient) {
+        throw new Error("Supabase client is not ready.");
+    }
+
     try {
 
         const {
@@ -568,8 +748,16 @@ async function loadStudents() {
         }
 
 
-        students =
-            data || [];
+        // Only replace the current state after Supabase returned a
+        // valid array. A failed/empty startup must not erase the
+        // last good data.
+        if (Array.isArray(data)) {
+            students = data;
+            writeVisionSchoolCache(
+                VISION_SCHOOL_CACHE.students,
+                students
+            );
+        }
 
 
         const total =
@@ -598,10 +786,26 @@ async function loadStudents() {
             error
         );
 
+        // Keep the current data. If this is a fresh page load, fall back
+        // to the last successful cloud snapshot from local storage.
+        if (!students.length) {
+            const cached = readVisionSchoolCache(
+                VISION_SCHOOL_CACHE.students
+            );
+
+            if (cached?.length) {
+                students = cached;
+                const total = document.getElementById("totalStudents");
+                if (total) total.textContent = students.length;
+                populateLevelFilter();
+                renderStudents();
+                renderDashboard();
+            }
+        }
 
         showToast(
             error?.message ||
-            "Unable to load students.",
+            "Unable to load students. Showing the last saved data.",
             "error"
         );
     }
@@ -4107,7 +4311,9 @@ async function savePickup(student, record) {
       pickup_person:
         pickup_person,
 
-      pickup_relationship:
+      // Keep the existing Supabase column name exactly as defined:
+      // "Pickup_relationship" (capital P).
+      Pickup_relationship:
         relationship,
 
       pickup_phone:
@@ -4392,6 +4598,10 @@ async function recordTimeOut(
 
 async function loadTodayAttendance() {
 
+    if (!supabaseClient) {
+        throw new Error("Supabase client is not ready.");
+    }
+
     try {
 
         const today =
@@ -4423,8 +4633,16 @@ async function loadTodayAttendance() {
         }
 
 
-        attendanceRecords =
-            data || [];
+        // Only replace the current state after Supabase returned an
+        // array. This prevents a temporary failed refresh from turning
+        // the dashboard into an empty "0" state.
+        if (Array.isArray(data)) {
+            attendanceRecords = data;
+            writeVisionSchoolCache(
+                VISION_SCHOOL_CACHE.attendance,
+                attendanceRecords
+            );
+        }
 
 
         updateAttendanceStatistics();
@@ -4441,10 +4659,24 @@ async function loadTodayAttendance() {
             error
         );
 
+        // Keep the current data. On a fresh page load, use the last
+        // successful snapshot instead of showing an empty dashboard.
+        if (!attendanceRecords.length) {
+            const cached = readVisionSchoolCache(
+                VISION_SCHOOL_CACHE.attendance
+            );
+
+            if (cached?.length) {
+                attendanceRecords = cached;
+                updateAttendanceStatistics();
+                renderAttendance();
+                renderDashboard();
+            }
+        }
 
         showToast(
             error?.message ||
-            "Unable to load today's attendance.",
+            "Unable to load today's attendance. Showing the last saved data.",
             "error"
         );
     }
