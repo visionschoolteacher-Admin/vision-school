@@ -1293,165 +1293,67 @@ function renderStudents() {
             .join("");
 
 
-    /* VIEW */
-
-    body
-        .querySelectorAll(
-            ".view-student"
-        )
-        .forEach(button => {
-
-            button.addEventListener(
-                "click",
-                () => {
-
-                    const student =
-                        findStudent(
-                            button.dataset.id
-                        );
-
-
-                    if (student) {
-
-                        showStudentProfile(
-                            student
-                        );
-
-                    }
-
-                }
+    /* STUDENT ACTIONS — delegated so buttons keep working after every table refresh.
+       Appearance is untouched; this only makes the existing actions reliable. */
+    if (!window.__visionStudentActionsBound) {
+        document.addEventListener("click", async event => {
+            const button = event.target.closest?.(
+                ".view-student, .edit-student, .remove-student, .generate-qr, .generate-parent-qr"
             );
+            if (!button) return;
 
-        });
+            const studentId = button.dataset.id;
+            const student = findStudent(studentId);
 
+            console.log("[Vision School] Student action:", {
+                action: button.className,
+                studentId,
+                found: Boolean(student)
+            });
 
-    /* EDIT */
+            if (!student) {
+                showToast("Student information could not be found.", "error");
+                return;
+            }
 
-    body
-        .querySelectorAll(
-            ".edit-student"
-        )
-        .forEach(button => {
+            event.preventDefault();
+            event.stopPropagation();
 
-            button.addEventListener(
-                "click",
-                () => {
-
-                    const student =
-                        findStudent(
-                            button.dataset.id
-                        );
-
-
-                    if (student) {
-
-                        editStudent(
-                            student
-                        );
-
-                    }
-
+            try {
+                if (button.classList.contains("view-student")) {
+                    showStudentProfile(student);
+                    return;
                 }
-            );
 
-        });
+                if (button.classList.contains("edit-student")) {
+                    editStudent(student);
+                    return;
+                }
 
-
-    /* REMOVE */
-
-    body
-        .querySelectorAll(
-            ".remove-student"
-        )
-        .forEach(button => {
-
-            button.addEventListener(
-                "click",
-                async () => {
-
-                    const student =
-                        findStudent(
-                            button.dataset.id
-                        );
-
-
-                    if (!student) {
-                        return;
-                    }
-
-
-                    const confirmed =
-                        confirm(
-                            `Remove ${student.name} from the student list?`
-                        );
-
-
-                    if (!confirmed) {
-                        return;
-                    }
-
-
-                    await deleteStudent(
-                        student
+                if (button.classList.contains("remove-student")) {
+                    const confirmed = confirm(
+                        `Remove ${student.name} from the student list?`
                     );
-
+                    if (confirmed) await deleteStudent(student);
+                    return;
                 }
-            );
 
-        });
-
-
-    /* QR */
-
-    body
-        .querySelectorAll(
-            ".generate-qr"
-        )
-        .forEach(button => {
-
-            button.addEventListener(
-                "click",
-                () => {
-
-                    const student =
-                        findStudent(
-                            button.dataset.id
-                        );
-
-
-                    if (student) {
-
-                        showStudentQr(
-                            student
-                        );
-
-                    }
-
+                if (button.classList.contains("generate-qr")) {
+                    showStudentQr(student);
+                    return;
                 }
-            );
 
-        });
-
-
-    body
-        .querySelectorAll(
-            ".generate-parent-qr"
-        )
-        .forEach(button => {
-
-            button.addEventListener(
-                "click",
-                async () => {
-                    const student = findStudent(button.dataset.id);
+                if (button.classList.contains("generate-parent-qr")) {
                     const parentIndex = Number(button.dataset.parentIndex || 0);
-                    if (student) {
-                        await showParentQr(student, parentIndex);
-                    }
+                    await showParentQr(student, parentIndex);
                 }
-            );
-
+            } catch (error) {
+                console.error("[Vision School] Student action error:", error);
+                showToast(error?.message || "Unable to complete this action.", "error");
+            }
         });
-
+        window.__visionStudentActionsBound = true;
+    }
 }
 
 
@@ -3558,51 +3460,138 @@ function openPickupForm(
     const record =
         attendanceRecords.find(
             item =>
-                String(item.student_id) ===
-                String(student.id)
+                String(
+                    item.student_id
+                ) ===
+                String(
+                    student.id
+                )
         );
 
+
     if (!record) {
-        showToast("Attendance record not found.", "error");
+
+        showToast(
+            "Attendance record not found.",
+            "error"
+        );
+
         return;
     }
+
 
     const result =
-        document.getElementById("studentResult");
+        document.getElementById(
+            "studentResult"
+        );
 
-    if (!result) {
-        showToast("Student information area was not found.", "error");
-        return;
-    }
 
-    const parents = getParentOptions(student.parent);
+    const parents =
+        getParentOptions(
+            student.parent
+        );
 
-    const pickupOptions = parents
-        .map(parent => `
-            <option value="${escapeAttribute(parent.name)}">
-                ${escapeHtml(parent.label)} — ${escapeHtml(parent.name)}
-            </option>
-        `)
-        .join("");
+
+    const authorized =
+        student.authorized !== false;
+
+
+    const pickupOptions =
+        parents
+            .map(
+                parent => `
+
+                    <option
+                        value="${escapeAttribute(
+                            parent.name
+                        )}"
+                    >
+
+                        ${escapeHtml(
+                            parent.label
+                        )}
+                        —
+                        ${escapeHtml(
+                            parent.name
+                        )}
+
+                    </option>
+
+                `
+            )
+            .join("");
+
 
     result.innerHTML = `
-        <div class="student-result">
-            <div class="result-avatar">👤</div>
 
-            <h2>Student Pickup</h2>
+        <div class="student-result">
+
+            <div class="result-avatar">
+                👤
+            </div>
+
+
+            <h2>
+                Student Pickup
+            </h2>
+
 
             <p>
-                ${escapeHtml(student.name)}
+                ${escapeHtml(
+                    student.name
+                )}
             </p>
 
-            <div style="
-                text-align:left;
-                margin-top:20px;
-            ">
+
+            ${
+                !authorized
+
+                    ? `
+
+                        <div
+                            style="
+                                padding:12px;
+                                background:#fee2e2;
+                                color:#991b1b;
+                                border-radius:10px;
+                                margin:15px 0;
+                                text-align:left;
+                            "
+                        >
+
+                            <strong>
+                                ⚠ UNAUTHORIZED
+                            </strong>
+
+                            <p>
+                                This student is not
+                                currently authorized
+                                for normal pickup.
+                                Staff verification
+                                is required.
+                            </p>
+
+                        </div>
+
+                    `
+
+                    : ""
+            }
+
+
+            <div
+                style="
+                    text-align:left;
+                    margin-top:20px;
+                "
+            >
 
                 <label>
-                    <strong>Who is picking up the student?</strong>
+                    <strong>
+                        Who is picking up the student?
+                    </strong>
                 </label>
+
 
                 <select
                     id="pickupPersonSelect"
@@ -3615,39 +3604,29 @@ function openPickupForm(
                         background:white;
                     "
                 >
+
                     <option value="">
-                        -- Select Parent / Guardian --
+                        -- Select Authorized Person --
                     </option>
 
                     ${pickupOptions}
 
-                    <option value="__UNAUTHORIZED_PERSON__">
-                        Unauthorized Person — Admin Approval
+                    <option value="Other">
+                        Other / Guest
                     </option>
+
                 </select>
 
-                <!-- Only shown for an unauthorized person. -->
+
                 <div
-                    id="unauthorizedPickupContainer"
-                    style="display:none;"
+                    id="otherPickupContainer"
+                    style="display:none"
                 >
-                    <div style="
-                        padding:12px;
-                        background:#fff7ed;
-                        color:#9a3412;
-                        border:1px solid #fed7aa;
-                        border-radius:10px;
-                        margin:0 0 14px;
-                    ">
-                        <strong>⚠ Unauthorized Person</strong>
-                        <div style="font-size:12px;margin-top:4px;">
-                            Please record the visitor's basic information and the approving staff member.
-                        </div>
-                    </div>
 
                     <label>
-                        Person's Name <strong style="color:#dc2626">*</strong>
+                        Other / Guest Name
                     </label>
+
                     <input
                         id="otherPickupName"
                         type="text"
@@ -3661,87 +3640,125 @@ function openPickupForm(
                         "
                     >
 
-                    <label>
-                        Phone Number <strong style="color:#dc2626">*</strong>
-                    </label>
-                    <input
-                        id="pickupPhoneInput"
-                        type="text"
-                        placeholder="Phone number"
-                        style="
-                            width:100%;
-                            padding:11px;
-                            margin:6px 0 14px;
-                            border:1px solid #d1d5db;
-                            border-radius:8px;
-                        "
-                    >
-
-                    <label>
-                        Relationship / Basic Information <strong style="color:#dc2626">*</strong>
-                    </label>
-                    <input
-                        id="pickupRelationshipInput"
-                        type="text"
-                        placeholder="e.g. Aunt, Uncle, Family Friend"
-                        style="
-                            width:100%;
-                            padding:11px;
-                            margin:6px 0 14px;
-                            border:1px solid #d1d5db;
-                            border-radius:8px;
-                        "
-                    >
-
-                    <label>
-                        Approver / Staff <strong style="color:#dc2626">*</strong>
-                    </label>
-                    <input
-                        id="approverInput"
-                        type="text"
-                        placeholder="Staff / Teacher name"
-                        style="
-                            width:100%;
-                            padding:11px;
-                            margin:6px 0 14px;
-                            border:1px solid #d1d5db;
-                            border-radius:8px;
-                        "
-                    >
-
-                    <label>Notes</label>
-                    <textarea
-                        id="notesInput"
-                        placeholder="Additional security or pickup notes..."
-                        style="
-                            width:100%;
-                            min-height:80px;
-                            padding:11px;
-                            margin:6px 0 14px;
-                            border:1px solid #d1d5db;
-                            border-radius:8px;
-                        "
-                    ></textarea>
                 </div>
 
-                <div
-                    id="registeredPickupInfo"
+
+                <label>
+                    Relationship
+                </label>
+
+                <input
+                    id="pickupRelationshipInput"
+                    type="text"
+                    placeholder="Mother, Father, Guardian, Aunt..."
                     style="
-                        padding:12px;
-                        background:#f0fdf4;
-                        color:#166534;
-                        border:1px solid #bbf7d0;
-                        border-radius:10px;
-                        margin-bottom:14px;
-                        display:none;
+                        width:100%;
+                        padding:11px;
+                        margin:6px 0 14px;
+                        border:1px solid #d1d5db;
+                        border-radius:8px;
                     "
                 >
-                    ✓ Registered parent / guardian information will be used automatically.
-                </div>
+
+
+                <label>
+                    Phone
+                </label>
+
+                <input
+                    id="pickupPhoneInput"
+                    type="text"
+                    placeholder="Phone number"
+                    style="
+                        width:100%;
+                        padding:11px;
+                        margin:6px 0 14px;
+                        border:1px solid #d1d5db;
+                        border-radius:8px;
+                    "
+                >
+
+
+                <label>
+                    Pickup Option
+                </label>
+
+                <select
+                    id="pickupOptionInput"
+                    style="
+                        width:100%;
+                        padding:11px;
+                        margin:6px 0 14px;
+                        border:1px solid #d1d5db;
+                        border-radius:8px;
+                    "
+                >
+
+                    <option value="">
+                        Select option
+                    </option>
+
+                    <option value="Parent">
+                        Parent
+                    </option>
+
+                    <option value="Guardian">
+                        Guardian
+                    </option>
+
+                    <option value="Authorized Person">
+                        Authorized Person
+                    </option>
+
+                    <option value="Guest">
+                        Guest
+                    </option>
+
+                </select>
+
+
+                <label>
+                    Approver / Staff
+                </label>
+
+                <input
+                    id="approverInput"
+                    type="text"
+                    placeholder="Staff / Teacher name"
+                    style="
+                        width:100%;
+                        padding:11px;
+                        margin:6px 0 14px;
+                        border:1px solid #d1d5db;
+                        border-radius:8px;
+                    "
+                >
+
+
+                <label>
+                    Notes
+                </label>
+
+                <textarea
+                    id="notesInput"
+                    placeholder="Additional security or pickup notes..."
+                    style="
+                        width:100%;
+                        min-height:80px;
+                        padding:11px;
+                        margin:6px 0 14px;
+                        border:1px solid #d1d5db;
+                        border-radius:8px;
+                    "
+                ></textarea>
 
             </div>
 
-            <div class="result-actions">
+
+            <div
+                class="result-actions"
+            >
+
                 <button
                     type="button"
                     class="secondary-button"
@@ -3750,6 +3767,7 @@ function openPickupForm(
                     Cancel
                 </button>
 
+
                 <button
                     type="button"
                     class="primary-button"
@@ -3757,67 +3775,118 @@ function openPickupForm(
                 >
                     Save Pickup
                 </button>
+
             </div>
+
         </div>
+
     `;
 
-    const personSelect = document.getElementById("pickupPersonSelect");
-    const unauthorizedContainer = document.getElementById("unauthorizedPickupContainer");
-    const registeredInfo = document.getElementById("registeredPickupInfo");
 
-    function updatePickupFields() {
-        const value = personSelect?.value || "";
-        const isUnauthorized = value === "__UNAUTHORIZED_PERSON__";
-        const selectedParent = parents.find(parent => parent.name === value);
+    /* PERSON SELECT */
 
-        if (unauthorizedContainer) {
-            unauthorizedContainer.style.display = isUnauthorized ? "block" : "none";
-        }
+    document
+        .getElementById(
+            "pickupPersonSelect"
+        )
+        ?.addEventListener(
+            "change",
+            event => {
 
-        if (registeredInfo) {
-            registeredInfo.style.display = selectedParent ? "block" : "none";
-        }
+                const value =
+                    event.target.value;
 
-        // Registered parent/guardian: no duplicate data entry is needed.
-        if (selectedParent) {
-            const relationship = document.getElementById("pickupRelationshipInput");
-            const phone = document.getElementById("pickupPhoneInput");
 
-            if (relationship) relationship.value = selectedParent.label || "Parent / Guardian";
-            if (phone) phone.value = selectedParent.phone || "";
-        }
+                const otherContainer =
+                    document.getElementById(
+                        "otherPickupContainer"
+                    );
 
-        // When switching away from unauthorized, clear visitor-only fields.
-        if (!isUnauthorized) {
-            const otherName = document.getElementById("otherPickupName");
-            const relationship = document.getElementById("pickupRelationshipInput");
-            const phone = document.getElementById("pickupPhoneInput");
-            const approver = document.getElementById("approverInput");
-            const notes = document.getElementById("notesInput");
 
-            if (!selectedParent) {
-                if (otherName) otherName.value = "";
-                if (relationship) relationship.value = "";
-                if (phone) phone.value = "";
+                if (otherContainer) {
+
+                    otherContainer.style.display =
+                        value === "Other"
+                            ? "block"
+                            : "none";
+
+                }
+
+
+                const selected =
+                    parents.find(
+                        parent =>
+                            parent.name ===
+                            value
+                    );
+
+
+                if (selected) {
+
+                    const relationship =
+                        document.getElementById(
+                            "pickupRelationshipInput"
+                        );
+
+                    const phone =
+                        document.getElementById(
+                            "pickupPhoneInput"
+                        );
+
+
+                    if (relationship) {
+
+                        relationship.value =
+                            selected.label;
+
+                    }
+
+
+                    if (phone) {
+
+                        phone.value =
+                            selected.phone ||
+                            "";
+
+                    }
+
+                }
+
             }
-            if (approver) approver.value = "";
-            if (notes) notes.value = "";
-        }
-    }
+        );
 
-    personSelect?.addEventListener("change", updatePickupFields);
 
-    document.getElementById("cancelPickup")?.addEventListener(
-        "click",
-        () => showAttendanceAction(student)
-    );
+    /* CANCEL */
 
-    document.getElementById("savePickup")?.addEventListener(
-        "click",
-        () => savePickup(student, record, closeAfterSave)
-    );
+    document
+        .getElementById(
+            "cancelPickup"
+        )
+        ?.addEventListener(
+            "click",
+            () =>
+                showAttendanceAction(
+                    student
+                )
+        );
 
-    updatePickupFields();
+
+    /* SAVE */
+
+    document
+        .getElementById(
+            "savePickup"
+        )
+        ?.addEventListener(
+            "click",
+            () =>
+                savePickup(
+                    student,
+                    record,
+                    closeAfterSave
+                )
+        );
+
 }
 
 
@@ -3825,126 +3894,328 @@ function openPickupForm(
    SAVE PICKUP
 ========================================================= */
 
+/* =========================================================
+   SAVE PICKUP
+   ========================================================= */
+
 async function savePickup(student, record) {
 
-    try {
-        console.log("Saving pickup information...");
-        console.log("Student:", student);
-        console.log("Attendance record:", record);
+  try {
 
-        const personSelect = document.getElementById("pickupPersonSelect");
+    console.log("Saving pickup information...");
+    console.log("Student:", student);
+    console.log("Attendance record:", record);
 
-        if (!personSelect) {
-            throw new Error("Pickup person selector was not found.");
-        }
 
-        const selectedPerson = personSelect.value;
+    /* =====================================================
+       GET PICKUP PERSON
+       ===================================================== */
 
-        if (!selectedPerson) {
-            showToast("Please select who is picking up the student.", "error");
-            return;
-        }
+    const personSelect =
+      document.getElementById("pickupPersonSelect");
 
-        const isUnauthorized = selectedPerson === "__UNAUTHORIZED_PERSON__";
-        const parents = getParentOptions(student.parent);
-        const selectedParent = parents.find(parent => parent.name === selectedPerson);
-
-        let pickup_person = "";
-        let relationship = "";
-        let phone = "";
-        let pickup_option = "";
-        let approver = "";
-        let notes = "";
-
-        if (selectedParent) {
-            // Registered parent/guardian: use the stored student information.
-            pickup_person = selectedParent.name;
-            relationship = selectedParent.label || "Parent / Guardian";
-            phone = selectedParent.phone || "";
-            pickup_option = "Parent / Guardian";
-            approver = null;
-            notes = null;
-        } else if (isUnauthorized) {
-            pickup_person = document.getElementById("otherPickupName")?.value?.trim() || "";
-            relationship = document.getElementById("pickupRelationshipInput")?.value?.trim() || "";
-            phone = document.getElementById("pickupPhoneInput")?.value?.trim() || "";
-            pickup_option = "Unauthorized Person - Admin Approval";
-            approver = document.getElementById("approverInput")?.value?.trim() || "";
-            notes = document.getElementById("notesInput")?.value?.trim() || "";
-
-            if (!pickup_person) {
-                showToast("Please enter the unauthorized person's name.", "error");
-                return;
-            }
-
-            if (!phone) {
-                showToast("Please enter the unauthorized person's phone number.", "error");
-                return;
-            }
-
-            if (!relationship) {
-                showToast("Please enter the relationship / basic information.", "error");
-                return;
-            }
-
-            if (!approver) {
-                showToast("Please enter the approving staff/teacher.", "error");
-                return;
-            }
-        } else {
-            showToast("Please select a registered parent/guardian or Unauthorized Person.", "error");
-            return;
-        }
-
-        if (!record || record.id === undefined || record.id === null) {
-            console.error("Invalid attendance record:", record);
-            throw new Error("Attendance record ID is missing.");
-        }
-
-        const payload = {
-            pickup_person,
-            pickup_relationship: relationship,
-            pickup_phone: phone,
-            pickup_option,
-            approver,
-            notes,
-            time_out: new Date().toISOString()
-        };
-
-        console.log("Pickup update payload:", payload);
-
-        const { data, error } = await supabaseClient
-            .from("attendance")
-            .update(payload)
-            .eq("id", record.id)
-            .select()
-            .single();
-
-        if (error) {
-            console.error("Supabase pickup update error:", error);
-            console.error("Error message:", error.message);
-            console.error("Error details:", error.details);
-            console.error("Error hint:", error.hint);
-            console.error("Error code:", error.code);
-            throw error;
-        }
-
-        console.log("Pickup saved successfully:", data);
-        showToast(`Pickup saved: ${pickup_person}`, "success");
-        closeResultModal();
-        await loadTodayAttendance();
-
-    } catch (error) {
-        console.error("Pickup save error:", error);
-
-        let message = error?.message || "Unable to save pickup information.";
-
-        if (message.toLowerCase().includes("pickup_relationship")) {
-            message = "Supabase could not find the pickup_relationship column. Please check the attendance table column name.";
-        }
-
-        showToast(message, "error");
+    if (!personSelect) {
+      throw new Error(
+        "Pickup person selector was not found."
+      );
     }
+
+    const selectedPerson =
+      personSelect.value;
+
+
+    const otherName =
+      document
+        .getElementById("otherPickupName")
+        ?.value
+        ?.trim() || "";
+
+
+    if (!selectedPerson) {
+
+      showToast(
+        "Please select who is picking up the student.",
+        "error"
+      );
+
+      return;
+    }
+
+
+    let pickup_person =
+      selectedPerson;
+
+
+    /* =====================================================
+       OTHER PERSON
+       ===================================================== */
+
+    if (selectedPerson === "Other") {
+
+      if (!otherName) {
+
+        showToast(
+          "Please enter the pickup person's name.",
+          "error"
+        );
+
+        return;
+      }
+
+      pickup_person =
+        otherName;
+    }
+
+
+    /* =====================================================
+       GET OTHER PICKUP INFORMATION
+       ===================================================== */
+
+    const relationship =
+      document
+        .getElementById("pickupRelationshipInput")
+        ?.value
+        ?.trim() || "";
+
+
+    const phone =
+      document
+        .getElementById("pickupPhoneInput")
+        ?.value
+        ?.trim() || "";
+
+
+    const pickup_option =
+      document
+        .getElementById("pickupOptionInput")
+        ?.value || "";
+
+
+    const approver =
+      document
+        .getElementById("approverInput")
+        ?.value
+        ?.trim() || "";
+
+
+    const notes =
+      document
+        .getElementById("notesInput")
+        ?.value
+        ?.trim() || "";
+
+
+    /* =====================================================
+       VALIDATION
+       ===================================================== */
+
+    if (!pickup_option) {
+
+      showToast(
+        "Please select the pickup option.",
+        "error"
+      );
+
+      return;
+    }
+
+
+    if (!approver) {
+
+      showToast(
+        "Please enter the approving staff/teacher.",
+        "error"
+      );
+
+      return;
+    }
+
+
+    /* =====================================================
+       VERIFY ATTENDANCE RECORD
+       ===================================================== */
+
+    if (
+      !record ||
+      record.id === undefined ||
+      record.id === null
+    ) {
+
+      console.error(
+        "Invalid attendance record:",
+        record
+      );
+
+      throw new Error(
+        "Attendance record ID is missing."
+      );
+    }
+
+
+    console.log(
+      "Updating attendance ID:",
+      record.id
+    );
+
+
+    /* =====================================================
+       SUPABASE PAYLOAD
+
+       IMPORTANT:
+       Use lowercase pickup_relationship.
+       PostgreSQL/Supabase commonly stores the column
+       using lowercase naming.
+       ===================================================== */
+
+    const payload = {
+
+      pickup_person:
+        pickup_person,
+
+      pickup_relationship:
+        relationship,
+
+      pickup_phone:
+        phone,
+
+      pickup_option:
+        pickup_option,
+
+      approver:
+        approver,
+
+      notes:
+        notes,
+
+      // FIX: Save the exact pickup time
+      time_out:
+        new Date().toISOString()
+
+    };
+
+
+    console.log(
+      "Pickup update payload:",
+      payload
+    );
+
+
+    /* =====================================================
+       UPDATE ATTENDANCE
+       ===================================================== */
+
+    const {
+      data,
+      error
+    } =
+      await supabaseClient
+        .from("attendance")
+        .update(payload)
+        .eq(
+          "id",
+          record.id
+        )
+        .select()
+        .single();
+
+
+    /* =====================================================
+       SUPABASE ERROR
+       ===================================================== */
+
+    if (error) {
+
+      console.error(
+        "Supabase pickup update error:",
+        error
+      );
+
+      console.error(
+        "Error message:",
+        error.message
+      );
+
+      console.error(
+        "Error details:",
+        error.details
+      );
+
+      console.error(
+        "Error hint:",
+        error.hint
+      );
+
+      console.error(
+        "Error code:",
+        error.code
+      );
+
+      throw error;
+    }
+
+
+    /* =====================================================
+       SUCCESS
+       ===================================================== */
+
+    console.log(
+      "Pickup saved successfully:",
+      data
+    );
+
+
+    showToast(
+      `Pickup saved: ${pickup_person}`,
+      "success"
+    );
+
+
+    /* Close modal */
+
+    closeResultModal();
+
+
+    /* Reload attendance */
+
+    await loadTodayAttendance();
+
+
+  } catch (error) {
+
+    console.error(
+      "Pickup save error:",
+      error
+    );
+
+
+    let message =
+      error?.message ||
+      "Unable to save pickup information.";
+
+
+    /*
+       Give a clearer message for missing columns.
+    */
+
+    if (
+      message
+        .toLowerCase()
+        .includes("pickup_relationship")
+    ) {
+
+      message =
+        "Supabase could not find the pickup_relationship column. Please check the attendance table column name.";
+
+    }
+
+
+    showToast(
+      message,
+      "error"
+    );
+
+  }
+
 }
 
 
