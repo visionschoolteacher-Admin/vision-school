@@ -262,3 +262,10 @@ button:disabled{cursor:not-allowed;opacity:.55;transform:none;box-shadow:none}
         min-height:62px;
     }
 }
+/* Student Information modal - appearance only */
+#studentResultModal .modal-content {
+    background: #ffffff;
+    opacity: 1;
+    border-radius: 20px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+}
