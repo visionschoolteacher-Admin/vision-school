@@ -162,3 +162,103 @@ button:disabled{cursor:not-allowed;opacity:.55;transform:none;box-shadow:none}
 @media(max-width:1200px){.stats-grid{grid-template-columns:repeat(5,minmax(0,1fr))}.pickup-layout{grid-template-columns:1fr}.main-content{padding:0 24px 40px}}
 @media(max-width:850px){.sidebar{position:fixed;left:-285px;transition:.25s;width:270px}.sidebar.open{left:0}.main-content{padding:0 15px 35px}.mobile-menu{display:block}.topbar{height:80px}.topbar h2{font-size:25px}.live-clock{padding:7px 10px}.dashboard-header{padding:22px;align-items:flex-start;flex-direction:column}.stats-grid{grid-template-columns:repeat(2,1fr)}.section-head{align-items:flex-start;flex-direction:column}.form-grid,.pickup-fields{grid-template-columns:1fr}.student-row{grid-template-columns:1fr}.student-actions{justify-content:flex-start}}
 @media(max-width:520px){.stats-grid{grid-template-columns:1fr}.panel,.section-card{padding:17px;border-radius:17px}.dashboard-header h1{font-size:25px}.primary-btn,.secondary-btn{padding:11px 13px}.search-row,.input-row,.scanner-actions{flex-direction:column}.live-clock span{display:none}.student-actions button,.form-actions button,.scanner-actions button{width:100%}}
+
+
+/* ===== QUICK ACTIONS — PREMIUM APPEARANCE ONLY ===== */
+.quick-actions{
+    display:grid;
+    grid-template-columns:repeat(4,minmax(0,1fr));
+    gap:14px;
+}
+
+.quick-action,
+.quick-actions button{
+    position:relative;
+    min-height:72px;
+    width:100%;
+    padding:14px 16px;
+    border:1px solid #d7e6f1;
+    border-radius:16px;
+    background:linear-gradient(180deg,#ffffff 0%,#f6faff 100%);
+    color:#123f5f;
+    box-shadow:0 7px 18px rgba(28,73,110,.08),inset 0 1px 0 rgba(255,255,255,.9);
+    display:flex;
+    align-items:center;
+    justify-content:flex-start;
+    gap:12px;
+    font-weight:750;
+    text-align:left;
+    overflow:hidden;
+}
+
+.quick-action::before,
+.quick-actions button::before{
+    content:"";
+    width:4px;
+    height:34px;
+    border-radius:99px;
+    background:linear-gradient(180deg,#1597fb,#0874d4);
+    flex:0 0 4px;
+    opacity:.9;
+}
+
+.quick-action:hover,
+.quick-actions button:hover{
+    transform:translateY(-3px);
+    border-color:#afd0e7;
+    background:linear-gradient(180deg,#ffffff 0%,#eef8ff 100%);
+    box-shadow:0 12px 26px rgba(28,73,110,.14),inset 0 1px 0 rgba(255,255,255,1);
+}
+
+.quick-action:active,
+.quick-actions button:active{
+    transform:translateY(0) scale(.985);
+}
+
+.quick-action:focus-visible,
+.quick-actions button:focus-visible{
+    outline:3px solid rgba(8,127,232,.18);
+    outline-offset:2px;
+}
+
+/* Make icons feel like premium action tiles */
+.quick-action .action-icon,
+.quick-actions button .action-icon,
+.quick-action .icon,
+.quick-actions button .icon{
+    width:42px;
+    height:42px;
+    min-width:42px;
+    border-radius:13px;
+    display:grid;
+    place-items:center;
+    background:#e7f3ff;
+    color:#087fe8;
+    font-size:19px;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.8);
+}
+
+/* If the quick-action uses an emoji/icon directly, keep it visually balanced */
+.quick-action > span:first-child,
+.quick-actions button > span:first-child{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+}
+
+/* Responsive */
+@media(max-width:850px){
+    .quick-actions{
+        grid-template-columns:repeat(2,minmax(0,1fr));
+    }
+}
+
+@media(max-width:520px){
+    .quick-actions{
+        grid-template-columns:1fr;
+    }
+    .quick-action,
+    .quick-actions button{
+        min-height:62px;
+    }
+}
