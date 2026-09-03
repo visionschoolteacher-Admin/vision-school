@@ -135,53 +135,61 @@ function ensureVisionSchoolModalStyles() {
 
         #studentModal.modal,
         #studentResultModal.modal {
-            position: fixed;
-            inset: 0;
-            width: 100%;
-            height: 100%;
-            box-sizing: border-box;
-            padding: 20px;
-            overflow-y: auto;
-            overflow-x: hidden;
+            position: fixed !important;
+            inset: 0 !important;
+            width: 100% !important;
+            height: 100% !important;
+            box-sizing: border-box !important;
+            padding: 20px !important;
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
             -webkit-overflow-scrolling: touch;
             display: none;
-            align-items: flex-start;
-            justify-content: center;
+            align-items: flex-start !important;
+            justify-content: center !important;
+            background: rgba(0, 0, 0, 0.55) !important;
+            z-index: 99999 !important;
         }
 
         #studentModal.modal.show,
         #studentResultModal.modal.show {
-            display: flex;
+            display: flex !important;
         }
 
         #studentModal .modal-content,
         #studentResultModal .modal-content {
-            width: min(620px, 100%);
-            max-width: 620px;
-            max-height: calc(100vh - 40px);
-            margin: auto;
-            box-sizing: border-box;
-            overflow-y: auto;
-            overflow-x: hidden;
-            border-radius: 14px;
-            padding: 24px;
+            width: min(620px, calc(100vw - 40px)) !important;
+            max-width: 620px !important;
+            min-width: 0 !important;
+            max-height: calc(100vh - 40px) !important;
+            margin: auto !important;
+            box-sizing: border-box !important;
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+            border-radius: 14px !important;
+            padding: 24px !important;
+            background: #ffffff !important;
+            opacity: 1 !important;
+            color: #0b3555 !important;
+            position: relative !important;
+            box-shadow: 0 18px 50px rgba(0,0,0,.28) !important;
         }
 
         #studentModal form {
-            width: 100%;
-            box-sizing: border-box;
+            width: 100% !important;
+            box-sizing: border-box !important;
         }
 
         #studentModal .form-group {
-            width: 100%;
-            box-sizing: border-box;
+            width: 100% !important;
+            box-sizing: border-box !important;
         }
 
         #studentModal input,
         #studentModal select {
-            width: 100%;
-            max-width: 100%;
-            box-sizing: border-box;
+            width: 100% !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
         }
 
         #studentModal .modal-header {
@@ -208,10 +216,10 @@ function ensureVisionSchoolModalStyles() {
 
             #studentModal .modal-content,
             #studentResultModal .modal-content {
-                width: 100%;
-                max-width: none;
-                max-height: calc(100vh - 20px);
-                padding: 18px;
+                width: calc(100vw - 20px) !important;
+                max-width: none !important;
+                max-height: calc(100vh - 20px) !important;
+                padding: 18px !important;
             }
 
             #studentModal .modal-header {
