@@ -4099,15 +4099,207 @@ function openPickupForm(
     `;
 
 
-    /* PERSON SELECT */
+   /* PERSON SELECT */
 
-    document
-        .getElementById(
-            "pickupPersonSelect"
-        )
-        ?.addEventListener(
-            "change",
-            event => {
+document
+    .getElementById(
+        "pickupPersonSelect"
+    )
+    ?.addEventListener(
+        "change",
+        event => {
+
+            const value =
+                event.target.value;
+
+
+            const otherContainer =
+                document.getElementById(
+                    "otherPickupContainer"
+                );
+
+
+            const pickupOption =
+                document.getElementById(
+                    "pickupOptionInput"
+                );
+
+
+            /*
+             * Pickup Option label
+             */
+
+            const pickupOptionLabel =
+                pickupOption
+                    ?.previousElementSibling;
+
+
+            /*
+             * OTHER / GUEST
+             */
+
+            if (
+                value === "Other"
+            ) {
+
+                if (otherContainer) {
+
+                    otherContainer.style.display =
+                        "block";
+
+                }
+
+
+                /*
+                 * Show Pickup Option
+                 */
+
+                if (pickupOptionLabel) {
+
+                    pickupOptionLabel.style.display =
+                        "block";
+
+                }
+
+
+                if (pickupOption) {
+
+                    pickupOption.style.display =
+                        "block";
+
+                    pickupOption.value =
+                        "";
+
+                }
+
+            }
+
+
+            /*
+             * PARENT / GUARDIAN
+             */
+
+            else if (value) {
+
+                if (otherContainer) {
+
+                    otherContainer.style.display =
+                        "none";
+
+                }
+
+
+                /*
+                 * Hide Pickup Option completely
+                 */
+
+                if (pickupOptionLabel) {
+
+                    pickupOptionLabel.style.display =
+                        "none";
+
+                }
+
+
+                if (pickupOption) {
+
+                    pickupOption.style.display =
+                        "none";
+
+                    /*
+                     * Automatically set the
+                     * pickup option.
+                     */
+
+                    pickupOption.value =
+                        "Parent";
+
+                }
+
+
+                /*
+                 * Find selected parent
+                 */
+
+                const selected =
+                    parents.find(
+                        parent =>
+                            parent.name ===
+                            value
+                    );
+
+
+                if (selected) {
+
+                    const relationship =
+                        document.getElementById(
+                            "pickupRelationshipInput"
+                        );
+
+
+                    const phone =
+                        document.getElementById(
+                            "pickupPhoneInput"
+                        );
+
+
+                    if (relationship) {
+
+                        relationship.value =
+                            selected.label;
+
+                    }
+
+
+                    if (phone) {
+
+                        phone.value =
+                            selected.phone ||
+                            "";
+
+                    }
+
+                }
+
+            }
+
+
+            /*
+             * NOTHING SELECTED
+             */
+
+            else {
+
+                if (otherContainer) {
+
+                    otherContainer.style.display =
+                        "none";
+
+                }
+
+
+                if (pickupOptionLabel) {
+
+                    pickupOptionLabel.style.display =
+                        "block";
+
+                }
+
+
+                if (pickupOption) {
+
+                    pickupOption.style.display =
+                        "block";
+
+                    pickupOption.value =
+                        "";
+
+                }
+
+            }
+
+        }
+    );{
 
                 const value =
                     event.target.value;
