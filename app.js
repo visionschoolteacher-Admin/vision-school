@@ -572,28 +572,28 @@ function showSection(sectionId) {
     const titles = {
 
         dashboard: [
-            "Dashboard / ໜ້າຫຼັກ",
-            "Student attendance overview / ພາບລວມການເຂົ້າຮຽນ"
+            "Dashboard",
+            "Student attendance overview"
         ],
 
         students: [
-            "Students / ນັກຮຽນ",
-            "Manage Vision School students / ຈັດການຂໍ້ມູນນັກຮຽນ"
+            "Students",
+            "Manage Vision School students"
         ],
 
         scanner: [
-            "QR Scanner / ສະແກນ QR",
-            "Scan student QR codes / ສະແກນ QR ຂອງນັກຮຽນ"
+            "QR Scanner",
+            "Scan student QR codes"
         ],
 
         attendance: [
-            "Attendance / ການເຂົ້າຮຽນ",
-            "Today's attendance records / ບັນທຶກການເຂົ້າຮຽນມື້ນີ້"
+            "Attendance",
+            "Today's attendance records"
         ],
 
         reports: [
-            "Reports / ລາຍງານ",
-            "Attendance reports and exports / ລາຍງານ ແລະ ສົ່ງອອກຂໍ້ມູນ"
+            "Reports",
+            "Attendance reports and exports"
         ]
 
     };
@@ -4099,263 +4099,142 @@ function openPickupForm(
     `;
 
 
-   /* PERSON SELECT */
-
-document
-    .getElementById(
-        "pickupPersonSelect"
-    )
-    ?.addEventListener(
-        "change",
-        event => {
-
-            const value =
-                event.target.value;
-
-
-            const otherContainer =
-                document.getElementById(
-                    "otherPickupContainer"
-                );
-
-
-            const pickupOption =
-                document.getElementById(
-                    "pickupOptionInput"
-                );
-
-
-            /*
-             * Pickup Option label
-             */
-
-            const pickupOptionLabel =
-                pickupOption
-                    ?.previousElementSibling;
-
-
-            /*
-             * OTHER / GUEST
-             */
-
-            if (
-                value === "Other"
-            ) {
-
-                if (otherContainer) {
-
-                    otherContainer.style.display =
-                        "block";
-
-                }
-
-
-                /*
-                 * Show Pickup Option
-                 */
-
-                if (pickupOptionLabel) {
-
-                    pickupOptionLabel.style.display =
-                        "block";
-
-                }
-
-
-                if (pickupOption) {
-
-                    pickupOption.style.display =
-                        "block";
-
-                    pickupOption.value =
-                        "";
-
-                }
-
-            }
-
-
-            /*
-             * PARENT / GUARDIAN
-             */
-
-            else if (value) {
-
-                if (otherContainer) {
-
-                    otherContainer.style.display =
-                        "none";
-
-                }
-
-
-                /*
-                 * Hide Pickup Option completely
-                 */
-
-                if (pickupOptionLabel) {
-
-                    pickupOptionLabel.style.display =
-                        "none";
-
-                }
-
-
-                if (pickupOption) {
-
-                    pickupOption.style.display =
-                        "none";
-
-                    /*
-                     * Automatically set the
-                     * pickup option.
-                     */
-
-                    pickupOption.value =
-                        "Parent";
-
-                }
-
-
-                /*
-                 * Find selected parent
-                 */
-
-                const selected =
-                    parents.find(
-                        parent =>
-                            parent.name ===
-                            value
-                    );
-
-
-                if (selected) {
-
-                    const relationship =
-                        document.getElementById(
-                            "pickupRelationshipInput"
-                        );
-
-
-                    const phone =
-                        document.getElementById(
-                            "pickupPhoneInput"
-                        );
-
-
-                    if (relationship) {
-
-                        relationship.value =
-                            selected.label;
-
-                    }
-
-
-                    if (phone) {
-
-                        phone.value =
-                            selected.phone ||
-                            "";
-
-                    }
-
-                }
-
-            }
-
-
-            /*
-             * NOTHING SELECTED
-             */
-
-            else {
-
-                if (otherContainer) {
-
-                    otherContainer.style.display =
-                        "none";
-
-                }
-
-
-                if (pickupOptionLabel) {
-
-                    pickupOptionLabel.style.display =
-                        "block";
-
-                }
-
-
-                if (pickupOption) {
-
-                    pickupOption.style.display =
-                        "block";
-
-                    pickupOption.value =
-                        "";
-
-                }
-
-            }
-
-        }
-    );{
+    /* PERSON SELECT */
+
+    document
+        .getElementById(
+            "pickupPersonSelect"
+        )
+        ?.addEventListener(
+            "change",
+            event => {
 
                 const value =
                     event.target.value;
-
 
                 const otherContainer =
                     document.getElementById(
                         "otherPickupContainer"
                     );
 
+                const pickupOption =
+                    document.getElementById(
+                        "pickupOptionInput"
+                    );
 
-                if (otherContainer) {
+                /* The Pickup Option label is immediately
+                   before the select in the current form. */
+                const pickupOptionLabel =
+                    pickupOption?.previousElementSibling;
 
-                    otherContainer.style.display =
-                        value === "Other"
-                            ? "block"
-                            : "none";
+
+                /* =========================================
+                   OTHER / GUEST
+                   ========================================= */
+
+                if (value === "Other") {
+
+                    if (otherContainer) {
+                        otherContainer.style.display =
+                            "block";
+                    }
+
+                    if (pickupOptionLabel) {
+                        pickupOptionLabel.style.display =
+                            "block";
+                    }
+
+                    if (pickupOption) {
+                        pickupOption.style.display =
+                            "block";
+                    }
 
                 }
 
 
-                const selected =
-                    parents.find(
-                        parent =>
-                            parent.name ===
-                            value
-                    );
+                /* =========================================
+                   PARENT / GUARDIAN
+                   ========================================= */
 
+                else if (value) {
 
-                if (selected) {
-
-                    const relationship =
-                        document.getElementById(
-                            "pickupRelationshipInput"
-                        );
-
-                    const phone =
-                        document.getElementById(
-                            "pickupPhoneInput"
-                        );
-
-
-                    if (relationship) {
-
-                        relationship.value =
-                            selected.label;
-
+                    if (otherContainer) {
+                        otherContainer.style.display =
+                            "none";
                     }
 
+                    /* Hide Pickup Option from staff.
+                       The value is set automatically. */
 
-                    if (phone) {
+                    if (pickupOptionLabel) {
+                        pickupOptionLabel.style.display =
+                            "none";
+                    }
 
-                        phone.value =
-                            selected.phone ||
+                    if (pickupOption) {
+                        pickupOption.style.display =
+                            "none";
+                        pickupOption.value =
+                            "Parent";
+                    }
+
+                    /* Fill the selected registered parent. */
+
+                    const selected =
+                        parents.find(
+                            parent =>
+                                parent.name ===
+                                value
+                        );
+
+                    if (selected) {
+
+                        const relationship =
+                            document.getElementById(
+                                "pickupRelationshipInput"
+                            );
+
+                        const phone =
+                            document.getElementById(
+                                "pickupPhoneInput"
+                            );
+
+                        if (relationship) {
+                            relationship.value =
+                                selected.label;
+                        }
+
+                        if (phone) {
+                            phone.value =
+                                selected.phone ||
+                                "";
+                        }
+                    }
+
+                }
+
+
+                /* =========================================
+                   NOTHING SELECTED
+                   ========================================= */
+
+                else {
+
+                    if (otherContainer) {
+                        otherContainer.style.display =
+                            "none";
+                    }
+
+                    if (pickupOptionLabel) {
+                        pickupOptionLabel.style.display =
+                            "block";
+                    }
+
+                    if (pickupOption) {
+                        pickupOption.style.display =
+                            "block";
+                        pickupOption.value =
                             "";
-
                     }
 
                 }
@@ -6005,125 +5884,3 @@ window.VisionSchool = {
 console.log(
     "Vision School app.js loaded successfully."
 );
-
-/* =========================================================
-   BILINGUAL UI — ENGLISH + LAO
-   Appearance/text only. Does not change application logic,
-   database values, student records, or button actions.
-========================================================= */
-
-(function initializeBilingualUI() {
-
-    const translations = {
-        "Vision School": "Vision School / ວິຊັນ ສະຄູນ",
-        "Attendance System": "Attendance System / ລະບົບການເຂົ້າຮຽນ",
-        "Dashboard": "Dashboard / ໜ້າຫຼັກ",
-        "Students": "Students / ນັກຮຽນ",
-        "QR Scanner": "QR Scanner / ສະແກນ QR",
-        "Attendance": "Attendance / ການເຂົ້າຮຽນ",
-        "Reports": "Reports / ລາຍງານ",
-        "Pickup Security": "Pickup Security / ຄວາມປອດໄພໃນການຮັບນັກຮຽນ",
-        "Secure Pickup System": "Secure Pickup System / ລະບົບຮັບນັກຮຽນຢ່າງປອດໄພ",
-        "Connected": "Connected / ເຊື່ອມຕໍ່ແລ້ວ",
-        "Connecting...": "Connecting... / ກຳລັງເຊື່ອມຕໍ່...",
-        "Connection Error": "Connection Error / ມີບັນຫາການເຊື່ອມຕໍ່",
-
-        "Good day, Vision School": "Good day, Vision School / ສະບາຍດີ, ວິຊັນ ສະຄູນ",
-        "Monitor student attendance and pickup activity.":
-            "Monitor student attendance and pickup activity. / ຕິດຕາມການເຂົ້າຮຽນ ແລະ ການຮັບນັກຮຽນ",
-        "Total Students": "Total Students / ຈຳນວນນັກຮຽນ",
-        "Time In": "Time In / ເວລາເຂົ້າ",
-        "Time Out": "Time Out / ເວລາອອກ",
-        "In School": "In School / ຢູ່ໂຮງຮຽນ",
-        "Picked Up": "Picked Up / ຮັບແລ້ວ",
-        "Not Checked In": "Not Checked In / ຍັງບໍ່ໄດ້ເຊັກອິນ",
-        "Recent Activity": "Recent Activity / ກິດຈະກຳຫຼ້າສຸດ",
-
-        "Scan Student QR": "Scan Student QR / ສະແກນ QR ນັກຮຽນ",
-        "Start Camera": "Start Camera / ເປີດກ້ອງ",
-        "Stop": "Stop / ຢຸດ",
-        "Image scan:": "Image scan / ສະແກນຈາກຮູບ:",
-        "View": "View / ເບິ່ງ",
-        "Edit": "Edit / ແກ້ໄຂ",
-        "Remove": "Remove / ລຶບ",
-        "Student QR": "Student QR / QR ນັກຮຽນ",
-        "Parent QR": "Parent QR / QR ຜູ້ປົກຄອງ",
-        "Add Student": "Add Student / ເພີ່ມນັກຮຽນ",
-        "Save Student": "Save Student / ບັນທຶກນັກຮຽນ",
-        "Cancel": "Cancel / ຍົກເລີກ",
-        "Search": "Search / ຄົ້ນຫາ",
-        "Export Excel": "Export Excel / ສົ່ງອອກ Excel",
-        "Export CSV": "Export CSV / ສົ່ງອອກ CSV",
-        "Student Information": "Student Information / ຂໍ້ມູນນັກຮຽນ",
-        "Parent / Guardian": "Parent / Guardian / ພໍ່ແມ່ / ຜູ້ປົກຄອງ",
-        "Parent / Guardian 1": "Parent / Guardian 1 / ພໍ່ແມ່ / ຜູ້ປົກຄອງ 1",
-        "Parent / Guardian 2": "Parent / Guardian 2 / ພໍ່ແມ່ / ຜູ້ປົກຄອງ 2",
-        "Parent / Guardian 3": "Parent / Guardian 3 / ພໍ່ແມ່ / ຜູ້ປົກຄອງ 3",
-        "Phone": "Phone / ເບີໂທ",
-        "Phone Number": "Phone Number / ເບີໂທລະສັບ",
-        "Level": "Level / ລະດັບຊັ້ນ",
-        "Name": "Name / ຊື່",
-        "Student ID": "Student ID / ລະຫັດນັກຮຽນ",
-        "Pickup": "Pickup / ຮັບນັກຮຽນ",
-        "Verify Pickup": "Verify Pickup / ຢືນຢັນການຮັບນັກຮຽນ",
-        "Not Parent / Guardian": "Not Parent / Guardian / ບໍ່ແມ່ນພໍ່ແມ່ / ຜູ້ປົກຄອງ",
-        "Admin Approval": "Admin Approval / ການອະນຸມັດຈາກຜູ້ບໍລິຫານ",
-        "Notes": "Notes / ໝາຍເຫດ",
-        "Download QR": "Download QR / ດາວໂຫຼດ QR",
-        "Registered students": "Registered students / ນັກຮຽນທີ່ລົງທະບຽນ",
-        "Today's attendance records": "Today's attendance records / ບັນທຶກການເຂົ້າຮຽນມື້ນີ້"
-    };
-
-    const translateElement = (el) => {
-        if (!el || el.nodeType !== 1) return;
-        if (el.dataset.bilingualized === "1") return;
-
-        const text = (el.textContent || "").trim();
-        if (!text) return;
-
-        const translated = translations[text];
-        if (!translated) return;
-
-        // Only change simple label/button/heading-like elements.
-        const allowed = /^(BUTTON|H1|H2|H3|H4|LABEL|SPAN|SMALL|STRONG|P|OPTION|DIV)$/;
-        if (!allowed.test(el.tagName)) return;
-
-        // Avoid changing data-bearing containers that contain nested elements.
-        if (el.children.length > 0 && el.tagName !== "OPTION") return;
-
-        el.textContent = translated;
-        el.dataset.bilingualized = "1";
-    };
-
-    const apply = () => {
-        document.querySelectorAll(
-            "button,h1,h2,h3,h4,label,span,small,strong,p,option,div"
-        ).forEach(translateElement);
-    };
-
-    const start = () => {
-        apply();
-
-        if (window.__visionBilingualObserver) return;
-
-        const observer = new MutationObserver(() => {
-            apply();
-        });
-
-        observer.observe(document.body, {
-            childList: true,
-            subtree: true,
-            characterData: true
-        });
-
-        window.__visionBilingualObserver = observer;
-        window.__visionBilingualUI = { apply, translations };
-    };
-
-    if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", start, { once: true });
-    } else {
-        start();
-    }
-
-})();
