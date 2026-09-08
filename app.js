@@ -572,28 +572,28 @@ function showSection(sectionId) {
     const titles = {
 
         dashboard: [
-            "Dashboard",
-            "Student attendance overview"
+            "Dashboard / ໜ້າຫຼັກ",
+            "Student attendance overview / ພາບລວມການເຂົ້າຮຽນ"
         ],
 
         students: [
-            "Students",
-            "Manage Vision School students"
+            "Students / ນັກຮຽນ",
+            "Manage Vision School students / ຈັດການຂໍ້ມູນນັກຮຽນ"
         ],
 
         scanner: [
-            "QR Scanner",
-            "Scan student QR codes"
+            "QR Scanner / ສະແກນ QR",
+            "Scan student QR codes / ສະແກນ QR ຂອງນັກຮຽນ"
         ],
 
         attendance: [
-            "Attendance",
-            "Today's attendance records"
+            "Attendance / ການເຂົ້າຮຽນ",
+            "Today's attendance records / ບັນທຶກການເຂົ້າຮຽນມື້ນີ້"
         ],
 
         reports: [
-            "Reports",
-            "Attendance reports and exports"
+            "Reports / ລາຍງານ",
+            "Attendance reports and exports / ລາຍງານ ແລະ ສົ່ງອອກຂໍ້ມູນ"
         ]
 
     };
@@ -4112,129 +4112,58 @@ function openPickupForm(
                 const value =
                     event.target.value;
 
+
                 const otherContainer =
                     document.getElementById(
                         "otherPickupContainer"
                     );
 
-                const pickupOption =
-                    document.getElementById(
-                        "pickupOptionInput"
+
+                if (otherContainer) {
+
+                    otherContainer.style.display =
+                        value === "Other"
+                            ? "block"
+                            : "none";
+
+                }
+
+
+                const selected =
+                    parents.find(
+                        parent =>
+                            parent.name ===
+                            value
                     );
 
-                /* The Pickup Option label is immediately
-                   before the select in the current form. */
-                const pickupOptionLabel =
-                    pickupOption?.previousElementSibling;
 
+                if (selected) {
 
-                /* =========================================
-                   OTHER / GUEST
-                   ========================================= */
-
-                if (value === "Other") {
-
-                    if (otherContainer) {
-                        otherContainer.style.display =
-                            "block";
-                    }
-
-                    if (pickupOptionLabel) {
-                        pickupOptionLabel.style.display =
-                            "block";
-                    }
-
-                    if (pickupOption) {
-                        pickupOption.style.display =
-                            "block";
-                    }
-
-                }
-
-
-                /* =========================================
-                   PARENT / GUARDIAN
-                   ========================================= */
-
-                else if (value) {
-
-                    if (otherContainer) {
-                        otherContainer.style.display =
-                            "none";
-                    }
-
-                    /* Hide Pickup Option from staff.
-                       The value is set automatically. */
-
-                    if (pickupOptionLabel) {
-                        pickupOptionLabel.style.display =
-                            "none";
-                    }
-
-                    if (pickupOption) {
-                        pickupOption.style.display =
-                            "none";
-                        pickupOption.value =
-                            "Parent";
-                    }
-
-                    /* Fill the selected registered parent. */
-
-                    const selected =
-                        parents.find(
-                            parent =>
-                                parent.name ===
-                                value
+                    const relationship =
+                        document.getElementById(
+                            "pickupRelationshipInput"
                         );
 
-                    if (selected) {
+                    const phone =
+                        document.getElementById(
+                            "pickupPhoneInput"
+                        );
 
-                        const relationship =
-                            document.getElementById(
-                                "pickupRelationshipInput"
-                            );
 
-                        const phone =
-                            document.getElementById(
-                                "pickupPhoneInput"
-                            );
+                    if (relationship) {
 
-                        if (relationship) {
-                            relationship.value =
-                                selected.label;
-                        }
+                        relationship.value =
+                            selected.label;
 
-                        if (phone) {
-                            phone.value =
-                                selected.phone ||
-                                "";
-                        }
                     }
 
-                }
 
+                    if (phone) {
 
-                /* =========================================
-                   NOTHING SELECTED
-                   ========================================= */
-
-                else {
-
-                    if (otherContainer) {
-                        otherContainer.style.display =
-                            "none";
-                    }
-
-                    if (pickupOptionLabel) {
-                        pickupOptionLabel.style.display =
-                            "block";
-                    }
-
-                    if (pickupOption) {
-                        pickupOption.style.display =
-                            "block";
-                        pickupOption.value =
+                        phone.value =
+                            selected.phone ||
                             "";
+
                     }
 
                 }
@@ -5884,3 +5813,176 @@ window.VisionSchool = {
 console.log(
     "Vision School app.js loaded successfully."
 );
+
+/* =========================================================
+   BILINGUAL UI — ENGLISH + LAO
+   Appearance/text only. Does not change application logic,
+   database values, student records, or button actions.
+========================================================= */
+
+(function initializeBilingualUI() {
+
+    const translations = {
+        "Vision School": "Vision School / ວິຊັນ ສະຄູນ",
+        "Attendance System": "Attendance System / ລະບົບການເຂົ້າຮຽນ",
+        "Dashboard": "Dashboard / ໜ້າຫຼັກ",
+        "Students": "Students / ນັກຮຽນ",
+        "QR Scanner": "QR Scanner / ສະແກນ QR",
+        "Attendance": "Attendance / ການເຂົ້າຮຽນ",
+        "Reports": "Reports / ລາຍງານ",
+        "Pickup Security": "Pickup Security / ຄວາມປອດໄພໃນການຮັບນັກຮຽນ",
+        "Secure Pickup System": "Secure Pickup System / ລະບົບຮັບນັກຮຽນຢ່າງປອດໄພ",
+        "Connected": "Connected / ເຊື່ອມຕໍ່ແລ້ວ",
+        "Connecting...": "Connecting... / ກຳລັງເຊື່ອມຕໍ່...",
+        "Connection Error": "Connection Error / ມີບັນຫາການເຊື່ອມຕໍ່",
+        "Good day, Vision School": "Good day, Vision School / ສະບາຍດີ, ວິຊັນ ສະຄູນ",
+        "Monitor student attendance and pickup activity.": "Monitor student attendance and pickup activity. / ຕິດຕາມການເຂົ້າຮຽນ ແລະ ການຮັບນັກຮຽນ",
+        "Student attendance overview": "Student attendance overview / ພາບລວມການເຂົ້າຮຽນ",
+        "Total Students": "Total Students / ຈຳນວນນັກຮຽນ",
+        "Time In": "Time In / ເວລາເຂົ້າ",
+        "Time Out": "Time Out / ເວລາອອກ",
+        "Currently In": "Currently In / ກຳລັງຢູ່ໃນໂຮງຮຽນ",
+        "In School": "In School / ຢູ່ໂຮງຮຽນ",
+        "Picked Up": "Picked Up / ຮັບແລ້ວ",
+        "Not Checked In": "Not Checked In / ຍັງບໍ່ໄດ້ເຊັກອິນ",
+        "Quick Actions": "Quick Actions / ການດຳເນີນການດ່ວນ",
+        "Common attendance tasks": "Common attendance tasks / ວຽກງານການເຂົ້າຮຽນທີ່ໃຊ້ເປັນປະຈຳ",
+        "Scan QR": "Scan QR / ສະແກນ QR",
+        "Record student attendance": "Record student attendance / ບັນທຶກການເຂົ້າຮຽນ",
+        "Manage student records": "Manage student records / ຈັດການຂໍ້ມູນນັກຮຽນ",
+        "View today's records": "View today's records / ເບິ່ງບັນທຶກຂອງມື້ນີ້",
+        "Export attendance": "Export attendance / ສົ່ງອອກຂໍ້ມູນການເຂົ້າຮຽນ",
+        "Recent Attendance": "Recent Attendance / ການເຂົ້າຮຽນຫຼ້າສຸດ",
+        "Latest student activity": "Latest student activity / ກິດຈະກຳຂອງນັກຮຽນຫຼ້າສຸດ",
+        "View All": "View All / ເບິ່ງທັງໝົດ",
+        "Student": "Student / ນັກຮຽນ",
+        "Level": "Level / ລະດັບຊັ້ນ",
+        "Status": "Status / ສະຖານະ",
+        "No attendance records yet.": "No attendance records yet. / ຍັງບໍ່ມີບັນທຶກການເຂົ້າຮຽນ.",
+        "Student Management": "Student Management / ຈັດການນັກຮຽນ",
+        "Manage student information and authorized pickup persons.": "Manage student information and authorized pickup persons. / ຈັດການຂໍ້ມູນນັກຮຽນ ແລະ ຜູ້ມີສິດຮັບນັກຮຽນ",
+        "Add Student": "Add Student / ເພີ່ມນັກຮຽນ",
+        "Search student, ID, parent or phone...": "Search student, ID, parent or phone... / ຄົ້ນຫານັກຮຽນ, ລະຫັດ, ພໍ່ແມ່ ຫຼື ເບີໂທ...",
+        "All Levels": "All Levels / ທຸກລະດັບຊັ້ນ",
+        "Student ID": "Student ID / ລະຫັດນັກຮຽນ",
+        "Parent / Guardian": "Parent / Guardian / ພໍ່ແມ່ / ຜູ້ປົກຄອງ",
+        "Parent / Guardian 1": "Parent / Guardian 1 / ພໍ່ແມ່ / ຜູ້ປົກຄອງ 1",
+        "Parent / Guardian 2": "Parent / Guardian 2 / ພໍ່ແມ່ / ຜູ້ປົກຄອງ 2",
+        "Parent / Guardian 3": "Parent / Guardian 3 / ພໍ່ແມ່ / ຜູ້ປົກຄອງ 3",
+        "Phone": "Phone / ເບີໂທ",
+        "Phone 1": "Phone 1 / ເບີໂທ 1",
+        "Phone 2": "Phone 2 / ເບີໂທ 2",
+        "Phone 3": "Phone 3 / ເບີໂທ 3",
+        "Pickup Authorization": "Pickup Authorization / ສິດໃນການຮັບນັກຮຽນ",
+        "Authorized": "Authorized / ອະນຸຍາດ",
+        "Not Authorized": "Not Authorized / ບໍ່ອະນຸຍາດ",
+        "Actions": "Actions / ການດຳເນີນການ",
+        "QR": "QR / ຄິວອາ",
+        "Loading students...": "Loading students... / ກຳລັງໂຫຼດຂໍ້ມູນນັກຮຽນ...",
+        "QR Attendance Scanner": "QR Attendance Scanner / ສະແກນ QR ການເຂົ້າຮຽນ",
+        "Scan the student's QR code to record attendance.": "Scan the student's QR code to record attendance. / ສະແກນ QR ຂອງນັກຮຽນເພື່ອບັນທຶກການເຂົ້າຮຽນ.",
+        "Start Scanner": "Start Scanner / ເລີ່ມສະແກນ",
+        "Stop Scanner": "Stop Scanner / ຢຸດສະແກນ",
+        "Start Camera": "Start Camera / ເປີດກ້ອງ",
+        "Stop": "Stop / ຢຸດ",
+        "Manual Student ID": "Manual Student ID / ລະຫັດນັກຮຽນ",
+        "Enter Student ID": "Enter Student ID / ໃສ່ລະຫັດນັກຮຽນ",
+        "Search": "Search / ຄົ້ນຫາ",
+        "How it works": "How it works / ວິທີການໃຊ້ງານ",
+        "Scan QR Code": "Scan QR Code / ສະແກນ QR Code",
+        "Scan the student's assigned QR code.": "Scan the student's assigned QR code. / ສະແກນ QR Code ທີ່ກຳນົດໃຫ້ນັກຮຽນ.",
+        "Verify Student": "Verify Student / ກວດສອບນັກຮຽນ",
+        "Confirm the student's name and level.": "Confirm the student's name and level. / ຢືນຢັນຊື່ ແລະ ລະດັບຊັ້ນຂອງນັກຮຽນ.",
+        "Time In / Time Out": "Time In / Time Out / ເວລາເຂົ້າ / ເວລາອອກ",
+        "Select the appropriate attendance action.": "Select the appropriate attendance action. / ເລືອກການດຳເນີນການການເຂົ້າຮຽນທີ່ເໝາະສົມ.",
+        "Verify Pickup": "Verify Pickup / ກວດສອບການຮັບນັກຮຽນ",
+        "Select the authorized parent or guardian picking up the student.": "Select the authorized parent or guardian picking up the student. / ເລືອກພໍ່ແມ່ ຫຼື ຜູ້ປົກຄອງທີ່ມີສິດມາຮັບນັກຮຽນ.",
+        "Security Reminder": "Security Reminder / ແຈ້ງເຕືອນດ້ານຄວາມປອດໄພ",
+        "Never release a student to an unauthorized person without proper staff approval and verification.": "Never release a student to an unauthorized person without proper staff approval and verification. / ຫ້າມປ່ອຍນັກຮຽນໃຫ້ຜູ້ທີ່ບໍ່ໄດ້ຮັບອະນຸຍາດ ໂດຍບໍ່ມີການອະນຸມັດ ແລະ ກວດສອບຈາກພະນັກງານຢ່າງຖືກຕ້ອງ.",
+        "Today's Attendance": "Today's Attendance / ການເຂົ້າຮຽນມື້ນີ້",
+        "Student attendance and pickup information.": "Student attendance and pickup information. / ຂໍ້ມູນການເຂົ້າຮຽນ ແລະ ການຮັບນັກຮຽນ.",
+        "Refresh": "Refresh / ໂຫຼດໃໝ່",
+        "Search attendance, student or pickup person...": "Search attendance, student or pickup person... / ຄົ້ນຫາການເຂົ້າຮຽນ, ນັກຮຽນ ຫຼື ຜູ້ມາຮັບ...",
+        "Export Excel": "Export Excel / ສົ່ງອອກ Excel",
+        "Export CSV": "Export CSV / ສົ່ງອອກ CSV",
+        "Download QR": "Download QR / ດາວໂຫຼດ QR",
+        "View": "View / ເບິ່ງ",
+        "Edit": "Edit / ແກ້ໄຂ",
+        "Remove": "Remove / ລຶບ",
+        "Save Student": "Save Student / ບັນທຶກນັກຮຽນ",
+        "Cancel": "Cancel / ຍົກເລີກ",
+        "Name": "Name / ຊື່",
+        "Student Information": "Student Information / ຂໍ້ມູນນັກຮຽນ",
+        "Pickup": "Pickup / ຮັບນັກຮຽນ",
+        "Verify Pickup": "Verify Pickup / ຢືນຢັນການຮັບນັກຮຽນ",
+        "Not Parent / Guardian": "Not Parent / Guardian / ບໍ່ແມ່ນພໍ່ແມ່ / ຜູ້ປົກຄອງ",
+        "Admin Approval": "Admin Approval / ການອະນຸມັດຈາກຜູ້ບໍລິຫານ",
+        "Emergency": "Emergency / ສຸກເສີນ",
+        "Parent Confirmation": "Parent Confirmation / ການຢືນຢັນຈາກພໍ່ແມ່",
+        "Notes": "Notes / ໝາຍເຫດ",
+        "Registered students": "Registered students / ນັກຮຽນທີ່ລົງທະບຽນ",
+        "Today's attendance records": "Today's attendance records / ບັນທຶກການເຂົ້າຮຽນມື້ນີ້"
+    };
+
+    const translateText = (value) => {
+        const text = String(value ?? "").trim();
+        return translations[text] || null;
+    };
+
+    const translateElement = (el) => {
+        if (!el || el.nodeType !== 1) return;
+
+        // Never touch student names, IDs, table data, or other data-bearing content.
+        if (el.closest("tbody") && !el.closest("thead")) return;
+
+        const text = (el.textContent || "").trim();
+        const translated = translateText(text);
+
+        if (translated && !el.dataset.bilingualized) {
+            const allowed = /^(BUTTON|H1|H2|H3|H4|LABEL|SPAN|SMALL|STRONG|P|OPTION|DIV|TH)$/;
+            if (allowed.test(el.tagName) && (el.children.length === 0 || el.tagName === "OPTION")) {
+                el.textContent = translated;
+                el.dataset.bilingualized = "1";
+            }
+        }
+
+        if (el.hasAttribute("placeholder")) {
+            const translatedPlaceholder = translateText(el.getAttribute("placeholder"));
+            if (translatedPlaceholder) el.setAttribute("placeholder", translatedPlaceholder);
+        }
+
+        if (el.hasAttribute("aria-label")) {
+            const translatedAria = translateText(el.getAttribute("aria-label"));
+            if (translatedAria) el.setAttribute("aria-label", translatedAria);
+        }
+    };
+
+    const apply = () => {
+        document.querySelectorAll(
+            "button,h1,h2,h3,h4,label,span,small,strong,p,option,div,th,input,textarea,select"
+        ).forEach(translateElement);
+    };
+
+    const start = () => {
+        apply();
+
+        if (window.__visionBilingualObserver) return;
+
+        const observer = new MutationObserver(() => apply());
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true,
+            characterData: true
+        });
+
+        window.__visionBilingualObserver = observer;
+        window.__visionBilingualUI = { apply, translations };
+    };
+
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", start, { once: true });
+    } else {
+        start();
+    }
+
+})();
