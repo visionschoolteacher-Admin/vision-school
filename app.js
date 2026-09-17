@@ -76,6 +76,294 @@ let realtimeNeedsStudents = false;
 let realtimeNeedsAttendance = false;
 
 
+
+/* =========================================================
+   PHOTO SUPPORT
+   Student + Parent/Guardian photos only.
+   Uses Supabase Storage so the existing students table schema
+   does not need a new column.
+========================================================= */
+
+const VISION_PHOTO_BUCKET = "vision-school-photos";
+const VISION_PHOTO_MAX_MB = 5;
+const VISION_PHOTO_SIZE = 600;
+
+function normalizePhotoIdentity(value) {
+    return String(value || "")
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, " ");
+}
+
+async function visionPhotoHash(value) {
+    const raw = normalizePhotoIdentity(value);
+    if (window.crypto?.subtle) {
+        const bytes = new TextEncoder().encode(raw);
+        const digest = await crypto.subtle.digest("SHA-256", bytes);
+        return Array.from(new Uint8Array(digest))
+            .map(byte => byte.toString(16).padStart(2, "0"))
+            .join("");
+    }
+
+    let hash = 2166136261;
+    for (let i = 0; i < raw.length; i++) {
+        hash ^= raw.charCodeAt(i);
+        hash = Math.imul(hash, 16777619);
+    }
+    return (hash >>> 0).toString(16);
+}
+
+function getStudentPhotoPath(studentId) {
+    return `students/${encodeURIComponent(String(studentId || "").trim())}.jpg`;
+}
+
+function getParentPhotoPath(name, phone) {
+    const identity = `${normalizePhotoIdentity(name)}_${normalizePhotoIdentity(phone)}`;
+    const safeIdentity = encodeURIComponent(identity).slice(0, 180);
+    return `parents/${safeIdentity}.jpg`;
+}
+
+function getStoragePublicUrl(path, cacheBust = "") {
+    if (!supabaseClient || !path) return "";
+    const { data } = supabaseClient.storage
+        .from(VISION_PHOTO_BUCKET)
+        .getPublicUrl(path);
+
+    const url = data?.publicUrl || "";
+    return cacheBust ? `${url}${url.includes("?") ? "&" : "?"}v=${cacheBust}` : url;
+}
+
+function createPhotoPlaceholder(label = "No Photo") {
+    return `
+        <div class="vision-photo-placeholder" aria-label="${escapeAttribute(label)}">
+            <span>📷</span>
+        </div>
+    `;
+}
+
+function showPhotoMessage(message, type = "error") {
+    if (typeof showToast === "function") {
+        showToast(message, type);
+    } else {
+        console.warn(message);
+    }
+}
+
+function readImageFileAsSquareJpeg(file) {
+    return new Promise((resolve, reject) => {
+        if (!file || !file.type?.startsWith("image/")) {
+            reject(new Error("Please select an image file."));
+            return;
+        }
+
+        if (file.size > VISION_PHOTO_MAX_MB * 1024 * 1024) {
+            reject(new Error(`Photo must be ${VISION_PHOTO_MAX_MB} MB or smaller.`));
+            return;
+        }
+
+        const reader = new FileReader();
+
+        reader.onload = () => {
+            const image = new Image();
+
+            image.onload = () => {
+                const size = Math.min(image.naturalWidth, image.naturalHeight);
+                const sx = Math.max(0, (image.naturalWidth - size) / 2);
+                const sy = Math.max(0, (image.naturalHeight - size) / 2);
+
+                const canvas = document.createElement("canvas");
+                canvas.width = VISION_PHOTO_SIZE;
+                canvas.height = VISION_PHOTO_SIZE;
+
+                const ctx = canvas.getContext("2d", { alpha: false });
+                ctx.fillStyle = "#ffffff";
+                ctx.fillRect(0, 0, VISION_PHOTO_SIZE, VISION_PHOTO_SIZE);
+                ctx.drawImage(
+                    image,
+                    sx,
+                    sy,
+                    size,
+                    size,
+                    0,
+                    0,
+                    VISION_PHOTO_SIZE,
+                    VISION_PHOTO_SIZE
+                );
+
+                canvas.toBlob(
+                    blob => {
+                        if (!blob) {
+                            reject(new Error("Unable to prepare the photo."));
+                            return;
+                        }
+
+                        resolve(blob);
+                    },
+                    "image/jpeg",
+                    0.82
+                );
+            };
+
+            image.onerror = () => reject(new Error("Unable to read the selected photo."));
+            image.src = reader.result;
+        };
+
+        reader.onerror = () => reject(new Error("Unable to read the selected photo."));
+        reader.readAsDataURL(file);
+    });
+}
+
+async function uploadVisionPhoto(file, path) {
+    if (!supabaseClient) {
+        throw new Error("Supabase is not connected yet.");
+    }
+
+    const blob = await readImageFileAsSquareJpeg(file);
+
+    const { error } = await supabaseClient.storage
+        .from(VISION_PHOTO_BUCKET)
+        .upload(path, blob, {
+            cacheControl: "31536000",
+            contentType: "image/jpeg",
+            upsert: true
+        });
+
+    if (error) throw error;
+
+    return getStoragePublicUrl(path, Date.now());
+}
+
+function setPhotoPreview(container, url, label = "Photo") {
+    if (!container) return;
+
+    if (!url) {
+        container.innerHTML = createPhotoPlaceholder(label);
+        return;
+    }
+
+    container.innerHTML = `
+        <img
+            src="${escapeAttribute(url)}"
+            alt="${escapeAttribute(label)}"
+            class="vision-photo-square"
+            loading="lazy"
+            onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
+        >
+        <div class="vision-photo-placeholder" style="display:none;" aria-label="${escapeAttribute(label)}">
+            <span>📷</span>
+        </div>
+    `;
+}
+
+async function uploadStudentPhotoFromInput(input) {
+    const file = input?.files?.[0];
+    if (!file) return;
+
+    const id = document.getElementById("studentId")?.value.trim() || "";
+    if (!id) {
+        showPhotoMessage("Enter the Student ID before adding a photo.", "error");
+        input.value = "";
+        return;
+    }
+
+    try {
+        const path = getStudentPhotoPath(id);
+        const url = await uploadVisionPhoto(file, path);
+        setPhotoPreview(
+            document.getElementById("studentPhotoPreview"),
+            url,
+            "Student Photo"
+        );
+        showPhotoMessage("Student photo saved.", "success");
+    } catch (error) {
+        console.error("Student photo upload error:", error);
+        showPhotoMessage(error?.message || "Unable to save student photo.", "error");
+    } finally {
+        input.value = "";
+    }
+}
+
+async function uploadParentPhotoFromInput(input, parentIndex) {
+    const file = input?.files?.[0];
+    if (!file) return;
+
+    const nameId = `studentParent${parentIndex === 1 ? "" : parentIndex}`;
+    const phoneId = `studentPhone${parentIndex === 1 ? "" : parentIndex}`;
+
+    const name = document.getElementById(nameId)?.value.trim() || "";
+    const phone = document.getElementById(phoneId)?.value.trim() || "";
+
+    if (!name) {
+        showPhotoMessage(`Enter Parent / Guardian ${parentIndex} name before adding a photo.`, "error");
+        input.value = "";
+        return;
+    }
+
+    try {
+        const path = await getParentPhotoPath(name, phone);
+        const url = await uploadVisionPhoto(file, path);
+
+        setPhotoPreview(
+            document.getElementById(`parentPhotoPreview${parentIndex}`),
+            url,
+            `Parent / Guardian ${parentIndex} Photo`
+        );
+
+        showPhotoMessage(`Parent / Guardian ${parentIndex} photo saved.`, "success");
+    } catch (error) {
+        console.error("Parent photo upload error:", error);
+        showPhotoMessage(error?.message || "Unable to save parent photo.", "error");
+    } finally {
+        input.value = "";
+    }
+}
+
+async function loadStudentPhotoPreview(studentId) {
+    const path = getStudentPhotoPath(studentId);
+    const url = getStoragePublicUrl(path);
+    setPhotoPreview(document.getElementById("studentPhotoPreview"), url, "Student Photo");
+}
+
+async function loadParentPhotoPreview(name, phone, parentIndex) {
+    if (!name) {
+        setPhotoPreview(
+            document.getElementById(`parentPhotoPreview${parentIndex}`),
+            "",
+            `Parent / Guardian ${parentIndex} Photo`
+        );
+        return;
+    }
+
+    const path = await getParentPhotoPath(name, phone);
+    const url = getStoragePublicUrl(path);
+    setPhotoPreview(
+        document.getElementById(`parentPhotoPreview${parentIndex}`),
+        url,
+        `Parent / Guardian ${parentIndex} Photo`
+    );
+}
+
+function initializePhotoControls() {
+    if (window.__visionPhotoControlsBound) return;
+
+    const studentButton = document.getElementById("studentPhotoButton");
+    const studentInput = document.getElementById("studentPhotoInput");
+
+    studentButton?.addEventListener("click", () => studentInput?.click());
+    studentInput?.addEventListener("change", () => uploadStudentPhotoFromInput(studentInput));
+
+    [1, 2, 3].forEach(index => {
+        const button = document.getElementById(`parentPhotoButton${index}`);
+        const input = document.getElementById(`parentPhotoInput${index}`);
+
+        button?.addEventListener("click", () => input?.click());
+        input?.addEventListener("change", () => uploadParentPhotoFromInput(input, index));
+    });
+
+    window.__visionPhotoControlsBound = true;
+}
+
+
 /* =========================================================
    START APPLICATION
 ========================================================= */
@@ -192,6 +480,82 @@ function ensureVisionSchoolModalStyles() {
             background: inherit;
         }
 
+        .vision-photo-section {
+            display:flex;
+            align-items:center;
+            gap:12px;
+            margin:0 0 16px;
+            padding:10px 0;
+        }
+
+        .vision-photo-square,
+        .vision-photo-placeholder {
+            width:76px;
+            height:76px;
+            min-width:76px;
+            border-radius:8px;
+            object-fit:cover;
+            border:1px solid #d1d5db;
+            background:#f8fafc;
+            box-sizing:border-box;
+        }
+
+        .vision-photo-placeholder {
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            font-size:24px;
+            color:#94a3b8;
+        }
+
+        .vision-photo-actions {
+            display:flex;
+            flex-direction:column;
+            gap:6px;
+        }
+
+        .vision-photo-actions small {
+            color:#64748b;
+        }
+
+        .vision-photo-button {
+            width:max-content;
+        }
+
+        .vision-student-thumb {
+            width:44px;
+            height:44px;
+            border-radius:6px;
+            object-fit:cover;
+            border:1px solid #d1d5db;
+            background:#f8fafc;
+        }
+
+        .vision-profile-photo {
+            width:96px;
+            height:96px;
+            border-radius:10px;
+            object-fit:cover;
+            border:1px solid #d1d5db;
+            background:#f8fafc;
+        }
+
+        .vision-parent-photo {
+            width:52px;
+            height:52px;
+            border-radius:8px;
+            object-fit:cover;
+            border:1px solid #d1d5db;
+            background:#f8fafc;
+        }
+
+        .vision-parent-photo-section {
+            display:flex;
+            align-items:center;
+            gap:10px;
+            margin-top:8px;
+        }
+
         #studentModal .result-actions {
             display: flex;
             justify-content: flex-end;
@@ -273,6 +637,21 @@ function ensureVisionSchoolModals() {
                         <input id="studentLevel" type="text" required>
                     </div>
 
+                    <div class="vision-photo-section">
+                        <div id="studentPhotoPreview">
+                            <div class="vision-photo-placeholder" aria-label="Student Photo">
+                                <span>📷</span>
+                            </div>
+                        </div>
+                        <div class="vision-photo-actions">
+                            <button type="button" class="secondary-button vision-photo-button" id="studentPhotoButton">
+                                📷 Add Photo
+                            </button>
+                            <small>Student photo • 1:1</small>
+                            <input id="studentPhotoInput" type="file" accept="image/*" hidden>
+                        </div>
+                    </div>
+
                     <div class="form-group">
                         <label for="studentParent">Parent / Guardian 1</label>
                         <input id="studentParent" type="text">
@@ -281,6 +660,20 @@ function ensureVisionSchoolModals() {
                     <div class="form-group">
                         <label for="studentPhone">Phone 1</label>
                         <input id="studentPhone" type="tel">
+                    </div>
+                    <div class="vision-parent-photo-section">
+                        <div id="parentPhotoPreview1">
+                            <div class="vision-photo-placeholder" aria-label="Parent / Guardian 1 Photo">
+                                <span>📷</span>
+                            </div>
+                        </div>
+                        <div class="vision-photo-actions">
+                            <button type="button" class="secondary-button vision-photo-button" id="parentPhotoButton1">
+                                📷 Add Photo
+                            </button>
+                            <small>1:1</small>
+                            <input id="parentPhotoInput1" type="file" accept="image/*" hidden>
+                        </div>
                     </div>
 
                     <div class="form-group">
@@ -292,6 +685,20 @@ function ensureVisionSchoolModals() {
                         <label for="studentPhone2">Phone 2</label>
                         <input id="studentPhone2" type="tel">
                     </div>
+                    <div class="vision-parent-photo-section">
+                        <div id="parentPhotoPreview2">
+                            <div class="vision-photo-placeholder" aria-label="Parent / Guardian 2 Photo">
+                                <span>📷</span>
+                            </div>
+                        </div>
+                        <div class="vision-photo-actions">
+                            <button type="button" class="secondary-button vision-photo-button" id="parentPhotoButton2">
+                                📷 Add Photo
+                            </button>
+                            <small>1:1</small>
+                            <input id="parentPhotoInput2" type="file" accept="image/*" hidden>
+                        </div>
+                    </div>
 
                     <div class="form-group">
                         <label for="studentParent3">Parent / Guardian 3</label>
@@ -301,6 +708,20 @@ function ensureVisionSchoolModals() {
                     <div class="form-group">
                         <label for="studentPhone3">Phone 3</label>
                         <input id="studentPhone3" type="tel">
+                    </div>
+                    <div class="vision-parent-photo-section">
+                        <div id="parentPhotoPreview3">
+                            <div class="vision-photo-placeholder" aria-label="Parent / Guardian 3 Photo">
+                                <span>📷</span>
+                            </div>
+                        </div>
+                        <div class="vision-photo-actions">
+                            <button type="button" class="secondary-button vision-photo-button" id="parentPhotoButton3">
+                                📷 Add Photo
+                            </button>
+                            <small>1:1</small>
+                            <input id="parentPhotoInput3" type="file" accept="image/*" hidden>
+                        </div>
                     </div>
 
                     <div class="form-group">
@@ -1327,7 +1748,7 @@ function renderStudents() {
             <tr>
 
                 <td
-                    colspan="8"
+                    colspan="9"
                     class="empty-state"
                 >
                     No students found.
@@ -1380,6 +1801,16 @@ function renderStudents() {
                                         student.id
                                     )}
                                 </strong>
+                            </td>
+
+                            <td>
+                                <img
+                                    src="${escapeAttribute(getStoragePublicUrl(getStudentPhotoPath(student.id)))}"
+                                    alt="Student Photo"
+                                    class="vision-student-thumb"
+                                    loading="lazy"
+                                    onerror="this.style.visibility='hidden';"
+                                >
                             </td>
 
 
@@ -1721,6 +2152,7 @@ function initializeStudentModal() {
             saveStudent
         );
 
+    initializePhotoControls();
 }
 
 
@@ -1763,6 +2195,20 @@ function resetStudentForm() {
         title.textContent =
             "Add Student";
     }
+
+    setPhotoPreview(
+        document.getElementById("studentPhotoPreview"),
+        "",
+        "Student Photo"
+    );
+
+    [1, 2, 3].forEach(index => {
+        setPhotoPreview(
+            document.getElementById(`parentPhotoPreview${index}`),
+            "",
+            `Parent / Guardian ${index} Photo`
+        );
+    });
 }
 
 
@@ -1866,6 +2312,16 @@ function editStudent(student) {
             "Edit Student";
     }
 
+    loadStudentPhotoPreview(student.id);
+
+    [1, 2, 3].forEach(index => {
+        const parent = parents[index - 1];
+        loadParentPhotoPreview(
+            parent?.name || "",
+            parent?.phone || "",
+            index
+        );
+    });
 
     modal.classList.add(
         "show"
@@ -2151,24 +2607,32 @@ function showStudentProfile(student) {
                                 background:#f8fafc;
                                 border-radius:8px;
                             "
-                        >
+                        >                            <div style="display:flex;align-items:center;gap:10px;">
+                                <img
+                                    src="${escapeAttribute(getStoragePublicUrl(getParentPhotoPath(parent.name, parent.phone)))}"
+                                    alt="Parent / Guardian Photo"
+                                    class="vision-parent-photo"
+                                    onerror="this.style.visibility='hidden';"
+                                >
+                                <div>
+                                    <strong>
+                                        ${escapeHtml(
+                                            parent.label
+                                        )}
+                                    </strong>
 
-                            <strong>
-                                ${escapeHtml(
-                                    parent.label
-                                )}
-                            </strong>
+                                    :
+                                    ${escapeHtml(
+                                        parent.name
+                                    )}
 
-                            :
-                            ${escapeHtml(
-                                parent.name
-                            )}
-
-                            ${
-                                parent.phone
-                                    ? `<br><small>📞 ${escapeHtml(parent.phone)}</small>`
-                                    : ""
-                            }
+                                    ${
+                                        parent.phone
+                                            ? `<br><small>📞 ${escapeHtml(parent.phone)}</small>`
+                                            : ""
+                                    }
+                                </div>
+                            </div>
 
                             <br>
                             <button
@@ -2193,8 +2657,13 @@ function showStudentProfile(student) {
 
         <div class="student-result">
 
-            <div class="result-avatar">
-                👨‍🎓
+            <div style="display:flex;justify-content:center;margin-bottom:10px;">
+                <img
+                    src="${escapeAttribute(getStoragePublicUrl(getStudentPhotoPath(student.id)))}"
+                    alt="Student Photo"
+                    class="vision-profile-photo"
+                    onerror="this.style.display='none';"
+                >
             </div>
 
 
