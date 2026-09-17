@@ -118,9 +118,15 @@ function getStudentPhotoPath(studentId) {
 }
 
 function getParentPhotoPath(name, phone) {
-    const identity = `${normalizePhotoIdentity(name)}_${normalizePhotoIdentity(phone)}`;
-    const safeIdentity = encodeURIComponent(identity).slice(0, 180);
-    return `parents/${safeIdentity}.jpg`;
+    // Use an ASCII-safe Storage key. The real parent name/phone
+    // remain unchanged in the existing students.parent data.
+    const phonePart = normalizePhotoIdentity(phone).replace(/[^a-z0-9_-]/gi, "");
+    const namePart = normalizePhotoIdentity(name)
+        .normalize("NFKD")
+        .replace(/[^a-z0-9]/gi, "");
+    const safeName = namePart || "parent";
+    const safePhone = phonePart || "nophone";
+    return `parents/${safeName}_${safePhone}.jpg`;
 }
 
 function getStoragePublicUrl(path, cacheBust = "") {
