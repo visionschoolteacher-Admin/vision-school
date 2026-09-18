@@ -1,42 +1,6 @@
 /* =========================================================
    VISION SCHOOL
    STUDENT QR ATTENDANCE + PICKUP SYSTEM
-
-   MATCHING HTML:
-   - Dashboard
-   - Students
-   - QR Scanner
-   - Attendance
-   - Reports
-   - 3 Parent / Guardian selection
-   - Pickup authorization
-   - Supabase
-
-   SUPABASE TABLES
-
-   students:
-   id
-   name
-   level
-   parent
-   phone
-   authorized
-   created_at
-
-   attendance:
-   id
-   student_id
-   student_name
-   date
-   time_in
-   time_out
-   pickup_person
-   Pickup_relationship
-   pickup_phone
-   pickup_option
-   approver
-   notes
-   created_at
 ========================================================= */
 
 
@@ -4672,7 +4636,7 @@ function openPickupForm(
                     </option>
 
                     <option value="Unauthorized">
-                        Unauthorized
+                        Unauthorized Person
                     </option>
 
                 </select>
