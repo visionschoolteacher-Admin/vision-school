@@ -790,7 +790,7 @@ function ensureVisionSchoolModals() {
                             <button type="button" class="small-button" id="studentPhotoRemoveButton">
                                 🗑 Remove Photo
                             </button>
-                            <small>Student photo • 1:1</small>
+                            <small>Student photo </small>
                             <input id="studentPhotoInput" type="file" accept="image/*" hidden>
                         </div>
                     </div>
@@ -821,7 +821,7 @@ function ensureVisionSchoolModals() {
                             <button type="button" class="small-button" id="parentPhotoRemoveButton1">
                                 🗑 Remove Photo
                             </button>
-                            <small>1:1</small>
+                            <small></small>
                             <input id="parentPhotoInput1" type="file" accept="image/*" hidden>
                         </div>
                     </div>
@@ -848,7 +848,7 @@ function ensureVisionSchoolModals() {
                             <button type="button" class="small-button" id="parentPhotoRemoveButton2">
                                 🗑 Remove Photo
                             </button>
-                            <small>1:1</small>
+                            <small></small>
                             <input id="parentPhotoInput2" type="file" accept="image/*" hidden>
                         </div>
                     </div>
@@ -875,7 +875,7 @@ function ensureVisionSchoolModals() {
                             <button type="button" class="small-button" id="parentPhotoRemoveButton3">
                                 🗑 Remove Photo
                             </button>
-                            <small>1:1</small>
+                            <small></small>
                             <input id="parentPhotoInput3" type="file" accept="image/*" hidden>
                         </div>
                     </div>
