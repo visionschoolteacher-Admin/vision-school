@@ -3977,8 +3977,15 @@ function showAttendanceAction(
 
         <div class="student-result">
 
-            <div class="result-avatar">
-                👨‍🎓
+            <div style="text-align:center;margin-bottom:10px;">
+                <img
+                    src="${escapeAttribute(getStoragePublicUrl(getStudentPhotoPath(student.id), visionPhotoCacheBust))}"
+                    alt="Student Photo"
+                    class="vision-profile-photo"
+                    style="width:96px;height:96px;border-radius:10px;object-fit:cover;"
+                    onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
+                >
+                <div class="result-avatar" style="display:none;margin:0 auto;">👨‍🎓</div>
             </div>
 
 
