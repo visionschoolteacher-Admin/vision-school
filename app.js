@@ -648,8 +648,47 @@ function ensureVisionSchoolModalStyles() {
             color:#64748b;
         }
 
-        .vision-photo-button {
+        .vision-photo-button,
+        .vision-photo-remove-button {
             width:max-content;
+            min-height:38px;
+            padding:9px 14px;
+            border-radius:10px;
+            font-size:13px;
+            font-weight:600;
+            line-height:1.2;
+            cursor:pointer;
+            transition:transform .15s ease, box-shadow .15s ease, background-color .15s ease, border-color .15s ease;
+            box-shadow:0 2px 6px rgba(15,23,42,.08);
+        }
+
+        .vision-photo-button:hover,
+        .vision-photo-remove-button:hover {
+            transform:translateY(-1px);
+            box-shadow:0 4px 10px rgba(15,23,42,.12);
+        }
+
+        .vision-photo-button:active,
+        .vision-photo-remove-button:active {
+            transform:translateY(0);
+            box-shadow:0 2px 5px rgba(15,23,42,.08);
+        }
+
+        .vision-photo-button:focus-visible,
+        .vision-photo-remove-button:focus-visible {
+            outline:2px solid rgba(37,99,235,.35);
+            outline-offset:2px;
+        }
+
+        .vision-photo-remove-button {
+            color:#b91c1c;
+            border:1px solid #fecaca;
+            background:#fff7f7;
+        }
+
+        .vision-photo-remove-button:hover {
+            background:#fef2f2;
+            border-color:#fca5a5;
         }
 
         .vision-student-thumb {
@@ -777,10 +816,10 @@ function ensureVisionSchoolModals() {
                             <button type="button" class="secondary-button vision-photo-button" id="studentPhotoButton">
                                 📷 Add Photo
                             </button>
-                            <button type="button" class="small-button" id="studentPhotoRemoveButton">
+                            <button type="button" class="small-button vision-photo-remove-button" id="studentPhotoRemoveButton">
                                 🗑 Remove Photo
                             </button>
-                            <small>Student photo • 1:1</small>
+                            <small>Student photo</small>
                             <input id="studentPhotoInput" type="file" accept="image/*" hidden>
                         </div>
                     </div>
@@ -808,10 +847,10 @@ function ensureVisionSchoolModals() {
                             <button type="button" class="secondary-button vision-photo-button" id="parentPhotoButton1">
                                 📷 Add Photo
                             </button>
-                            <button type="button" class="small-button" id="parentPhotoRemoveButton1">
+                            <button type="button" class="small-button vision-photo-remove-button" id="parentPhotoRemoveButton1">
                                 🗑 Remove Photo
                             </button>
-                            <small>1:1</small>
+                            
                             <input id="parentPhotoInput1" type="file" accept="image/*" hidden>
                         </div>
                     </div>
@@ -835,10 +874,10 @@ function ensureVisionSchoolModals() {
                             <button type="button" class="secondary-button vision-photo-button" id="parentPhotoButton2">
                                 📷 Add Photo
                             </button>
-                            <button type="button" class="small-button" id="parentPhotoRemoveButton2">
+                            <button type="button" class="small-button vision-photo-remove-button" id="parentPhotoRemoveButton2">
                                 🗑 Remove Photo
                             </button>
-                            <small>1:1</small>
+                            
                             <input id="parentPhotoInput2" type="file" accept="image/*" hidden>
                         </div>
                     </div>
@@ -862,10 +901,10 @@ function ensureVisionSchoolModals() {
                             <button type="button" class="secondary-button vision-photo-button" id="parentPhotoButton3">
                                 📷 Add Photo
                             </button>
-                            <button type="button" class="small-button" id="parentPhotoRemoveButton3">
+                            <button type="button" class="small-button vision-photo-remove-button" id="parentPhotoRemoveButton3">
                                 🗑 Remove Photo
                             </button>
-                            <small>1:1</small>
+                            
                             <input id="parentPhotoInput3" type="file" accept="image/*" hidden>
                         </div>
                     </div>
