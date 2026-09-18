@@ -87,6 +87,7 @@ let realtimeNeedsAttendance = false;
 const VISION_PHOTO_BUCKET = "vision-school-photos";
 const VISION_PHOTO_MAX_MB = 5;
 const VISION_PHOTO_SIZE = 600;
+let visionPhotoCacheBust = Date.now();
 
 function normalizePhotoIdentity(value) {
     return String(value || "")
@@ -241,7 +242,7 @@ async function uploadVisionPhoto(file, path) {
     const { error } = await supabaseClient.storage
         .from(VISION_PHOTO_BUCKET)
         .upload(path, blob, {
-            cacheControl: "31536000",
+            cacheControl: "0",
             contentType: "image/jpeg",
             upsert: true
         });
@@ -295,8 +296,16 @@ async function removeStudentPhoto() {
     if (!confirm("Remove this student photo from storage?")) return;
 
     try {
-        await deleteVisionPhoto(getStudentPhotoPath(id));
+        const path = getStudentPhotoPath(id);
+        await deleteVisionPhoto(path);
         setPhotoPreview(document.getElementById("studentPhotoPreview"), "", "Student Photo");
+        visionPhotoCacheBust = Date.now();
+        // Force all currently rendered student-photo URLs to stop using a cached image.
+        document.querySelectorAll(`img[src*="${path}"]`).forEach(img => {
+            img.removeAttribute("src");
+            img.style.visibility = "hidden";
+        });
+        renderStudents();
         showPhotoMessage("Student photo removed.", "success");
         refreshPhotoStorageInfo();
     } catch (error) {
@@ -395,6 +404,7 @@ async function uploadStudentPhotoFromInput(input) {
             url,
             "Student Photo"
         );
+        visionPhotoCacheBust = Date.now();
         showPhotoMessage("Student photo saved.", "success");
         refreshPhotoStorageInfo();
     } catch (error) {
@@ -648,47 +658,8 @@ function ensureVisionSchoolModalStyles() {
             color:#64748b;
         }
 
-        .vision-photo-button,
-        .vision-photo-remove-button {
+        .vision-photo-button {
             width:max-content;
-            min-height:38px;
-            padding:9px 14px;
-            border-radius:10px;
-            font-size:13px;
-            font-weight:600;
-            line-height:1.2;
-            cursor:pointer;
-            transition:transform .15s ease, box-shadow .15s ease, background-color .15s ease, border-color .15s ease;
-            box-shadow:0 2px 6px rgba(15,23,42,.08);
-        }
-
-        .vision-photo-button:hover,
-        .vision-photo-remove-button:hover {
-            transform:translateY(-1px);
-            box-shadow:0 4px 10px rgba(15,23,42,.12);
-        }
-
-        .vision-photo-button:active,
-        .vision-photo-remove-button:active {
-            transform:translateY(0);
-            box-shadow:0 2px 5px rgba(15,23,42,.08);
-        }
-
-        .vision-photo-button:focus-visible,
-        .vision-photo-remove-button:focus-visible {
-            outline:2px solid rgba(37,99,235,.35);
-            outline-offset:2px;
-        }
-
-        .vision-photo-remove-button {
-            color:#b91c1c;
-            border:1px solid #fecaca;
-            background:#fff7f7;
-        }
-
-        .vision-photo-remove-button:hover {
-            background:#fef2f2;
-            border-color:#fca5a5;
         }
 
         .vision-student-thumb {
@@ -816,10 +787,10 @@ function ensureVisionSchoolModals() {
                             <button type="button" class="secondary-button vision-photo-button" id="studentPhotoButton">
                                 📷 Add Photo
                             </button>
-                            <button type="button" class="small-button vision-photo-remove-button" id="studentPhotoRemoveButton">
+                            <button type="button" class="small-button" id="studentPhotoRemoveButton">
                                 🗑 Remove Photo
                             </button>
-                            <small>Student photo</small>
+                            <small>Student photo • 1:1</small>
                             <input id="studentPhotoInput" type="file" accept="image/*" hidden>
                         </div>
                     </div>
@@ -847,10 +818,10 @@ function ensureVisionSchoolModals() {
                             <button type="button" class="secondary-button vision-photo-button" id="parentPhotoButton1">
                                 📷 Add Photo
                             </button>
-                            <button type="button" class="small-button vision-photo-remove-button" id="parentPhotoRemoveButton1">
+                            <button type="button" class="small-button" id="parentPhotoRemoveButton1">
                                 🗑 Remove Photo
                             </button>
-                            
+                            <small>1:1</small>
                             <input id="parentPhotoInput1" type="file" accept="image/*" hidden>
                         </div>
                     </div>
@@ -874,10 +845,10 @@ function ensureVisionSchoolModals() {
                             <button type="button" class="secondary-button vision-photo-button" id="parentPhotoButton2">
                                 📷 Add Photo
                             </button>
-                            <button type="button" class="small-button vision-photo-remove-button" id="parentPhotoRemoveButton2">
+                            <button type="button" class="small-button" id="parentPhotoRemoveButton2">
                                 🗑 Remove Photo
                             </button>
-                            
+                            <small>1:1</small>
                             <input id="parentPhotoInput2" type="file" accept="image/*" hidden>
                         </div>
                     </div>
@@ -901,10 +872,10 @@ function ensureVisionSchoolModals() {
                             <button type="button" class="secondary-button vision-photo-button" id="parentPhotoButton3">
                                 📷 Add Photo
                             </button>
-                            <button type="button" class="small-button vision-photo-remove-button" id="parentPhotoRemoveButton3">
+                            <button type="button" class="small-button" id="parentPhotoRemoveButton3">
                                 🗑 Remove Photo
                             </button>
-                            
+                            <small>1:1</small>
                             <input id="parentPhotoInput3" type="file" accept="image/*" hidden>
                         </div>
                     </div>
@@ -1990,7 +1961,7 @@ function renderStudents() {
 
                             <td>
                                 <img
-                                    src="${escapeAttribute(getStoragePublicUrl(getStudentPhotoPath(student.id)))}"
+                                    src="${escapeAttribute(getStoragePublicUrl(getStudentPhotoPath(student.id), visionPhotoCacheBust))}"
                                     alt="Student Photo"
                                     class="vision-student-thumb"
                                     loading="lazy"
@@ -2844,7 +2815,7 @@ function showStudentProfile(student) {
 
             <div style="display:flex;justify-content:center;margin-bottom:10px;">
                 <img
-                    src="${escapeAttribute(getStoragePublicUrl(getStudentPhotoPath(student.id)))}"
+                    src="${escapeAttribute(getStoragePublicUrl(getStudentPhotoPath(student.id), visionPhotoCacheBust))}"
                     alt="Student Photo"
                     class="vision-profile-photo"
                     onerror="this.style.display='none';"
