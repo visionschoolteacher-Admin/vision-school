@@ -4580,7 +4580,10 @@ function openPickupForm(
                     <option value="Other">
                         Unauthorized
                     </option>
-
+                  
+                   <option value="Other">
+                        Authorized
+                    </option>
                 </select>
 
 
@@ -4590,7 +4593,7 @@ function openPickupForm(
                 >
 
                     <label>
-                        Unauthorized person Name
+                        Unauthorized Person's Name
                     </label>
 
                     <input
