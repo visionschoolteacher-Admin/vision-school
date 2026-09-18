@@ -4578,7 +4578,7 @@ function openPickupForm(
                     ${pickupOptions}
 
                     <option value="Other">
-                        Other / Guest
+                        Unauthorized
                     </option>
 
                 </select>
@@ -4590,7 +4590,7 @@ function openPickupForm(
                 >
 
                     <label>
-                        Other / Guest Name
+                        Unauthorized Name
                     </label>
 
                     <input
@@ -4676,8 +4676,8 @@ function openPickupForm(
                         Authorized Person
                     </option>
 
-                    <option value="Guest">
-                        Guest
+                    <option value="Unauthorized">
+                        Unauthorized
                     </option>
 
                 </select>
