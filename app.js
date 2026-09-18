@@ -113,20 +113,32 @@ async function visionPhotoHash(value) {
     return (hash >>> 0).toString(16);
 }
 
-function getStudentPhotoPath(studentId) {
-    return `students/${encodeURIComponent(String(studentId || "").trim())}.jpg`;
+function getPhotoSafeHash(value) {
+    const raw = normalizePhotoIdentity(value);
+    let hash = 2166136261;
+    for (let i = 0; i < raw.length; i++) {
+        hash ^= raw.charCodeAt(i);
+        hash = Math.imul(hash, 16777619);
+    }
+    return (hash >>> 0).toString(16).padStart(8, "0");
 }
 
 function getParentPhotoPath(name, phone) {
-    // Use an ASCII-safe Storage key. The real parent name/phone
-    // remain unchanged in the existing students.parent data.
-    const phonePart = normalizePhotoIdentity(phone).replace(/[^a-z0-9_-]/gi, "");
-    const namePart = normalizePhotoIdentity(name)
-        .normalize("NFKD")
-        .replace(/[^a-z0-9]/gi, "");
-    const safeName = namePart || "parent";
-    const safePhone = phonePart || "nophone";
-    return `parents/${safeName}_${safePhone}.jpg`;
+    // Supabase Storage object keys should use a safe ASCII filename.
+    // Hashing the parent identity keeps the path stable without exposing
+    // Lao/Unicode names in the Storage key.
+    const identity = `${normalizePhotoIdentity(name)}_${normalizePhotoIdentity(phone)}`;
+    return `parents/parent_${getPhotoSafeHash(identity)}.jpg`;
+}
+
+function getStudentPhotoPath(studentId) {
+    const id = String(studentId || "").trim();
+    // Preserve the existing path for normal ASCII Student IDs so existing
+    // photos continue to work; hash IDs containing unsupported characters.
+    if (/^[A-Za-z0-9._-]+$/.test(id)) {
+        return `students/${id}.jpg`;
+    }
+    return `students/student_${getPhotoSafeHash(id)}.jpg`;
 }
 
 function getStoragePublicUrl(path, cacheBust = "") {
@@ -261,6 +273,109 @@ function setPhotoPreview(container, url, label = "Photo") {
     `;
 }
 
+async function deleteVisionPhoto(path) {
+    if (!supabaseClient) {
+        throw new Error("Supabase is not connected yet.");
+    }
+    if (!path) return;
+
+    const { error } = await supabaseClient.storage
+        .from(VISION_PHOTO_BUCKET)
+        .remove([path]);
+
+    if (error) throw error;
+}
+
+async function removeStudentPhoto() {
+    const id = document.getElementById("studentId")?.value.trim() || "";
+    if (!id) {
+        showPhotoMessage("Enter the Student ID first.", "error");
+        return;
+    }
+    if (!confirm("Remove this student photo from storage?")) return;
+
+    try {
+        await deleteVisionPhoto(getStudentPhotoPath(id));
+        setPhotoPreview(document.getElementById("studentPhotoPreview"), "", "Student Photo");
+        showPhotoMessage("Student photo removed.", "success");
+        refreshPhotoStorageInfo();
+    } catch (error) {
+        console.error("Student photo remove error:", error);
+        showPhotoMessage(error?.message || "Unable to remove student photo.", "error");
+    }
+}
+
+async function removeParentPhoto(parentIndex) {
+    const nameId = `studentParent${parentIndex === 1 ? "" : parentIndex}`;
+    const phoneId = `studentPhone${parentIndex === 1 ? "" : parentIndex}`;
+    const name = document.getElementById(nameId)?.value.trim() || "";
+    const phone = document.getElementById(phoneId)?.value.trim() || "";
+
+    if (!name) {
+        showPhotoMessage(`Enter Parent / Guardian ${parentIndex} name first.`, "error");
+        return;
+    }
+    if (!confirm(`Remove Parent / Guardian ${parentIndex} photo from storage?`)) return;
+
+    try {
+        await deleteVisionPhoto(getParentPhotoPath(name, phone));
+        setPhotoPreview(document.getElementById(`parentPhotoPreview${parentIndex}`), "", `Parent / Guardian ${parentIndex} Photo`);
+        showPhotoMessage(`Parent / Guardian ${parentIndex} photo removed.`, "success");
+        refreshPhotoStorageInfo();
+    } catch (error) {
+        console.error(`Parent ${parentIndex} photo remove error:`, error);
+        showPhotoMessage(error?.message || "Unable to remove parent photo.", "error");
+    }
+}
+
+async function getPhotoStorageUsageBytes() {
+    if (!supabaseClient) return null;
+
+    let total = 0;
+    for (const folder of ["students", "parents"]) {
+        let offset = 0;
+        const limit = 1000;
+        while (true) {
+            const { data, error } = await supabaseClient.storage
+                .from(VISION_PHOTO_BUCKET)
+                .list(folder, { limit, offset, sortBy: { column: "name", order: "asc" } });
+            if (error) throw error;
+
+            const items = Array.isArray(data) ? data : [];
+            for (const item of items) {
+                const size = Number(item?.metadata?.size || 0);
+                if (Number.isFinite(size)) total += size;
+            }
+            if (items.length < limit) break;
+            offset += limit;
+        }
+    }
+    return total;
+}
+
+function formatPhotoStorage(bytes) {
+    const mb = bytes / (1024 * 1024);
+    if (mb < 1) return `${Math.round(bytes / 1024)} KB`;
+    return `${mb.toFixed(1)} MB`;
+}
+
+async function refreshPhotoStorageInfo() {
+    const el = document.getElementById("visionPhotoStorageInfo");
+    if (!el) return;
+    el.textContent = "Photo storage: checking…";
+    try {
+        const used = await getPhotoStorageUsageBytes();
+        if (used == null) return;
+        const quota = 1024 * 1024 * 1024;
+        const percent = Math.min(100, (used / quota) * 100);
+        el.textContent = `Photo storage: ${formatPhotoStorage(used)} used of 1 GB (${percent.toFixed(1)}%)`;
+        el.title = "Supabase Free plan includes 1 GB of Storage. This app limits each photo upload to 5 MB.";
+    } catch (error) {
+        console.warn("Unable to read photo storage usage:", error);
+        el.textContent = "Photo storage: 1 GB Free-plan quota";
+    }
+}
+
 async function uploadStudentPhotoFromInput(input) {
     const file = input?.files?.[0];
     if (!file) return;
@@ -281,6 +396,7 @@ async function uploadStudentPhotoFromInput(input) {
             "Student Photo"
         );
         showPhotoMessage("Student photo saved.", "success");
+        refreshPhotoStorageInfo();
     } catch (error) {
         console.error("Student photo upload error:", error);
         showPhotoMessage(error?.message || "Unable to save student photo.", "error");
@@ -316,6 +432,7 @@ async function uploadParentPhotoFromInput(input, parentIndex) {
         );
 
         showPhotoMessage(`Parent / Guardian ${parentIndex} photo saved.`, "success");
+        refreshPhotoStorageInfo();
     } catch (error) {
         console.error("Parent photo upload error:", error);
         showPhotoMessage(error?.message || "Unable to save parent photo.", "error");
@@ -355,16 +472,23 @@ function initializePhotoControls() {
     const studentButton = document.getElementById("studentPhotoButton");
     const studentInput = document.getElementById("studentPhotoInput");
 
+    const studentRemoveButton = document.getElementById("studentPhotoRemoveButton");
+
     studentButton?.addEventListener("click", () => studentInput?.click());
     studentInput?.addEventListener("change", () => uploadStudentPhotoFromInput(studentInput));
+    studentRemoveButton?.addEventListener("click", removeStudentPhoto);
 
     [1, 2, 3].forEach(index => {
         const button = document.getElementById(`parentPhotoButton${index}`);
+        const removeButton = document.getElementById(`parentPhotoRemoveButton${index}`);
         const input = document.getElementById(`parentPhotoInput${index}`);
 
         button?.addEventListener("click", () => input?.click());
+        removeButton?.addEventListener("click", () => removeParentPhoto(index));
         input?.addEventListener("change", () => uploadParentPhotoFromInput(input, index));
     });
+
+    refreshPhotoStorageInfo();
 
     window.__visionPhotoControlsBound = true;
 }
@@ -653,9 +777,16 @@ function ensureVisionSchoolModals() {
                             <button type="button" class="secondary-button vision-photo-button" id="studentPhotoButton">
                                 📷 Add Photo
                             </button>
+                            <button type="button" class="small-button" id="studentPhotoRemoveButton">
+                                🗑 Remove Photo
+                            </button>
                             <small>Student photo • 1:1</small>
                             <input id="studentPhotoInput" type="file" accept="image/*" hidden>
                         </div>
+                    </div>
+
+                    <div id="visionPhotoStorageInfo" style="font-size:12px;color:#64748b;margin:-6px 0 14px;">
+                        Photo storage: checking…
                     </div>
 
                     <div class="form-group">
@@ -676,6 +807,9 @@ function ensureVisionSchoolModals() {
                         <div class="vision-photo-actions">
                             <button type="button" class="secondary-button vision-photo-button" id="parentPhotoButton1">
                                 📷 Add Photo
+                            </button>
+                            <button type="button" class="small-button" id="parentPhotoRemoveButton1">
+                                🗑 Remove Photo
                             </button>
                             <small>1:1</small>
                             <input id="parentPhotoInput1" type="file" accept="image/*" hidden>
@@ -701,6 +835,9 @@ function ensureVisionSchoolModals() {
                             <button type="button" class="secondary-button vision-photo-button" id="parentPhotoButton2">
                                 📷 Add Photo
                             </button>
+                            <button type="button" class="small-button" id="parentPhotoRemoveButton2">
+                                🗑 Remove Photo
+                            </button>
                             <small>1:1</small>
                             <input id="parentPhotoInput2" type="file" accept="image/*" hidden>
                         </div>
@@ -724,6 +861,9 @@ function ensureVisionSchoolModals() {
                         <div class="vision-photo-actions">
                             <button type="button" class="secondary-button vision-photo-button" id="parentPhotoButton3">
                                 📷 Add Photo
+                            </button>
+                            <button type="button" class="small-button" id="parentPhotoRemoveButton3">
+                                🗑 Remove Photo
                             </button>
                             <small>1:1</small>
                             <input id="parentPhotoInput3" type="file" accept="image/*" hidden>
