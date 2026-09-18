@@ -790,7 +790,7 @@ function ensureVisionSchoolModals() {
                             <button type="button" class="small-button" id="studentPhotoRemoveButton">
                                 🗑 Remove Photo
                             </button>
-                            <small>Student photo </small>
+                            <small>Student photo • 1:1</small>
                             <input id="studentPhotoInput" type="file" accept="image/*" hidden>
                         </div>
                     </div>
@@ -821,7 +821,7 @@ function ensureVisionSchoolModals() {
                             <button type="button" class="small-button" id="parentPhotoRemoveButton1">
                                 🗑 Remove Photo
                             </button>
-                            <small></small>
+                            <small>1:1</small>
                             <input id="parentPhotoInput1" type="file" accept="image/*" hidden>
                         </div>
                     </div>
@@ -848,7 +848,7 @@ function ensureVisionSchoolModals() {
                             <button type="button" class="small-button" id="parentPhotoRemoveButton2">
                                 🗑 Remove Photo
                             </button>
-                            <small></small>
+                            <small>1:1</small>
                             <input id="parentPhotoInput2" type="file" accept="image/*" hidden>
                         </div>
                     </div>
@@ -875,7 +875,7 @@ function ensureVisionSchoolModals() {
                             <button type="button" class="small-button" id="parentPhotoRemoveButton3">
                                 🗑 Remove Photo
                             </button>
-                            <small></small>
+                            <small>1:1</small>
                             <input id="parentPhotoInput3" type="file" accept="image/*" hidden>
                         </div>
                     </div>
@@ -3202,8 +3202,18 @@ async function showParentPickupSelection(matches) {
             <label class="parent-pickup-row ${ready ? "" : "disabled"}">
                 <input type="checkbox" class="parent-pickup-checkbox" data-index="${index}" ${ready ? "" : "disabled"}>
                 <span>
-                    <strong>${escapeHtml(match.student.name)}</strong>
-                    <small>${escapeHtml(match.student.id)} • ${escapeHtml(match.student.level || "")}</small>
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <img
+                            class="vision-student-thumb"
+                            src="${getStoragePublicUrl(getStudentPhotoPath(match.student.id), visionPhotoCacheBust)}"
+                            alt="${escapeHtml(match.student.name)}"
+                            onerror="this.style.display='none';"
+                        >
+                        <span>
+                            <strong>${escapeHtml(match.student.name)}</strong>
+                            <small>${escapeHtml(match.student.id)} • ${escapeHtml(match.student.level || "")}</small>
+                        </span>
+                    </div>
                     <em>${escapeHtml(reason)}</em>
                 </span>
             </label>
@@ -3212,7 +3222,16 @@ async function showParentPickupSelection(matches) {
 
     result.innerHTML = `
         <div class="student-result">
-            <div class="result-avatar">👨‍👩‍👧</div>
+            <div style="text-align:center;margin-bottom:14px;">
+                <img
+                    class="vision-parent-photo"
+                    style="width:96px;height:96px;border-radius:10px;"
+                    src="${getStoragePublicUrl(getParentPhotoPath(firstParent.name, firstParent.phone), visionPhotoCacheBust)}"
+                    alt="${escapeHtml(firstParent.name)}"
+                    onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
+                >
+                <div class="result-avatar" style="display:none;margin:0 auto;">👨‍👩‍👧</div>
+            </div>
             <h2>Parent Pickup</h2>
             <p><strong>${escapeHtml(firstParent.name)}</strong>${firstParent.phone ? ` • ${escapeHtml(firstParent.phone)}` : ""}</p>
 
@@ -3324,8 +3343,14 @@ function showStudentQr(student) {
 
         <div class="student-result">
 
-            <div class="result-avatar">
-                👨‍🎓
+            <div style="text-align:center;margin-bottom:14px;">
+                <img
+                    class="vision-profile-photo"
+                    src="${getStoragePublicUrl(getStudentPhotoPath(student.id), visionPhotoCacheBust)}"
+                    alt="${escapeHtml(student.name)}"
+                    onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
+                >
+                <div class="result-avatar" style="display:none;margin:0 auto;">👨‍🎓</div>
             </div>
 
 
@@ -3988,13 +4013,8 @@ function showAttendanceAction(
 
         <div class="student-result">
 
-            <div style="display:flex;justify-content:center;margin-bottom:10px;">
-                <img
-                    src="${escapeAttribute(getStoragePublicUrl(getStudentPhotoPath(student.id), visionPhotoCacheBust))}"
-                    alt="Student Photo"
-                    class="vision-profile-photo"
-                    onerror="this.style.display='none';"
-                >
+            <div class="result-avatar">
+                👨‍🎓
             </div>
 
 
