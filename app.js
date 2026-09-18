@@ -4590,7 +4590,7 @@ function openPickupForm(
                 >
 
                     <label>
-                        Unauthorized Name
+                        Unauthorized person Name
                     </label>
 
                     <input
@@ -4616,7 +4616,7 @@ function openPickupForm(
                 <input
                     id="pickupRelationshipInput"
                     type="text"
-                    placeholder="Mother, Father, Guardian, Aunt..."
+                    placeholder="Driver,In-Drive driver"
                     style="
                         width:100%;
                         padding:11px;
@@ -4662,14 +4662,6 @@ function openPickupForm(
 
                     <option value="">
                         Select option
-                    </option>
-
-                    <option value="Parent">
-                        Parent
-                    </option>
-
-                    <option value="Guardian">
-                        Guardian
                     </option>
 
                     <option value="Authorized Person">
